@@ -45,10 +45,10 @@ jobs:
       working-directory: ${{ env.BUILD_DIR }}
       run: cmake "$GITHUB_WORKSPACE" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=OFF -DBuildMVSDK=OFF -DUseInternalMiniZip=ON
 
-    - name: Build Tests
+    - name: Build All Tests
       working-directory: ${{ env.BUILD_DIR }}
       shell: bash
-      run: cmake --build . --target test_sv_world_sectors --parallel $(nproc)
+      run: cmake --build . --parallel $(nproc)
 
     - name: Run Tests
       working-directory: ${{ env.BUILD_DIR }}
@@ -80,10 +80,10 @@ jobs:
       working-directory: ${{ env.BUILD_DIR }}
       run: cmake "$GITHUB_WORKSPACE" -A x64 -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=OFF -DBuildMVSDK=OFF -DUseInternalMiniZip=ON
 
-    - name: Build Tests
+    - name: Build All Tests
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
-      run: cmake --build . --target test_sv_world_sectors --config ${{ matrix.build_type }} --parallel
+      run: cmake --build . --config ${{ matrix.build_type }} --parallel
 
     - name: Run Tests
       working-directory: ${{ env.BUILD_DIR }}
