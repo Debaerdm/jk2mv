@@ -1,4 +1,4 @@
-// sv_snapshot_sender.h -- Snapshot network transmission
+// sv_snapshot_sender.h -- Message sending and rate limiting
 // Extracted from sv_snapshot.cpp as part of aggressive server refactoring
 
 #ifndef SV_SNAPSHOT_SENDER_H
@@ -13,6 +13,7 @@ to take to clear, based on the current rate
 ====================
 */
 #define	HEADER_RATE_BYTES	48		// include our header, IP header, and some overhead
+
 static int SV_RateMsec( client_t *client, int messageSize ) {
 	int		rate = SV_ClientRate( client );
 	int		rateMsec;
