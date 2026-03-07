@@ -494,6 +494,26 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	re.EndFrame();
 }
 
+static void SCR_DrawStereoFields(void)
+{
+	if ( cls.glconfig.stereoEnabled ) {
+		SCR_DrawScreenField( STEREO_LEFT );
+		SCR_DrawScreenField( STEREO_RIGHT );
+		return;
+	}
+
+	SCR_DrawScreenField( STEREO_CENTER );
+}
+
+static void SCR_SwapScreenBuffers(void)
+{
+	if ( com_speeds->integer ) {
+		re.SwapBuffers( &time_frontend, &time_backend );
+	} else {
+		re.SwapBuffers( NULL, NULL );
+	}
+}
+
 /*
 ==================
 SCR_UpdateScreen
@@ -516,21 +536,11 @@ void SCR_UpdateScreen( void ) {
 
 	CL_UpdateRefConfig( );
 
-	// if running in stereo, we need to draw the frame twice
-	if ( cls.glconfig.stereoEnabled ) {
-		SCR_DrawScreenField( STEREO_LEFT );
-		SCR_DrawScreenField( STEREO_RIGHT );
-	} else {
-		SCR_DrawScreenField( STEREO_CENTER );
-	}
+	SCR_DrawStereoFields();
 
 	CL_TakeVideoFrame();
 
-	if ( com_speeds->integer ) {
-		re.SwapBuffers( &time_frontend, &time_backend );
-	} else {
-		re.SwapBuffers( NULL, NULL );
-	}
+	SCR_SwapScreenBuffers();
 
 	recursive = 0;
 }
