@@ -28,6 +28,25 @@ static const conChar_t CON_BLANK = { { ColorIndex(COLOR_WHITE), CON_BLANK_CHAR }
 
 vec4_t	console_color = {1.0, 1.0, 1.0, 1.0};
 
+static void Con_BeginMessageMode(qboolean teamChat, int widthInChars)
+{
+	chat_team = teamChat;
+	Field_Clear(&chatField);
+	chatField.widthInChars = widthInChars;
+	cls.keyCatchers ^= KEYCATCH_MESSAGE;
+}
+
+static qboolean Con_SetMessageTarget(int playerNum)
+{
+	if (playerNum < 0 || playerNum >= MAX_CLIENTS) {
+		chat_playerNum = -1;
+		return qfalse;
+	}
+
+	chat_playerNum = playerNum;
+	return qtrue;
+}
+
 /*
 ================
 Con_ToggleConsole_f
@@ -53,11 +72,7 @@ Con_MessageMode_f
 */
 void Con_MessageMode_f (void) {	//yell
 	chat_playerNum = -1;
-	chat_team = qfalse;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 30;
-
-	cls.keyCatchers ^= KEYCATCH_MESSAGE;
+	Con_BeginMessageMode(qfalse, 30);
 }
 
 /*
@@ -67,10 +82,7 @@ Con_MessageMode2_f
 */
 void Con_MessageMode2_f (void) {	//team chat
 	chat_playerNum = -1;
-	chat_team = qtrue;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 25;
-	cls.keyCatchers ^= KEYCATCH_MESSAGE;
+	Con_BeginMessageMode(qtrue, 25);
 }
 
 /*
@@ -79,15 +91,11 @@ Con_MessageMode3_f
 ================
 */
 void Con_MessageMode3_f (void) {		//target chat
-	chat_playerNum = VM_Call( cgvm, CG_CROSSHAIR_PLAYER );
-	if ( chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS ) {
-		chat_playerNum = -1;
+	if (!Con_SetMessageTarget(VM_Call(cgvm, CG_CROSSHAIR_PLAYER))) {
 		return;
 	}
-	chat_team = qfalse;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 30;
-	cls.keyCatchers ^= KEYCATCH_MESSAGE;
+
+	Con_BeginMessageMode(qfalse, 30);
 }
 
 /*
@@ -96,15 +104,11 @@ Con_MessageMode4_f
 ================
 */
 void Con_MessageMode4_f (void) {	//attacker
-	chat_playerNum = VM_Call( cgvm, CG_LAST_ATTACKER );
-	if ( chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS ) {
-		chat_playerNum = -1;
+	if (!Con_SetMessageTarget(VM_Call(cgvm, CG_LAST_ATTACKER))) {
 		return;
 	}
-	chat_team = qfalse;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 30;
-	cls.keyCatchers ^= KEYCATCH_MESSAGE;
+
+	Con_BeginMessageMode(qfalse, 30);
 }
 
 /*

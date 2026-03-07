@@ -13,6 +13,40 @@ cvar_t		*cl_graphheight;
 cvar_t		*cl_graphscale;
 cvar_t		*cl_graphshift;
 
+static qboolean SCR_IsColorCode(const char *s)
+{
+	return Q_IsColorString(s) || (MV_USE102COLOR && Q_IsColorString_1_02(s));
+}
+
+static qboolean SCR_ShouldSkipCharDraw(int ch, float y, float minY)
+{
+	return ch == ' ' || y < minY;
+}
+
+static void SCR_SetStringColorFromCode(vec4_t color, const float *setColor, const char *s)
+{
+	Com_Memcpy(color, g_color_table[ColorIndex(*(s + 1))], sizeof(vec4_t));
+	color[3] = setColor[3];
+	re.SetColor(color);
+}
+
+static void SCR_DrawDefaultConnectBackground(void)
+{
+	qhandle_t hShader = re.RegisterShader("menu/art/unknownmap");
+	re.DrawStretchPic(0, 0, 640, 480, 0, 0, 1, 1, hShader, 1, 1);
+}
+
+static void SCR_RefreshUI(void)
+{
+	VM_Call(uivm, UI_REFRESH, cls.realtime);
+}
+
+static void SCR_DrawConnectScreen(qboolean overlay)
+{
+	SCR_RefreshUI();
+	VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, overlay);
+}
+
 /*
 ================
 SCR_DrawNamedPic
@@ -70,11 +104,7 @@ static void SCR_DrawChar( int x, int y, float size, int ch ) {
 
 	ch &= 255;
 
-	if ( ch == ' ' ) {
-		return;
-	}
-
-	if ( y < -size ) {
+	if ( SCR_ShouldSkipCharDraw( ch, y, -size ) ) {
 		return;
 	}
 
@@ -110,11 +140,7 @@ void SCR_DrawSmallChar( int x, int y, int ch ) {
 
 	ch &= 255;
 
-	if ( ch == ' ' ) {
-		return;
-	}
-
-	if ( y < -con.charHeight ) {
+	if ( SCR_ShouldSkipCharDraw( ch, y, -con.charHeight ) ) {
 		return;
 	}
 
@@ -156,8 +182,6 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	const char	*s;
 	int			xx;
 
-	const bool use102color = MV_USE102COLOR;
-
 	// draw the drop shadow
 	color[0] = color[1] = color[2] = 0;
 	color[3] = setColor[3];
@@ -165,7 +189,7 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	s = string;
 	xx = x;
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			s += 2;
 			continue;
 		}
@@ -180,11 +204,9 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	xx = x;
 	re.SetColor( setColor );
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			if ( !forceColor ) {
-				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
-				color[3] = setColor[3];
-				re.SetColor( color );
+				SCR_SetStringColorFromCode( color, setColor, s );
 			}
 			s += 2;
 			continue;
@@ -225,18 +247,14 @@ void SCR_DrawSmallStringExt( int x, int y, const char *string, const vec4_t setC
 	const char	*s;
 	int			xx;
 
-	const bool use102color = MV_USE102COLOR;
-
 	// draw the colored text
 	s = string;
 	xx = x;
 	re.SetColor( setColor );
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			if ( !forceColor ) {
-				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
-				color[3] = setColor[3];
-				re.SetColor( color );
+				SCR_SetStringColorFromCode( color, setColor, s );
 			}
 			s += 2;
 			continue;
@@ -257,10 +275,8 @@ static int SCR_Strlen( const char *str ) {
 	const char *s = str;
 	int count = 0;
 
-	const bool use102color = MV_USE102COLOR;
-
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			s += 2;
 		} else {
 			count++;
@@ -409,6 +425,11 @@ void MV_DrawConnectingInfo( void )
 	SCR_DrawStringExt((int)(320 - SCR_Strlen(txtbuf) * 3.5), yPos + (line * 1), 7, txtbuf, g_color_table[7], qfalse);
 }
 
+static qboolean SCR_ShouldSkipBackend(void)
+{
+	return (qboolean)(com_minimized->integer && !CL_VideoRecording());
+}
+
 /*
 ==================
 SCR_DrawScreenField
@@ -417,9 +438,7 @@ This will be called twice if rendering in stereo mode
 ==================
 */
 void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
-	qboolean skipBackend = (qboolean)(com_minimized->integer && !CL_VideoRecording());
-
-	re.BeginFrame( stereoFrame, skipBackend );
+	re.BeginFrame( stereoFrame, SCR_ShouldSkipBackend() );
 
 	if ( !uivm ) {
 		Com_DPrintf("draw screen without UI loaded\n");
@@ -444,15 +463,10 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		case CA_CONNECTING:
 		case CA_CHALLENGING:
 		case CA_CONNECTED:
-			{
-				// workaround for ingame UI not loading connect.menu
-				qhandle_t hShader = re.RegisterShader("menu/art/unknownmap");
-				re.DrawStretchPic(0, 0, 640, 480, 0, 0, 1, 1, hShader, 1, 1);
-			}
+			// workaround for ingame UI not loading connect.menu
+			SCR_DrawDefaultConnectBackground();
 			// connecting clients will only show the connection dialog
-			// refresh to update the time
-			VM_Call(uivm, UI_REFRESH, cls.realtime);
-			VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, qfalse);
+			SCR_DrawConnectScreen(qfalse);
 			break;
 		case CA_LOADING:
 		case CA_PRIMED:
@@ -463,9 +477,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 
 			// also draw the connection information, so it doesn't
 			// flash away too briefly on local or lan games
-			// refresh to update the time
-			VM_Call(uivm, UI_REFRESH, cls.realtime);
-			VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, qtrue);
+			SCR_DrawConnectScreen(qtrue);
 			break;
 		case CA_ACTIVE:
 			CL_CGameRendering( stereoFrame );
@@ -476,18 +488,43 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 
 	// the menu draws next
 	if ( cls.keyCatchers & KEYCATCH_UI && uivm ) {
-		VM_Call(uivm, UI_REFRESH, cls.realtime);
+		SCR_RefreshUI();
 	}
 
 	// console draws next
 	Con_DrawConsole ();
 
 	// debug graph can be drawn on top of anything
-	if ( cl_debuggraph->integer || cl_timegraph->integer || cl_debugMove->integer ) {
+	if ( SCR_ShouldDrawDebugGraph() ) {
 		SCR_DrawDebugGraph ();
 	}
 
 	re.EndFrame();
+}
+
+static void SCR_DrawStereoFields(void)
+{
+	if ( cls.glconfig.stereoEnabled ) {
+		SCR_DrawScreenField( STEREO_LEFT );
+		SCR_DrawScreenField( STEREO_RIGHT );
+		return;
+	}
+
+	SCR_DrawScreenField( STEREO_CENTER );
+}
+
+static void SCR_SwapScreenBuffers(void)
+{
+	if ( com_speeds->integer ) {
+		re.SwapBuffers( &time_frontend, &time_backend );
+	} else {
+		re.SwapBuffers( NULL, NULL );
+	}
+}
+
+static qboolean SCR_ShouldDrawDebugGraph(void)
+{
+	return cl_debuggraph->integer || cl_timegraph->integer || cl_debugMove->integer;
 }
 
 /*
@@ -512,21 +549,11 @@ void SCR_UpdateScreen( void ) {
 
 	CL_UpdateRefConfig( );
 
-	// if running in stereo, we need to draw the frame twice
-	if ( cls.glconfig.stereoEnabled ) {
-		SCR_DrawScreenField( STEREO_LEFT );
-		SCR_DrawScreenField( STEREO_RIGHT );
-	} else {
-		SCR_DrawScreenField( STEREO_CENTER );
-	}
+	SCR_DrawStereoFields();
 
 	CL_TakeVideoFrame();
 
-	if ( com_speeds->integer ) {
-		re.SwapBuffers( &time_frontend, &time_backend );
-	} else {
-		re.SwapBuffers( NULL, NULL );
-	}
+	SCR_SwapScreenBuffers();
 
 	recursive = 0;
 }
@@ -560,12 +587,12 @@ void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 //	scr_font = string("medium");
 
 	// RWL - commented out
-//	width = viddef.width / 8;	// rjr hardcoded yuckiness
+/*
+	width = viddef.width / 8;	// rjr hardcoded yuckiness
 	width = 640 / 8;	// rjr hardcoded yuckiness
 	width -= 4;
 
 	// RWL - commented out
-/*
 	if (cl.frame.playerstate.remote_type != REMOTE_TYPE_LETTERBOX)
 	{
 		width -= 30;

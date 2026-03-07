@@ -259,6 +259,23 @@ endif()
 set(MVGLOBALIncludeDirs ${MVGLOBALIncludeDirs} ${CMAKE_BINARY_DIR})
 configure_file("mv_setup.h.in" "${CMAKE_BINARY_DIR}/mv_setup.h" @ONLY)
 
+function(mv_apply_common_target_definitions Target)
+	target_compile_definitions(${Target}
+		PRIVATE ${GlobalDefines}
+		PRIVATE $<$<CONFIG:Debug>:${DebugDefines}>
+		PRIVATE $<$<CONFIG:Release>:${ReleaseDefines}>
+		PRIVATE $<$<CONFIG:RelWithDebInfo>:${ReleaseDefines}>
+	)
+
+	if(ARGN)
+		target_compile_definitions(${Target} PRIVATE ${ARGN})
+	endif()
+endfunction()
+
+function(mv_apply_target_include_dirs Target)
+	set_target_properties(${Target} PROPERTIES INCLUDE_DIRECTORIES "${ARGN}")
+endfunction()
+
 # jk2mvmp
 if (BuildMVMP)
 	set(MVMPFiles ${MVMPDEDFiles})
@@ -477,15 +494,10 @@ if (BuildMVMP)
 		)
 	endif()
 
-	target_compile_definitions(${MVMP}
-		PRIVATE ${GlobalDefines}
-		PRIVATE $<$<CONFIG:Debug>:${DebugDefines}>
-		PRIVATE $<$<CONFIG:Release>:${ReleaseDefines}>
-		PRIVATE $<$<CONFIG:RelWithDebInfo>:${ReleaseDefines}>
-	)
+	mv_apply_common_target_definitions(${MVMP})
 
 	set_target_properties(${MVMP} PROPERTIES CXX_STANDARD 11)
-	set_target_properties(${MVMP} PROPERTIES INCLUDE_DIRECTORIES "${MVMPIncludeDirs}")
+	mv_apply_target_include_dirs(${MVMP} ${MVMPIncludeDirs})
 	target_link_libraries(${MVMP} ${MVMPLibraries} ${JPEG_LIBRARIES} ${PNG_LIBRARIES} ${MINIZIP_LIBRARIES} ${ZLIB_LIBRARIES})
 	set_target_properties(${MVMP} PROPERTIES PROJECT_LABEL "jk2mvmp")
 
@@ -570,15 +582,10 @@ if (BuildMVMP)
 
 	set_target_properties(${MVMENU} PROPERTIES PREFIX "") # remove "lib" prefix for library files
 
-	target_compile_definitions(${MVMENU}
-		PRIVATE ${GlobalDefines} ${MVMENUDefines}
-		PRIVATE $<$<CONFIG:Debug>:${DebugDefines}>
-		PRIVATE $<$<CONFIG:Release>:${ReleaseDefines}>
-		PRIVATE $<$<CONFIG:RelWithDebInfo>:${ReleaseDefines}>
-	)
+	mv_apply_common_target_definitions(${MVMENU} ${MVMENUDefines})
 
 	set_target_properties(${MVMENU} PROPERTIES C_STANDARD 90)
-	set_target_properties(${MVMENU} PROPERTIES INCLUDE_DIRECTORIES "${MVMENUIncludeDirs}")
+	mv_apply_target_include_dirs(${MVMENU} ${MVMENUIncludeDirs})
 	set_target_properties(${MVMENU} PROPERTIES PROJECT_LABEL "jk2mvmenu")
 
 	if(BuildPortableVersion)
@@ -621,15 +628,10 @@ if (BuildMVDED)
 	# Project
 	add_executable(${MVDED} ${MVDEDFiles})
 	
-	target_compile_definitions(${MVDED}
-		PRIVATE ${GlobalDefines} ${MVDEDDefines}
-		PRIVATE $<$<CONFIG:Debug>:${DebugDefines}>
-		PRIVATE $<$<CONFIG:Release>:${ReleaseDefines}>
-		PRIVATE $<$<CONFIG:RelWithDebInfo>:${ReleaseDefines}>
-	)
+	mv_apply_common_target_definitions(${MVDED} ${MVDEDDefines})
 
 	set_target_properties(${MVDED} PROPERTIES CXX_STANDARD 11)
-	set_target_properties(${MVDED} PROPERTIES INCLUDE_DIRECTORIES "${MVDEDIncludeDirs}")
+	mv_apply_target_include_dirs(${MVDED} ${MVDEDIncludeDirs})
 	target_link_libraries(${MVDED} ${MVDEDLibraries} ${MINIZIP_LIBRARIES} ${ZLIB_LIBRARIES})
 	set_target_properties(${MVDED} PROPERTIES PROJECT_LABEL "jk2mvded")
 

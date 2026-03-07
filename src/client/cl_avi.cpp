@@ -167,6 +167,47 @@ static ID_INLINE void END_CHUNK( void )
 
 /*
   ===============
+  CL_AVIIndexFileName
+  ===============
+*/
+static const char *CL_AVIIndexFileName( const char *fileName )
+{
+	return va( "%s" INDEX_FILE_EXTENSION, fileName );
+}
+
+/*
+  ===============
+  CL_WriteAVIIndexEntry
+  ===============
+*/
+static void CL_WriteAVIIndexEntry( const char *chunkId, int flags, int chunkOffset, int size )
+{
+	bufIndex = 0;
+	WRITE_STRING( chunkId );
+	WRITE_4BYTES( flags );
+	WRITE_4BYTES( chunkOffset );
+	WRITE_4BYTES( size );
+	SafeFS_Write( buffer, 16, afd.idxF );
+
+	afd.numIndices++;
+}
+
+/*
+  ===============
+  CL_CaptureAVIFrame
+  ===============
+*/
+static int CL_CaptureAVIFrame( void )
+{
+	if ( afd.motionJpeg ) {
+		return re.CaptureFrameJPEG( afd.frameBuffer, afd.frameBufferSize, cl_aviMotionJpegQuality->integer );
+	}
+
+	return re.CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, AVI_LINE_PADDING );
+}
+
+/*
+  ===============
   CL_WriteAVIHeader
   ===============
 */
@@ -341,8 +382,7 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 	if( ( afd.f = FS_FOpenFileWrite( fileName ) ) <= 0 )
 		return qfalse;
 
-	if( ( afd.idxF = FS_FOpenFileWrite(
-				va( "%s" INDEX_FILE_EXTENSION, fileName ) ) ) <= 0 )
+	if( ( afd.idxF = FS_FOpenFileWrite( CL_AVIIndexFileName( fileName ) ) ) <= 0 )
 	{
 		FS_FCloseFile( afd.f );
 		return qfalse;
@@ -490,15 +530,7 @@ void CL_WriteAVIVideoFrame( const byte *imageBuffer, int size )
 	if( size > afd.maxRecordSize )
 		afd.maxRecordSize = size;
 
-	// Index
-	bufIndex = 0;
-	WRITE_STRING( "00dc" );           //dwIdentifier
-	WRITE_4BYTES( 0x00000010 );       //dwFlags (all frames are KeyFrames)
-	WRITE_4BYTES( chunkOffset );      //dwOffset
-	WRITE_4BYTES( size );             //dwLength
-	SafeFS_Write( buffer, 16, afd.idxF );
-
-	afd.numIndices++;
+	CL_WriteAVIIndexEntry( "00dc", 0x00000010, chunkOffset, size );
 }
 
 #define PCM_BUFFER_SIZE 44100
@@ -555,15 +587,7 @@ void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size )
 		afd.moviSize += ( chunkSize + paddingSize );
 		afd.a.totalBytes += bytesInBuffer;
 
-		// Index
-		bufIndex = 0;
-		WRITE_STRING( "01wb" );           //dwIdentifier
-		WRITE_4BYTES( 0 );                //dwFlags
-		WRITE_4BYTES( chunkOffset );      //dwOffset
-		WRITE_4BYTES( bytesInBuffer );    //dwLength
-		SafeFS_Write( buffer, 16, afd.idxF );
-
-		afd.numIndices++;
+		CL_WriteAVIIndexEntry( "01wb", 0, chunkOffset, bytesInBuffer );
 
 		bytesInBuffer = 0;
 	}
@@ -587,12 +611,7 @@ void CL_TakeVideoFrame( void )
 		Com_Error( ERR_DROP, "ERROR: Renderer output dimensions changed while capturing AVI video" );
 	}
 
-	if ( afd.motionJpeg ) {
-		size = re.CaptureFrameJPEG( afd.frameBuffer, afd.frameBufferSize, cl_aviMotionJpegQuality->integer );
-	} else {
-		size = re.CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, AVI_LINE_PADDING );
-	}
-
+	size = CL_CaptureAVIFrame();
 	CL_WriteAVIVideoFrame( afd.frameBuffer, size );
 }
 
@@ -607,7 +626,7 @@ qboolean CL_CloseAVI( void )
 {
 	int indexRemainder;
 	int indexSize = afd.numIndices * 16;
-	const char *idxFileName = va( "%s" INDEX_FILE_EXTENSION, afd.fileName );
+	const char *idxFileName = CL_AVIIndexFileName( afd.fileName );
 
 	// AVI file isn't open
 	if( !afd.fileOpen )
