@@ -108,16 +108,13 @@ void SV_DirectConnect( netadr_t from ) {
 
 		challengeptr = &svs.challenges[i];
 		if (challengeptr->wasrefused) {
-			// Return silently, so that error messages written by the server keep being displayed.
 			return;
 		}
 
 		ping = svs.time - svs.challenges[i].pingTime;
 
-		// never reject a LAN client based on ping
 		if ( !Sys_IsLANAddress( from ) ) {
 			if ( ( sv_minPing->value && ping < sv_minPing->value ) && !svs.hibernation.enabled ) {
-				// don't let them keep trying until they get a big delay
 				NET_OutOfBandPrint( NS_SERVER, from, "print\nServer is for high pings only\n" );
 				Com_DPrintf ("Client %i rejected on a too low ping\n", i);
 				challengeptr->wasrefused = qtrue;
@@ -149,30 +146,16 @@ void SV_DirectConnect( netadr_t from ) {
 			|| from.port == cl->netchan.remoteAddress.port ) ) {
 			Com_Printf ("%s:reconnect\n", NET_AdrToString (from));
 			newcl = cl;
-			// disconnect the client from the game first so any flags the
-			// player might have are dropped
 			VM_Call( gvm, GAME_CLIENT_DISCONNECT, newcl - svs.clients );
-			//
 			goto gotnewcl;
 		}
 	}
 
 	// find a client slot
-	// if "sv_privateClients" is set > 0, then that number
-	// of client slots will be reserved for connections that
-	// have "password" set to the value of "sv_privatePassword"
-	// Info requests will report the maxclients as if the private
-	// slots didn't exist, to prevent people from trying to connect
-	// to a full server.
-	// This is to allow us to reserve a couple slots here on our
-	// servers so we can play without having to kick people.
-
-	// check for privateClient password
 	password = Info_ValueForKey( userinfo, "password" );
 	if ( *password && !strcmp( password, sv_privatePassword->string ) ) {
 		startIndex = 0;
 	} else {
-		// skip past the reserved slots
 		startIndex = sv_privateClients->integer;
 	}
 
@@ -194,7 +177,6 @@ void SV_DirectConnect( netadr_t from ) {
 					count++;
 				}
 			}
-			// if they're all bots
 			if (count >= sv_maxclients->integer - startIndex) {
 				SV_DropClient(&svs.clients[sv_maxclients->integer - 1], "only bots on server");
 				newcl = &svs.clients[sv_maxclients->integer - 1];
@@ -212,36 +194,25 @@ void SV_DirectConnect( netadr_t from ) {
 		}
 	}
 
-	// we got a newcl, so reset the reliableSequence and reliableAcknowledge
 	cl->reliableAcknowledge = 0;
 	cl->reliableSequence = 0;
 
 gotnewcl:
-	// build a new connection
-	// accept the new client
-	// this is the only place a client_t is ever initialized
 	*newcl = temp;
 	clientNum = newcl - svs.clients;
 	ent = SV_GentityNum( clientNum );
 	newcl->gentity = ent;
-
-	// save the challenge
 	newcl->challenge = challenge;
 
-	// save the address
 	Netchan_Setup (NS_SERVER, &newcl->netchan , from, qport);
 	NET_HTTP_AllowClient( clientNum, from );
 
-	// save the userinfo
 	Q_strncpyz( newcl->userinfo, userinfo, sizeof(newcl->userinfo) );
 	SV_UserinfoChanged(newcl);
 
-	// get the game a chance to reject this connection or modify the userinfo
-	denied = (const char *)VM_Call( gvm, GAME_CLIENT_CONNECT, clientNum, qtrue, qfalse ); // firstTime = qtrue
+	denied = (const char *)VM_Call( gvm, GAME_CLIENT_CONNECT, clientNum, qtrue, qfalse );
 	if ( denied ) {
-		// we can't just use VM_ArgPtr, because that is only valid inside a VM_Call
 		denied = (const char *)VM_ExplicitArgString( gvm, (intptr_t)denied );
-
 		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", denied );
 		Com_DPrintf ("Game rejected a connection: %s.\n", denied);
 		return;
@@ -254,7 +225,6 @@ gotnewcl:
 
 	SV_UserinfoChanged( newcl );
 
-	// send the connect packet to the client
 	NET_OutOfBandPrint( NS_SERVER, from, "connectResponse" );
 
 	Com_DPrintf( "Going from CS_FREE to CS_CONNECTED for %s\n", newcl->name );
@@ -263,17 +233,10 @@ gotnewcl:
 	newcl->nextSnapshotTime = svs.time;
 	newcl->lastPacketTime = svs.time;
 	newcl->lastConnectTime = svs.time;
-
-	// when we receive the first packet from the client, we will
-	// notice that it is from a different serverid and that the
-	// gamestate message was not just sent, forcing a retransmit
 	newcl->gamestateMessageNum = -1;
+	newcl->lastUserInfoChange = 0;
+	newcl->lastUserInfoCount = 0;
 
-	newcl->lastUserInfoChange = 0; //reset the delay
-	newcl->lastUserInfoCount = 0; //reset the count
-
-	// if this was the first client on the server, or the last client
-	// the server can hold, send a heartbeat to the master.
 	count = 0;
 	for (i=0,cl=svs.clients ; i < sv_maxclients->integer ; i++,cl++) {
 		if ( svs.clients[i].state >= CS_CONNECTED ) {
