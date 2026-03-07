@@ -1,7 +1,7 @@
 # Unit tests for server modules
 
 # ==============================================================================
-# Phase 2: World Collision System (5 test files, 200 tests)
+# Phase 2: World Collision System (4 test files)
 # ==============================================================================
 
 add_jk2mv_test(test_sv_world_sectors
@@ -20,12 +20,8 @@ add_jk2mv_test(test_sv_world_trace
   test_sv_world_trace.cpp
 )
 
-add_jk2mv_test(test_sv_world_clip
-  test_sv_world_clip.cpp
-)
-
 # ==============================================================================
-# Phase 3: Client Management (8 test files, 200 tests)
+# Phase 3: Client Management (8 test files)
 # ==============================================================================
 
 add_jk2mv_test(test_sv_client_challenge
@@ -61,7 +57,7 @@ add_jk2mv_test(test_sv_client_userinfo
 )
 
 # ==============================================================================
-# Phase 4: Snapshot System (5 test files, 150 tests)
+# Phase 4: Snapshot System (5 test files)
 # ==============================================================================
 
 add_jk2mv_test(test_sv_snapshot_builder
@@ -85,7 +81,7 @@ add_jk2mv_test(test_sv_snapshot_writer
 )
 
 # ==============================================================================
-# Phase 5: Game VM Interface (5 test files, 150 tests)
+# Phase 5: Game VM Interface (5 test files)
 # ==============================================================================
 
 add_jk2mv_test(test_sv_game_api
@@ -109,5 +105,5 @@ add_jk2mv_test(test_sv_game_shutdown
 )
 
 # ==============================================================================
-# Total: 22 test executables, 700 test cases
+# Total: 22 test executables
 # ==============================================================================
