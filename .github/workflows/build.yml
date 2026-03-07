@@ -45,12 +45,17 @@ jobs:
     - name: Configure CMake
       shell: bash
       working-directory: ${{ env.BUILD_DIR }}
-      run: cmake "$GITHUB_WORKSPACE" -A ${{ matrix.arch }} -DBuildPortableVersion=OFF
+      run: cmake "$GITHUB_WORKSPACE" -A ${{ matrix.arch }} -DBuildPortableVersion=OFF -DBuildTests=ON
 
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
+
+    - name: Run Tests
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: cmd
+      run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
     #- uses: actions/upload-artifact@v4
     #  with:
@@ -110,12 +115,18 @@ jobs:
     - name: Configure CMake
       shell: bash
       working-directory: ${{ env.BUILD_DIR }}
-      run: cmake "$GITHUB_WORKSPACE" -A ${{ matrix.arch }} -DBuildPortableVersion=ON
+      run: cmake "$GITHUB_WORKSPACE" -A ${{ matrix.arch }} -DBuildPortableVersion=ON -DBuildTests=ON
 
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
+
+    - name: Run Tests
+      if: ${{ matrix.build_type == 'Debug' }}
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: cmd
+      run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
     #- uses: actions/upload-artifact@v4
     #  with:
@@ -170,8 +181,8 @@ jobs:
     - name: Install WinXP Toolset
       shell: powershell
       run: |
-        Set-Location "C:\Program Files (x86)\Microsoft Visual Studio\Installer\"
-        Start-Process -FilePath vs_installer.exe -ArgumentList "modify", "--installPath", "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise", "--add Microsoft.VisualStudio.Component.WinXP", "--quiet", "--norestart", "--nocache" -Wait -PassThru -WindowStyle Hidden
+        Set-Location "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\"
+        Start-Process -FilePath vs_installer.exe -ArgumentList "modify", "--installPath", "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise", "--add Microsoft.VisualStudio.Component.WinXP", "--quiet", "--norestart", "--nocache" -Wait -PassThru -WindowStyle Hidden
 
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v2
@@ -182,12 +193,18 @@ jobs:
     - name: Configure CMake
       shell: bash
       working-directory: ${{ env.BUILD_DIR }}
-      run: cmake "$GITHUB_WORKSPACE" -A ${{ matrix.arch }} -T v141_xp -DBuildPortableVersion=ON
+      run: cmake "$GITHUB_WORKSPACE" -A ${{ matrix.arch }} -T v141_xp -DBuildPortableVersion=ON -DBuildTests=ON
 
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
+
+    - name: Run Tests
+      if: ${{ matrix.build_type == 'Debug' }}
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: cmd
+      run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
     #- uses: actions/upload-artifact@v4
     #  with:
@@ -252,18 +269,24 @@ jobs:
 
     - name: Create Build Environment
       run: |
-        brew install sdl2
+        brew install sdl2 googletest
         mkdir -p "${{ env.BUILD_DIR }}"
 
     - name: Configure CMake
       shell: bash
       working-directory: ${{ env.BUILD_DIR }}
-      run: cmake -G "Unix Makefiles" -DUseInternalLibs=ON ${{ steps.cmakeargs.outputs.PORTABLE }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} "$GITHUB_WORKSPACE"
+      run: cmake -G "Unix Makefiles" -DUseInternalLibs=ON ${{ steps.cmakeargs.outputs.PORTABLE }} -DBuildTests=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} "$GITHUB_WORKSPACE"
 
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: bash
       run: make
+
+    - name: Run Tests
+      if: ${{ matrix.build_type == 'Debug' }}
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: bash
+      run: ctest --output-on-failure --verbose
 
     - name: Package
       working-directory: ${{ env.BUILD_DIR }}
@@ -344,16 +367,21 @@ jobs:
         podman pull docker.io/${{ matrix.container_image }}
         podman run --name buildenv -v ${{ github.workspace }}:/jk2mv -td docker.io/${{ matrix.container_image }} /bin/bash
         podman exec buildenv apt-get update
-        podman exec buildenv apt-get install -y git zip wget libfuse2 build-essential libsdl2-dev libgl1-mesa-dev libopenal-dev libjpeg-dev libpng-dev libminizip-dev cmake rpm
+        podman exec buildenv apt-get install -y git zip wget libfuse2 build-essential libsdl2-dev libgl1-mesa-dev libopenal-dev libjpeg-dev libpng-dev libminizip-dev cmake rpm libgtest-dev
         mkdir -p "${{ env.BUILD_DIR }}"
 
     - name: Configure CMake
       shell: bash
-      run: podman exec -w /jk2mv/build/actions buildenv cmake -G "Unix Makefiles" ${{ steps.parameters.outputs.OPTIONS }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} /jk2mv
+      run: podman exec -w /jk2mv/build/actions buildenv cmake -G "Unix Makefiles" ${{ steps.parameters.outputs.OPTIONS }} -DBuildTests=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} /jk2mv
 
     - name: Build
       shell: bash
       run: podman exec -w /jk2mv/build/actions buildenv make
+
+    - name: Run Tests
+      if: ${{ matrix.build_type == 'Debug' }}
+      shell: bash
+      run: podman exec -w /jk2mv/build/actions buildenv ctest --output-on-failure --verbose
 
     - name: Package
       shell: bash
