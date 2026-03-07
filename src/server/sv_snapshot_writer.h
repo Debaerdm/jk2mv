@@ -1,4 +1,4 @@
-// sv_snapshot_writer.h -- Snapshot serialization to network messages
+// sv_snapshot_writer.h -- Snapshot writing and serialization
 // Extracted from sv_snapshot.cpp as part of aggressive server refactoring
 
 #ifndef SV_SNAPSHOT_WRITER_H

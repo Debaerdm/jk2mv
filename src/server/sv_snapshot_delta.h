@@ -1,4 +1,4 @@
-// sv_snapshot_delta.h -- Delta encoding for entity snapshots
+// sv_snapshot_delta.h -- Delta encoding for entity states
 // Extracted from sv_snapshot.cpp as part of aggressive server refactoring
 
 #ifndef SV_SNAPSHOT_DELTA_H
