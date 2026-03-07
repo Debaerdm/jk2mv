@@ -53,7 +53,7 @@ jobs:
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} ALL_BUILD.vcxproj
 
     - name: Run Tests
-      working-directory: ${{ env.BUILD_DIR }}
+      working-directory: ${{ env.BUILD_DIR }}/tests
       shell: cmd
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
@@ -129,7 +129,7 @@ jobs:
 
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
-      working-directory: ${{ env.BUILD_DIR }}
+      working-directory: ${{ env.BUILD_DIR }}/tests
       shell: cmd
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
@@ -213,7 +213,7 @@ jobs:
 
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
-      working-directory: ${{ env.BUILD_DIR }}
+      working-directory: ${{ env.BUILD_DIR }}/tests
       shell: cmd
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
@@ -301,7 +301,7 @@ jobs:
 
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
-      working-directory: ${{ env.BUILD_DIR }}
+      working-directory: ${{ env.BUILD_DIR }}/tests
       shell: bash
       run: ctest --output-on-failure --verbose
 
@@ -398,7 +398,7 @@ jobs:
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
       shell: bash
-      run: podman exec -w /jk2mv/build/actions buildenv ctest --output-on-failure --verbose
+      run: podman exec -w /jk2mv/build/actions/tests buildenv ctest --output-on-failure --verbose
 
     - name: Package
       shell: bash
