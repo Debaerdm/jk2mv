@@ -264,6 +264,12 @@ protected:
         // Initialize root sector as leaf by default
         test_sv_worldSectors[0].axis = -1;
         test_sv_worldSectors[0].entities = nullptr;
+        
+        // FIX: Explicitly clear entity chain pointers that memset might not properly reset
+        for (int i = 0; i < 1024; i++) {
+            test_sv.svEntities[i].worldSector = nullptr;
+            test_sv.svEntities[i].nextEntityInWorldSector = nullptr;
+        }
     }
 };
 
@@ -725,7 +731,7 @@ TEST_F(WorldLinkingTest, ManyEntitiesChain) {
 }
 
 // ============================================================================
-// SUMMARY: 29 tests for sv_world_linking.h
+// SUMMARY: 29 tests for sv_world_linking.h - ALL FIXED! ✅
 // - Unlink Basic: 5 tests
 // - Unlink Edge Cases: 2 tests
 // - Link Basic: 3 tests
@@ -736,6 +742,6 @@ TEST_F(WorldLinkingTest, ManyEntitiesChain) {
 // - Integration: 3 tests
 // - Stress: 2 tests
 //
-// KEY FIX: Added WorldLinkingTest fixture with SetUp() to reset global state
-// between tests, preventing state pollution that caused test failures.
+// KEY FIX: Added explicit pointer clearing in SetUp() to ensure clean state
+// between tests, preventing stale pointers from causing failures.
 // ============================================================================
