@@ -1,4 +1,4 @@
-// sv_client_userinfo.h -- Userinfo validation with crash/exploit fixes
+// sv_client_userinfo.h -- Client userinfo validation
 // Extracted from sv_client.cpp as part of aggressive server refactoring
 
 #ifndef SV_CLIENT_USERINFO_H
@@ -20,16 +20,11 @@ void SV_UserinfoChanged( client_t *cl ) {
 	char		*val;
 	int			i;
 
-	// name for C code
 	Q_strncpyz( cl->name, Info_ValueForKey (cl->userinfo, "name"), sizeof(cl->name) );
 
-	// rate command
-
-	// if the client is on the same subnet as the server and we aren't running an
-	// internet public server, assume they don't need a rate choke
 	cl->rate = atoi( Info_ValueForKey(cl->userinfo, "rate") );
 	if ( Sys_IsLANAddress( cl->netchan.remoteAddress ) && com_dedicated->integer != 2 && cl->rate < 99999 ) {
-		cl->rate = 99999;	// lans should not rate limit
+		cl->rate = 99999;
 	}
 
 	val = Info_ValueForKey (cl->userinfo, "handicap");
@@ -43,7 +38,7 @@ void SV_UserinfoChanged( client_t *cl ) {
 	SV_ClientUpdateSnaps( cl );
 
 	if (mv_fixnamecrash->integer && !(sv.fixes & MVFIX_NAMECRASH)) {
-		char name[61], cleanedName[61]; // 60 because some mods increased this
+		char name[61], cleanedName[61];
 		Q_strncpyz(name, Info_ValueForKey(cl->userinfo, "name"), sizeof(name));
 		int count = 0;
 
@@ -51,17 +46,9 @@ void SV_UserinfoChanged( client_t *cl ) {
 			char ch = name[i];
 
 			if (isascii(ch) ||
-				ch == '\x0A' || // underscore cursor (console only)
-				ch == '\x0B' || // block cursor (console only)
-				ch == '\xB7' || // section sign (§)
-				ch == '\xB4' || // accute accent (´)
-				ch == '\xC4' || // A umlaut (Ä)
-				ch == '\xD6' || // O umlaut (Ö)
-				ch == '\xDC' || // U umlaut (Ü)
-				ch == '\xDF' || // sharp S (ß)
-				ch == '\xE4' || // a umlaut (ä)
-				ch == '\xF6' || // o umlaut (ö)
-				ch == '\xFC')   // u umlaut (ü)
+				ch == '\x0A' || ch == '\x0B' || ch == '\xB7' || ch == '\xB4' ||
+				ch == '\xC4' || ch == '\xD6' || ch == '\xDC' || ch == '\xDF' ||
+				ch == '\xE4' || ch == '\xF6' || ch == '\xFC')
 			{
 				cleanedName[count++] = ch;
 			}
@@ -71,7 +58,6 @@ void SV_UserinfoChanged( client_t *cl ) {
 		Info_SetValueForKey(cl->userinfo, "name", cleanedName);
 	}
 
-	// forcecrash fix
 	if (mv_fixforcecrash->integer && !(sv.fixes & MVFIX_FORCECRASH)) {
 		char forcePowers[30];
 		Q_strncpyz(forcePowers, Info_ValueForKey(cl->userinfo, "forcepowers"), sizeof(forcePowers));
@@ -122,7 +108,6 @@ void SV_UserinfoChanged( client_t *cl ) {
 		}
 	}
 
-	// serverside galaking fix
 	if (mv_fixgalaking->integer && !(sv.fixes & MVFIX_GALAKING)) {
 		char model[80];
 
@@ -147,7 +132,6 @@ void SV_UserinfoChanged( client_t *cl ) {
 		}
 	}
 
-	// serverside broken models fix (head only model)
 	if (mv_fixbrokenmodels->integer && !(sv.fixes & MVFIX_BROKENMODEL)) {
 		char model[80];
 
@@ -162,9 +146,6 @@ void SV_UserinfoChanged( client_t *cl ) {
 		}
 	}
 	
-	// TTimo
-	// maintain the IP information
-	// the banning code relies on this being consistently present
 	if( NET_IsLocalAddress(cl->netchan.remoteAddress) )
 		ip = "localhost";
 	else
@@ -183,7 +164,6 @@ static void SV_UpdateUserinfo_f( client_t *cl ) {
 	char info[MAX_INFO_STRING];
 	char *arg = Cmd_Argv(1);
 
-	// Stop random empty /userinfo calls without hurting anything
 	if (!arg || !*arg) {
 		return;
 	}
@@ -205,10 +185,8 @@ static void SV_UpdateUserinfo_f( client_t *cl ) {
 	Q_strncpyz( cl->userinfo, arg, sizeof(cl->userinfo) );
 	SV_UserinfoChanged( cl );
 
-	// call prog code to allow overrides
 	VM_Call( gvm, GAME_CLIENT_USERINFO_CHANGED, cl - svs.clients );
 
-	// get the name out of the game and set it in the engine
 	SV_GetConfigstring(CS_PLAYERS + (cl - svs.clients), info, sizeof(info));
 	Info_SetValueForKey(cl->userinfo, "name", Info_ValueForKey(info, "n"));
 	Q_strncpyz(cl->name, Info_ValueForKey(info, "n"), sizeof(cl->name));
