@@ -1,0 +1,109 @@
+name: Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, 'feature/*', 'test/*']
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_DIR: ${{ github.workspace }}/build/tests
+
+jobs:
+  test-linux:
+    name: Test Linux, ${{ matrix.build_type }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake libsdl2-dev libgl1-mesa-dev libopenal-dev
+
+    - name: Create Build Environment
+      run: cmake -E make_directory "${{ env.BUILD_DIR }}"
+
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{ env.BUILD_DIR }}
+      run: cmake "$GITHUB_WORKSPACE" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=ON
+
+    - name: Build Tests
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: bash
+      run: cmake --build . --target all --parallel $(nproc)
+
+    - name: Run Tests
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: bash
+      run: ctest --output-on-failure --verbose
+
+  test-windows:
+    name: Test Windows, ${{ matrix.build_type }}
+    runs-on: windows-2022
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Create Build Environment
+      run: cmake -E make_directory "${{ env.BUILD_DIR }}"
+
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{ env.BUILD_DIR }}
+      run: cmake "$GITHUB_WORKSPACE" -A x64 -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=ON
+
+    - name: Build Tests
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: cmd
+      run: cmake --build . --config ${{ matrix.build_type }} --parallel
+
+    - name: Run Tests
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: bash
+      run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
+
+  test-results:
+    name: Test Results Summary
+    runs-on: ubuntu-22.04
+    needs: [test-linux, test-windows]
+    if: always()
+    steps:
+    - name: Check Test Status
+      run: |
+        if [[ "${{ needs.test-linux.result }}" == "success" ]] && [[ "${{ needs.test-windows.result }}" == "success" ]]; then
+          echo "✅ All tests passed!"
+          exit 0
+        else
+          echo "❌ Some tests failed!"
+          echo "Linux: ${{ needs.test-linux.result }}"
+          echo "Windows: ${{ needs.test-windows.result }}"
+          exit 1
+        fi
