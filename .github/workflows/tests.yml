@@ -51,7 +51,7 @@ jobs:
       run: cmake --build . --parallel $(nproc)
 
     - name: Run Tests
-      working-directory: ${{ env.BUILD_DIR }}
+      working-directory: ${{ env.BUILD_DIR }}/tests
       shell: bash
       run: ctest --output-on-failure --verbose
 
@@ -86,7 +86,7 @@ jobs:
       run: cmake --build . --config ${{ matrix.build_type }} --parallel
 
     - name: Run Tests
-      working-directory: ${{ env.BUILD_DIR }}
+      working-directory: ${{ env.BUILD_DIR }}/tests
       shell: bash
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
