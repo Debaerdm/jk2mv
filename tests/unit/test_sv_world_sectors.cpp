@@ -2,14 +2,10 @@
 
 #include "test_utils.h"
 
-// Mock dependencies before including the module
-#define Com_Memset MockEngine::Com_Memset
-#define Com_Printf MockEngine::Com_Printf
-#define VectorCopy MockEngine::VectorCopy
-#define VectorSubtract MockEngine::VectorSubtract
-
-// Mock collision manager functions
+// Mock collision manager types and functions
 namespace {
+    typedef int clipHandle_t;
+    
     clipHandle_t CM_InlineModel(int index) { return (clipHandle_t)index; }
     void CM_ModelBounds(clipHandle_t model, float* mins, float* maxs) {
         // Mock world bounds: -4096 to 4096
@@ -17,9 +13,6 @@ namespace {
         maxs[0] = maxs[1] = maxs[2] = 4096.0f;
     }
 }
-
-// Include module under test (would need proper mocking in real scenario)
-// For now, we'll test the concepts
 
 TEST(SvWorldSectorsTest, AreaDepthConstant) {
     // AREA_DEPTH should be 4

@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <cmath>
 
 // Mock common engine functions used by server modules
 namespace MockEngine {
@@ -90,9 +91,9 @@ inline void MakeVec3(float* v, float x, float y, float z) {
 
 // Helper: Compare vectors with epsilon
 inline bool Vec3Equal(const float* v1, const float* v2, float epsilon = 0.001f) {
-    return fabs(v1[0] - v2[0]) < epsilon &&
-           fabs(v1[1] - v2[1]) < epsilon &&
-           fabs(v1[2] - v2[2]) < epsilon;
+    return std::fabs(v1[0] - v2[0]) < epsilon &&
+           std::fabs(v1[1] - v2[1]) < epsilon &&
+           std::fabs(v1[2] - v2[2]) < epsilon;
 }
 
 #endif // TEST_UTILS_H
