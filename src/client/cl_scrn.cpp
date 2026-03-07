@@ -13,6 +13,11 @@ cvar_t		*cl_graphheight;
 cvar_t		*cl_graphscale;
 cvar_t		*cl_graphshift;
 
+static qboolean SCR_IsColorCode(const char *s)
+{
+	return Q_IsColorString(s) || (MV_USE102COLOR && Q_IsColorString_1_02(s));
+}
+
 /*
 ================
 SCR_DrawNamedPic
@@ -156,8 +161,6 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	const char	*s;
 	int			xx;
 
-	const bool use102color = MV_USE102COLOR;
-
 	// draw the drop shadow
 	color[0] = color[1] = color[2] = 0;
 	color[3] = setColor[3];
@@ -165,7 +168,7 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	s = string;
 	xx = x;
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			s += 2;
 			continue;
 		}
@@ -180,7 +183,7 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	xx = x;
 	re.SetColor( setColor );
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			if ( !forceColor ) {
 				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
 				color[3] = setColor[3];
@@ -225,14 +228,12 @@ void SCR_DrawSmallStringExt( int x, int y, const char *string, const vec4_t setC
 	const char	*s;
 	int			xx;
 
-	const bool use102color = MV_USE102COLOR;
-
 	// draw the colored text
 	s = string;
 	xx = x;
 	re.SetColor( setColor );
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			if ( !forceColor ) {
 				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
 				color[3] = setColor[3];
@@ -257,10 +258,8 @@ static int SCR_Strlen( const char *str ) {
 	const char *s = str;
 	int count = 0;
 
-	const bool use102color = MV_USE102COLOR;
-
 	while ( *s ) {
-		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
+		if ( SCR_IsColorCode( s ) ) {
 			s += 2;
 		} else {
 			count++;
@@ -560,12 +559,12 @@ void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 //	scr_font = string("medium");
 
 	// RWL - commented out
-//	width = viddef.width / 8;	// rjr hardcoded yuckiness
+/*
+	width = viddef.width / 8;	// rjr hardcoded yuckiness
 	width = 640 / 8;	// rjr hardcoded yuckiness
 	width -= 4;
 
 	// RWL - commented out
-/*
 	if (cl.frame.playerstate.remote_type != REMOTE_TYPE_LETTERBOX)
 	{
 		width -= 30;
