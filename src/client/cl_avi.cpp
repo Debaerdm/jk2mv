@@ -184,6 +184,20 @@ static void CL_WriteAVIIndexEntry( const char *chunkId, int flags, int chunkOffs
 
 /*
   ===============
+  CL_CaptureAVIFrame
+  ===============
+*/
+static int CL_CaptureAVIFrame( void )
+{
+	if ( afd.motionJpeg ) {
+		return re.CaptureFrameJPEG( afd.frameBuffer, afd.frameBufferSize, cl_aviMotionJpegQuality->integer );
+	}
+
+	return re.CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, AVI_LINE_PADDING );
+}
+
+/*
+  ===============
   CL_WriteAVIHeader
   ===============
 */
@@ -588,12 +602,7 @@ void CL_TakeVideoFrame( void )
 		Com_Error( ERR_DROP, "ERROR: Renderer output dimensions changed while capturing AVI video" );
 	}
 
-	if ( afd.motionJpeg ) {
-		size = re.CaptureFrameJPEG( afd.frameBuffer, afd.frameBufferSize, cl_aviMotionJpegQuality->integer );
-	} else {
-		size = re.CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, AVI_LINE_PADDING );
-	}
-
+	size = CL_CaptureAVIFrame();
 	CL_WriteAVIVideoFrame( afd.frameBuffer, size );
 }
 
