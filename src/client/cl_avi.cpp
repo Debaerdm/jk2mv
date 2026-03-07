@@ -167,6 +167,16 @@ static ID_INLINE void END_CHUNK( void )
 
 /*
   ===============
+  CL_AVIIndexFileName
+  ===============
+*/
+static const char *CL_AVIIndexFileName( const char *fileName )
+{
+	return va( "%s" INDEX_FILE_EXTENSION, fileName );
+}
+
+/*
+  ===============
   CL_WriteAVIIndexEntry
   ===============
 */
@@ -372,8 +382,7 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 	if( ( afd.f = FS_FOpenFileWrite( fileName ) ) <= 0 )
 		return qfalse;
 
-	if( ( afd.idxF = FS_FOpenFileWrite(
-				va( "%s" INDEX_FILE_EXTENSION, fileName ) ) ) <= 0 )
+	if( ( afd.idxF = FS_FOpenFileWrite( CL_AVIIndexFileName( fileName ) ) ) <= 0 )
 	{
 		FS_FCloseFile( afd.f );
 		return qfalse;
@@ -617,7 +626,7 @@ qboolean CL_CloseAVI( void )
 {
 	int indexRemainder;
 	int indexSize = afd.numIndices * 16;
-	const char *idxFileName = va( "%s" INDEX_FILE_EXTENSION, afd.fileName );
+	const char *idxFileName = CL_AVIIndexFileName( afd.fileName );
 
 	// AVI file isn't open
 	if( !afd.fileOpen )
