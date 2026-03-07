@@ -492,7 +492,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	Con_DrawConsole ();
 
 	// debug graph can be drawn on top of anything
-	if ( cl_debuggraph->integer || cl_timegraph->integer || cl_debugMove->integer ) {
+	if ( SCR_ShouldDrawDebugGraph() ) {
 		SCR_DrawDebugGraph ();
 	}
 
@@ -517,6 +517,11 @@ static void SCR_SwapScreenBuffers(void)
 	} else {
 		re.SwapBuffers( NULL, NULL );
 	}
+}
+
+static qboolean SCR_ShouldDrawDebugGraph(void)
+{
+	return cl_debuggraph->integer || cl_timegraph->integer || cl_debugMove->integer;
 }
 
 /*
