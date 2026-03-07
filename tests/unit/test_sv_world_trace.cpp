@@ -409,13 +409,13 @@ TEST_F(WorldTraceTest, OrsCombinesEntityContents) {
 TEST_F(WorldTraceTest, SkipsPassEntity) {
     float point[3] = {0, 0, 0};
     
-    int contents = SV_PointContents(point, 0);
+    SV_PointContents(point, 0);
     
     // Should skip entity 0
     EXPECT_TRUE(true);
 }
 
-TEST_F(WorldTraceTest, UsesOriginZeroForBoxes) {
+TEST_F(WorldTraceTest, PointContentsUsesOriginZeroForBoxes) {
     float point[3] = {0, 0, 0};
     
     test_gentities[0].r.bmodel = false;
