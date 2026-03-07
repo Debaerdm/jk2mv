@@ -17,7 +17,7 @@
 struct vm_t { bool loaded; int callLevel; char name[64]; };
 
 vm_t* test_gvm = nullptr;
-int test_vm_calls[16];
+int test_vm_calls[256];  // FIX: Increased from 16 to 256 for ManyCalls test
 int test_vm_call_count = 0;
 
 void ResetGameAPI() {
@@ -39,7 +39,9 @@ void VM_Free(vm_t* vm) { if (vm) vm->loaded = false; }
 int VM_Call(vm_t* vm, int command, int arg0 = 0, int arg1 = 0, int arg2 = 0) {
     if (!vm || !vm->loaded) return -1;
     vm->callLevel++;
-    test_vm_calls[test_vm_call_count++] = command;
+    if (test_vm_call_count < 256) {  // Bounds check
+        test_vm_calls[test_vm_call_count++] = command;
+    }
     int result = 0;
     if (command == GAME_INIT) result = 1;
     else if (command == GAME_CLIENT_CONNECT) result = 0;
