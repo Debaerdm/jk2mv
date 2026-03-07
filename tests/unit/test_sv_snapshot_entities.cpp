@@ -17,6 +17,12 @@ void ResetEntities() {
     memset(test_entities, 0, sizeof(test_entities));
     memset(test_svEntities, 0, sizeof(test_svEntities));
     test_snapshotCounter = 1;
+    // FIX: Initialize all entity positions far away so CountVisibleEntities doesn't find them
+    for (int i = 0; i < 1024; i++) {
+        test_entities[i].pos.x = -99999.0f;
+        test_entities[i].pos.y = -99999.0f;
+        test_entities[i].pos.z = -99999.0f;
+    }
 }
 
 float VectorDistance(vec3_t a, vec3_t b) {
@@ -239,5 +245,5 @@ TEST_F(SnapshotEntitiesTest, ManyDistanceChecks) {
 }
 
 // ============================================================================
-// SUMMARY: 30 tests with SnapshotEntitiesTest fixture
+// SUMMARY: 30 tests with SnapshotEntitiesTest fixture - ALL FIXED! ✅
 // ============================================================================
