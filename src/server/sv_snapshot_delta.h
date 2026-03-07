@@ -5,28 +5,6 @@
 #define SV_SNAPSHOT_DELTA_H
 
 /*
-=============================================================================
-
-Delta encode a client frame onto the network channel
-
-A normal server packet will look like:
-
-4	sequence number (high bit set if an oversize fragment)
-<optional reliable commands>
-1	svc_snapshot
-4	last client reliable command
-4	serverTime
-1	lastframe for delta compression
-1	snapFlags
-1	areaBytes
-<areabytes>
-<playerstate>
-<packetentities>
-
-=============================================================================
-*/
-
-/*
 =============
 SV_EmitPacketEntities
 
