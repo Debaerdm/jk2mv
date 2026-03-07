@@ -36,9 +36,14 @@ static void SCR_DrawDefaultConnectBackground(void)
 	re.DrawStretchPic(0, 0, 640, 480, 0, 0, 1, 1, hShader, 1, 1);
 }
 
-static void SCR_DrawConnectScreen(qboolean overlay)
+static void SCR_RefreshUI(void)
 {
 	VM_Call(uivm, UI_REFRESH, cls.realtime);
+}
+
+static void SCR_DrawConnectScreen(qboolean overlay)
+{
+	SCR_RefreshUI();
 	VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, overlay);
 }
 
@@ -480,7 +485,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 
 	// the menu draws next
 	if ( cls.keyCatchers & KEYCATCH_UI && uivm ) {
-		VM_Call(uivm, UI_REFRESH, cls.realtime);
+		SCR_RefreshUI();
 	}
 
 	// console draws next
