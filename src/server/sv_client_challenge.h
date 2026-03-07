@@ -1,4 +1,4 @@
-// sv_client_challenge.h -- Challenge system for connection authentication
+// sv_client_challenge.h -- Client challenge system
 // Extracted from sv_client.cpp as part of aggressive server refactoring
 
 #ifndef SV_CLIENT_CHALLENGE_H
