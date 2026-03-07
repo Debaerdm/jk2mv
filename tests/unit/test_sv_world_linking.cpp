@@ -250,10 +250,28 @@ void SV_LinkEntity(sharedEntity_t* gEnt) {
 }
 
 // ============================================================================
+// TEST FIXTURE: Reset global state before each test
+// ============================================================================
+
+class WorldLinkingTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Reset all global state before each test
+        std::memset(&test_sv, 0, sizeof(test_sv));
+        std::memset(test_sv_worldSectors, 0, sizeof(test_sv_worldSectors));
+        mv_fixturretcrash->integer = 0;
+        
+        // Initialize root sector as leaf by default
+        test_sv_worldSectors[0].axis = -1;
+        test_sv_worldSectors[0].entities = nullptr;
+    }
+};
+
+// ============================================================================
 // TEST SUITE: SV_UnlinkEntity - Basic Operations
 // ============================================================================
 
-TEST(SvWorldLinking_Unlink, UnlinksFromEmptySector) {
+TEST_F(WorldLinkingTest, UnlinksFromEmptySector) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -268,7 +286,7 @@ TEST(SvWorldLinking_Unlink, UnlinksFromEmptySector) {
     EXPECT_EQ(ent->worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksSingleEntityFromSector) {
+TEST_F(WorldLinkingTest, UnlinksSingleEntityFromSector) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -287,7 +305,7 @@ TEST(SvWorldLinking_Unlink, UnlinksSingleEntityFromSector) {
     EXPECT_EQ(ent->worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksFirstInChain) {
+TEST_F(WorldLinkingTest, UnlinksFirstInChain) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -305,7 +323,7 @@ TEST(SvWorldLinking_Unlink, UnlinksFirstInChain) {
     EXPECT_EQ(test_sv.svEntities[0].worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksMiddleInChain) {
+TEST_F(WorldLinkingTest, UnlinksMiddleInChain) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -326,7 +344,7 @@ TEST(SvWorldLinking_Unlink, UnlinksMiddleInChain) {
     EXPECT_EQ(test_sv.svEntities[1].worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksLastInChain) {
+TEST_F(WorldLinkingTest, UnlinksLastInChain) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -351,7 +369,7 @@ TEST(SvWorldLinking_Unlink, UnlinksLastInChain) {
 // TEST SUITE: SV_UnlinkEntity - Edge Cases
 // ============================================================================
 
-TEST(SvWorldLinking_Unlink, DoesNothingWhenNotLinked) {
+TEST_F(WorldLinkingTest, DoesNothingWhenNotLinked) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -364,7 +382,7 @@ TEST(SvWorldLinking_Unlink, DoesNothingWhenNotLinked) {
     EXPECT_EQ(ent->worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, ClearsLinkedFlag) {
+TEST_F(WorldLinkingTest, ClearsLinkedFlag) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -381,13 +399,10 @@ TEST(SvWorldLinking_Unlink, ClearsLinkedFlag) {
 // TEST SUITE: SV_LinkEntity - Basic Linking
 // ============================================================================
 
-TEST(SvWorldLinking_Link, LinksToRootSector) {
+TEST_F(WorldLinkingTest, LinksToRootSector) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    
-    test_sv_worldSectors[0].axis = -1; // Leaf
-    test_sv_worldSectors[0].entities = nullptr;
     
     SV_LinkEntity(&gent);
     
@@ -395,11 +410,10 @@ TEST(SvWorldLinking_Link, LinksToRootSector) {
     EXPECT_EQ(test_sv.svEntities[0].worldSector, &test_sv_worldSectors[0]);
 }
 
-TEST(SvWorldLinking_Link, IncrementsLinkcount) {
+TEST_F(WorldLinkingTest, IncrementsLinkcount) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     int initialCount = gent.r.linkcount;
     SV_LinkEntity(&gent);
@@ -407,7 +421,7 @@ TEST(SvWorldLinking_Link, IncrementsLinkcount) {
     EXPECT_EQ(gent.r.linkcount, initialCount + 1);
 }
 
-TEST(SvWorldLinking_Link, UnlinksBeforeRelinking) {
+TEST_F(WorldLinkingTest, UnlinksBeforeRelinking) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -415,7 +429,6 @@ TEST(SvWorldLinking_Link, UnlinksBeforeRelinking) {
     
     test_sv.svEntities[0].worldSector = &oldSector;
     oldSector.entities = &test_sv.svEntities[0];
-    test_sv_worldSectors[0].axis = -1;
     
     SV_LinkEntity(&gent);
     
@@ -427,11 +440,10 @@ TEST(SvWorldLinking_Link, UnlinksBeforeRelinking) {
 // TEST SUITE: SV_LinkEntity - Solid Encoding
 // ============================================================================
 
-TEST(SvWorldLinking_Link, BmodelSetsSolidBmodel) {
+TEST_F(WorldLinkingTest, BmodelSetsSolidBmodel) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.r.bmodel = true;
     
@@ -440,11 +452,10 @@ TEST(SvWorldLinking_Link, BmodelSetsSolidBmodel) {
     EXPECT_EQ(gent.s.solid, SOLID_BMODEL);
 }
 
-TEST(SvWorldLinking_Link, SolidEntityEncodesSize) {
+TEST_F(WorldLinkingTest, SolidEntityEncodesSize) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.r.contents = CONTENTS_SOLID;
     gent.r.maxs[0] = 32.0f;
@@ -461,11 +472,10 @@ TEST(SvWorldLinking_Link, SolidEntityEncodesSize) {
     EXPECT_EQ(gent.s.solid, expected);
 }
 
-TEST(SvWorldLinking_Link, ClampsSolidSizeToBounds) {
+TEST_F(WorldLinkingTest, ClampsSolidSizeToBounds) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.r.contents = CONTENTS_SOLID;
     gent.r.maxs[0] = 500.0f; // > 255
@@ -478,11 +488,10 @@ TEST(SvWorldLinking_Link, ClampsSolidSizeToBounds) {
     EXPECT_EQ(gent.s.solid, expected);
 }
 
-TEST(SvWorldLinking_Link, NonSolidSetsZero) {
+TEST_F(WorldLinkingTest, NonSolidSetsZero) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.r.contents = 0;
     gent.s.solid = 12345; // garbage value
@@ -496,11 +505,10 @@ TEST(SvWorldLinking_Link, NonSolidSetsZero) {
 // TEST SUITE: SV_LinkEntity - AbsBox Calculation
 // ============================================================================
 
-TEST(SvWorldLinking_Link, CalculatesAbsBoxFromOrigin) {
+TEST_F(WorldLinkingTest, CalculatesAbsBoxFromOrigin) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.r.currentOrigin[0] = 100.0f;
     gent.r.currentOrigin[1] = 200.0f;
@@ -514,11 +522,10 @@ TEST(SvWorldLinking_Link, CalculatesAbsBoxFromOrigin) {
     EXPECT_FLOAT_EQ(gent.r.absmax[0], 111.0f); // 100 + 10 + 1 (epsilon)
 }
 
-TEST(SvWorldLinking_Link, ExpandsAbsBoxWithEpsilon) {
+TEST_F(WorldLinkingTest, ExpandsAbsBoxWithEpsilon) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.r.currentOrigin[0] = 0.0f;
     gent.r.mins[0] = -5.0f;
@@ -530,11 +537,10 @@ TEST(SvWorldLinking_Link, ExpandsAbsBoxWithEpsilon) {
     EXPECT_FLOAT_EQ(gent.r.absmax[0], 6.0f);  // 5 + 1
 }
 
-TEST(SvWorldLinking_Link, BmodelRotatedUsesRadius) {
+TEST_F(WorldLinkingTest, BmodelRotatedUsesRadius) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.r.bmodel = true;
     gent.r.currentOrigin[0] = 0.0f;
@@ -558,11 +564,10 @@ TEST(SvWorldLinking_Link, BmodelRotatedUsesRadius) {
 // TEST SUITE: SV_LinkEntity - PVS Clusters
 // ============================================================================
 
-TEST(SvWorldLinking_Link, InitializesClusters) {
+TEST_F(WorldLinkingTest, InitializesClusters) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     SV_LinkEntity(&gent);
     
@@ -570,11 +575,10 @@ TEST(SvWorldLinking_Link, InitializesClusters) {
     EXPECT_LE(test_sv.svEntities[0].numClusters, MAX_ENT_CLUSTERS);
 }
 
-TEST(SvWorldLinking_Link, InitializesAreas) {
+TEST_F(WorldLinkingTest, InitializesAreas) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     SV_LinkEntity(&gent);
     
@@ -585,11 +589,10 @@ TEST(SvWorldLinking_Link, InitializesAreas) {
 // TEST SUITE: SV_LinkEntity - Saber Block Crash Fix
 // ============================================================================
 
-TEST(SvWorldLinking_Link, SaberBlockFixDisabled) {
+TEST_F(WorldLinkingTest, SaberBlockFixDisabled) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.s.eType = ET_EVENTS + EV_SABER_BLOCK;
     mv_fixturretcrash->integer = 0;
@@ -601,11 +604,10 @@ TEST(SvWorldLinking_Link, SaberBlockFixDisabled) {
     EXPECT_TRUE(gent.r.linked);
 }
 
-TEST(SvWorldLinking_Link, SaberBlockFixIncrementsCounter) {
+TEST_F(WorldLinkingTest, SaberBlockFixIncrementsCounter) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.s.eType = ET_EVENTS + EV_SABER_BLOCK;
     mv_fixturretcrash->integer = 1;
@@ -616,11 +618,10 @@ TEST(SvWorldLinking_Link, SaberBlockFixIncrementsCounter) {
     EXPECT_EQ(test_sv.saberBlockCounter, 51);
 }
 
-TEST(SvWorldLinking_Link, SaberBlockFixClearsEntityOver100) {
+TEST_F(WorldLinkingTest, SaberBlockFixClearsEntityOver100) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     gent.s.eType = ET_EVENTS + EV_SABER_BLOCK;
     gent.s.number = 42; // Some value to check clearing
@@ -637,12 +638,10 @@ TEST(SvWorldLinking_Link, SaberBlockFixClearsEntityOver100) {
 // TEST SUITE: Integration Tests
 // ============================================================================
 
-TEST(SvWorldLinking_Integration, LinkUnlinkCycle) {
+TEST_F(WorldLinkingTest, LinkUnlinkCycle) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
-    test_sv_worldSectors[0].entities = nullptr;
     
     SV_LinkEntity(&gent);
     EXPECT_TRUE(gent.r.linked);
@@ -654,12 +653,10 @@ TEST(SvWorldLinking_Integration, LinkUnlinkCycle) {
     EXPECT_TRUE(gent.r.linked);
 }
 
-TEST(SvWorldLinking_Integration, MultipleEntitiesInSameSector) {
+TEST_F(WorldLinkingTest, MultipleEntitiesInSameSector) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
-    test_sv_worldSectors[0].entities = nullptr;
     
     for (int i = 0; i < 3; i++) {
         SV_LinkEntity(&gents[i]);
@@ -673,12 +670,10 @@ TEST(SvWorldLinking_Integration, MultipleEntitiesInSameSector) {
     EXPECT_EQ(count, 3);
 }
 
-TEST(SvWorldLinking_Integration, UnlinkMiddleEntity) {
+TEST_F(WorldLinkingTest, UnlinkMiddleEntity) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
-    test_sv_worldSectors[0].entities = nullptr;
     
     for (int i = 0; i < 3; i++) {
         SV_LinkEntity(&gents[i]);
@@ -698,11 +693,10 @@ TEST(SvWorldLinking_Integration, UnlinkMiddleEntity) {
 // TEST SUITE: Stress Tests
 // ============================================================================
 
-TEST(SvWorldLinking_Stress, LinkUnlink100Times) {
+TEST_F(WorldLinkingTest, LinkUnlink100Times) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
     
     for (int i = 0; i < 100; i++) {
         SV_LinkEntity(&gent);
@@ -712,13 +706,11 @@ TEST(SvWorldLinking_Stress, LinkUnlink100Times) {
     }
 }
 
-TEST(SvWorldLinking_Stress, ManyEntitiesChain) {
+TEST_F(WorldLinkingTest, ManyEntitiesChain) {
     const int COUNT = 50;
     sharedEntity_t gents[COUNT] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
-    test_sv_worldSectors[0].axis = -1;
-    test_sv_worldSectors[0].entities = nullptr;
     
     for (int i = 0; i < COUNT; i++) {
         SV_LinkEntity(&gents[i]);
@@ -733,15 +725,17 @@ TEST(SvWorldLinking_Stress, ManyEntitiesChain) {
 }
 
 // ============================================================================
-// SUMMARY: 50 tests for sv_world_linking.h
-// - Unlink Basic: 6 tests
+// SUMMARY: 29 tests for sv_world_linking.h
+// - Unlink Basic: 5 tests
 // - Unlink Edge Cases: 2 tests
 // - Link Basic: 3 tests
-// - Solid Encoding: 5 tests
+// - Solid Encoding: 4 tests
 // - AbsBox Calculation: 3 tests
 // - PVS Clusters: 2 tests
 // - Saber Block Fix: 3 tests
 // - Integration: 3 tests
 // - Stress: 2 tests
-// Total: 29 core + variations = ~50 tests
+//
+// KEY FIX: Added WorldLinkingTest fixture with SetUp() to reset global state
+// between tests, preventing state pollution that caused test failures.
 // ============================================================================
