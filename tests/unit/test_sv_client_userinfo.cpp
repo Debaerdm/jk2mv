@@ -59,12 +59,14 @@ bool CheckUserinfoFlood(int clientNum) {
 
 void UpdateDerivedInfo(int clientNum) {
     client_t* cl = &test_clients[clientNum];
-    const char* name = Info_ValueForKey(cl->userinfo, "name");
-    const char* rate = Info_ValueForKey(cl->userinfo, "rate");
-    const char* snaps = Info_ValueForKey(cl->userinfo, "snaps");
-    strncpy(cl->name, name, sizeof(cl->name) - 1);
-    cl->rate = atoi(rate);
-    cl->snaps = atoi(snaps);
+    // FIX: Copy each value immediately as static buffer is reused
+    char name_buf[256], rate_buf[256], snaps_buf[256];
+    strcpy(name_buf, Info_ValueForKey(cl->userinfo, "name"));
+    strcpy(rate_buf, Info_ValueForKey(cl->userinfo, "rate"));
+    strcpy(snaps_buf, Info_ValueForKey(cl->userinfo, "snaps"));
+    strncpy(cl->name, name_buf, sizeof(cl->name) - 1);
+    cl->rate = atoi(rate_buf);
+    cl->snaps = atoi(snaps_buf);
 }
 
 // ============================================================================
