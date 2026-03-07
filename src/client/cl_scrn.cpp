@@ -425,6 +425,11 @@ void MV_DrawConnectingInfo( void )
 	SCR_DrawStringExt((int)(320 - SCR_Strlen(txtbuf) * 3.5), yPos + (line * 1), 7, txtbuf, g_color_table[7], qfalse);
 }
 
+static qboolean SCR_ShouldSkipBackend(void)
+{
+	return (qboolean)(com_minimized->integer && !CL_VideoRecording());
+}
+
 /*
 ==================
 SCR_DrawScreenField
@@ -433,9 +438,7 @@ This will be called twice if rendering in stereo mode
 ==================
 */
 void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
-	qboolean skipBackend = (qboolean)(com_minimized->integer && !CL_VideoRecording());
-
-	re.BeginFrame( stereoFrame, skipBackend );
+	re.BeginFrame( stereoFrame, SCR_ShouldSkipBackend() );
 
 	if ( !uivm ) {
 		Com_DPrintf("draw screen without UI loaded\n");
