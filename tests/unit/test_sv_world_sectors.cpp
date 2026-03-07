@@ -21,37 +21,30 @@ namespace {
 }
 
 // Mock server structures needed for testing
-namespace MockServer {
-    struct svEntity_t {
-        void* worldSector;
-        svEntity_t* nextEntityInWorldSector;
-    };
-    
-    struct server_t {
-        svEntity_t svEntities[1024]; // MAX_GENTITIES
-    };
-    
-    server_t sv;
-}
+struct svEntity_t {
+    void* worldSector;
+    svEntity_t* nextEntityInWorldSector;
+};
 
-// Include the module under test
-#define svEntity_t MockServer::svEntity_t
-#define sv MockServer::sv
-#define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
-
-// Declare the worldSector_t structure
 struct worldSector_t {
     int axis;       // -1 = leaf node
     float dist;
     worldSector_t* children[2];
-    MockServer::svEntity_t* entities;
+    svEntity_t* entities;
 };
 
-// Declare global state from sv_world_sectors.h
+struct server_t {
+    svEntity_t svEntities[1024]; // MAX_GENTITIES
+};
+
+// Global test state
+server_t test_sv;
+worldSector_t sv_worldSectors[64];
+int sv_numworldSectors;
+
 #define AREA_DEPTH 4
 #define AREA_NODES 64
-worldSector_t sv_worldSectors[AREA_NODES];
-int sv_numworldSectors;
+#define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
 
 // Implement the functions from sv_world_sectors.h for testing
 worldSector_t* SV_CreateworldSector(int depth, float mins[3], float maxs[3]) {
@@ -93,9 +86,9 @@ void SV_ClearWorld(void) {
     MockEngine::Com_Memset(sv_worldSectors, 0, sizeof(sv_worldSectors));
     sv_numworldSectors = 0;
 
-    for (unsigned i = 0; i < ARRAY_LEN(MockServer::sv.svEntities); i++) {
-        MockServer::sv.svEntities[i].worldSector = nullptr;
-        MockServer::sv.svEntities[i].nextEntityInWorldSector = nullptr;
+    for (unsigned i = 0; i < ARRAY_LEN(test_sv.svEntities); i++) {
+        test_sv.svEntities[i].worldSector = nullptr;
+        test_sv.svEntities[i].nextEntityInWorldSector = nullptr;
     }
 
     // Get world map bounds
@@ -108,7 +101,7 @@ void SV_ClearWorld(void) {
 int SV_SectorList_Count(int sectorIndex) {
     int count = 0;
     worldSector_t* sec = &sv_worldSectors[sectorIndex];
-    for (MockServer::svEntity_t* ent = sec->entities; ent; ent = ent->nextEntityInWorldSector) {
+    for (svEntity_t* ent = sec->entities; ent; ent = ent->nextEntityInWorldSector) {
         count++;
     }
     return count;
@@ -136,15 +129,15 @@ TEST(SvWorldSectors_ClearWorld, CreatesRootNode) {
 
 TEST(SvWorldSectors_ClearWorld, ClearsAllEntityLinks) {
     // Setup: Add mock entity
-    sv_worldSectors[0].entities = &MockServer::sv.svEntities[0];
+    sv_worldSectors[0].entities = &test_sv.svEntities[0];
     
     SV_ClearWorld();
     
     // Verify all entities are unlinked
-    for (size_t i = 0; i < ARRAY_LEN(MockServer::sv.svEntities); i++) {
-        EXPECT_EQ(MockServer::sv.svEntities[i].worldSector, nullptr)
+    for (size_t i = 0; i < ARRAY_LEN(test_sv.svEntities); i++) {
+        EXPECT_EQ(test_sv.svEntities[i].worldSector, nullptr)
             << "Entity " << i << " should be unlinked";
-        EXPECT_EQ(MockServer::sv.svEntities[i].nextEntityInWorldSector, nullptr)
+        EXPECT_EQ(test_sv.svEntities[i].nextEntityInWorldSector, nullptr)
             << "Entity " << i << " next pointer should be null";
     }
 }
@@ -368,8 +361,8 @@ TEST(SvWorldSectors_SectorList, CountsSingleEntity) {
     SV_ClearWorld();
     
     // Add one entity to first sector
-    sv_worldSectors[0].entities = &MockServer::sv.svEntities[0];
-    MockServer::sv.svEntities[0].nextEntityInWorldSector = nullptr;
+    sv_worldSectors[0].entities = &test_sv.svEntities[0];
+    test_sv.svEntities[0].nextEntityInWorldSector = nullptr;
     
     EXPECT_EQ(SV_SectorList_Count(0), 1);
 }
@@ -378,10 +371,10 @@ TEST(SvWorldSectors_SectorList, CountsMultipleEntities) {
     SV_ClearWorld();
     
     // Chain 3 entities in sector 0
-    sv_worldSectors[0].entities = &MockServer::sv.svEntities[0];
-    MockServer::sv.svEntities[0].nextEntityInWorldSector = &MockServer::sv.svEntities[1];
-    MockServer::sv.svEntities[1].nextEntityInWorldSector = &MockServer::sv.svEntities[2];
-    MockServer::sv.svEntities[2].nextEntityInWorldSector = nullptr;
+    sv_worldSectors[0].entities = &test_sv.svEntities[0];
+    test_sv.svEntities[0].nextEntityInWorldSector = &test_sv.svEntities[1];
+    test_sv.svEntities[1].nextEntityInWorldSector = &test_sv.svEntities[2];
+    test_sv.svEntities[2].nextEntityInWorldSector = nullptr;
     
     EXPECT_EQ(SV_SectorList_Count(0), 3);
 }
@@ -390,11 +383,11 @@ TEST(SvWorldSectors_SectorList, IndependentSectors) {
     SV_ClearWorld();
     
     // Add entities to different sectors
-    sv_worldSectors[0].entities = &MockServer::sv.svEntities[0];
-    MockServer::sv.svEntities[0].nextEntityInWorldSector = nullptr;
+    sv_worldSectors[0].entities = &test_sv.svEntities[0];
+    test_sv.svEntities[0].nextEntityInWorldSector = nullptr;
     
-    sv_worldSectors[1].entities = &MockServer::sv.svEntities[1];
-    MockServer::sv.svEntities[1].nextEntityInWorldSector = nullptr;
+    sv_worldSectors[1].entities = &test_sv.svEntities[1];
+    test_sv.svEntities[1].nextEntityInWorldSector = nullptr;
     
     EXPECT_EQ(SV_SectorList_Count(0), 1);
     EXPECT_EQ(SV_SectorList_Count(1), 1);
@@ -547,11 +540,11 @@ TEST(SvWorldSectors_Stress, MaxEntityChain) {
     // Create long entity chain in sector 0
     const int CHAIN_LENGTH = 100;
     for (int i = 0; i < CHAIN_LENGTH - 1; i++) {
-        MockServer::sv.svEntities[i].nextEntityInWorldSector = 
-            &MockServer::sv.svEntities[i + 1];
+        test_sv.svEntities[i].nextEntityInWorldSector = 
+            &test_sv.svEntities[i + 1];
     }
-    MockServer::sv.svEntities[CHAIN_LENGTH - 1].nextEntityInWorldSector = nullptr;
-    sv_worldSectors[0].entities = &MockServer::sv.svEntities[0];
+    test_sv.svEntities[CHAIN_LENGTH - 1].nextEntityInWorldSector = nullptr;
+    sv_worldSectors[0].entities = &test_sv.svEntities[0];
     
     EXPECT_EQ(SV_SectorList_Count(0), CHAIN_LENGTH);
 }
