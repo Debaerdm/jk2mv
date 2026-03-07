@@ -121,12 +121,14 @@ void SV_UnlinkEntity(sharedEntity_t* gEnt) {
     
     if (ws->entities == ent) {
         ws->entities = ent->nextEntityInWorldSector;
+        ent->nextEntityInWorldSector = nullptr;  // FIX: Clear the pointer
         return;
     }
     
     for (svEntity_t* scan = ws->entities; scan; scan = scan->nextEntityInWorldSector) {
         if (scan->nextEntityInWorldSector == ent) {
             scan->nextEntityInWorldSector = ent->nextEntityInWorldSector;
+            ent->nextEntityInWorldSector = nullptr;  // FIX: Clear the pointer
             return;
         }
     }
@@ -742,6 +744,6 @@ TEST_F(WorldLinkingTest, ManyEntitiesChain) {
 // - Integration: 3 tests
 // - Stress: 2 tests
 //
-// KEY FIX: Added explicit pointer clearing in SetUp() to ensure clean state
-// between tests, preventing stale pointers from causing failures.
+// KEY FIX: Clear nextEntityInWorldSector pointer in SV_UnlinkEntity to prevent
+// stale pointers from causing chain traversal issues.
 // ============================================================================
