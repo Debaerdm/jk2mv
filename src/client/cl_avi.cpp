@@ -167,6 +167,23 @@ static ID_INLINE void END_CHUNK( void )
 
 /*
   ===============
+  CL_WriteAVIIndexEntry
+  ===============
+*/
+static void CL_WriteAVIIndexEntry( const char *chunkId, int flags, int chunkOffset, int size )
+{
+	bufIndex = 0;
+	WRITE_STRING( chunkId );
+	WRITE_4BYTES( flags );
+	WRITE_4BYTES( chunkOffset );
+	WRITE_4BYTES( size );
+	SafeFS_Write( buffer, 16, afd.idxF );
+
+	afd.numIndices++;
+}
+
+/*
+  ===============
   CL_WriteAVIHeader
   ===============
 */
@@ -490,15 +507,7 @@ void CL_WriteAVIVideoFrame( const byte *imageBuffer, int size )
 	if( size > afd.maxRecordSize )
 		afd.maxRecordSize = size;
 
-	// Index
-	bufIndex = 0;
-	WRITE_STRING( "00dc" );           //dwIdentifier
-	WRITE_4BYTES( 0x00000010 );       //dwFlags (all frames are KeyFrames)
-	WRITE_4BYTES( chunkOffset );      //dwOffset
-	WRITE_4BYTES( size );             //dwLength
-	SafeFS_Write( buffer, 16, afd.idxF );
-
-	afd.numIndices++;
+	CL_WriteAVIIndexEntry( "00dc", 0x00000010, chunkOffset, size );
 }
 
 #define PCM_BUFFER_SIZE 44100
@@ -555,15 +564,7 @@ void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size )
 		afd.moviSize += ( chunkSize + paddingSize );
 		afd.a.totalBytes += bytesInBuffer;
 
-		// Index
-		bufIndex = 0;
-		WRITE_STRING( "01wb" );           //dwIdentifier
-		WRITE_4BYTES( 0 );                //dwFlags
-		WRITE_4BYTES( chunkOffset );      //dwOffset
-		WRITE_4BYTES( bytesInBuffer );    //dwLength
-		SafeFS_Write( buffer, 16, afd.idxF );
-
-		afd.numIndices++;
+		CL_WriteAVIIndexEntry( "01wb", 0, chunkOffset, bytesInBuffer );
 
 		bytesInBuffer = 0;
 	}
