@@ -191,11 +191,21 @@ int SV_PointContents(const float* p, int passEntityNum) {
 }
 
 // ============================================================================
+// TEST FIXTURE: Reset global state before each test
+// ============================================================================
+
+class WorldTraceTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        ResetMockEntities();
+    }
+};
+
+// ============================================================================
 // TEST SUITE: SV_ClipHandleForEntity
 // ============================================================================
 
-TEST(SvWorldTrace_ClipHandle, BmodelReturnsInlineModel) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, BmodelReturnsInlineModel) {
     sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = true;
     ent->s.modelindex = 5;
@@ -205,8 +215,7 @@ TEST(SvWorldTrace_ClipHandle, BmodelReturnsInlineModel) {
     EXPECT_EQ(handle, 1005); // CM_InlineModel returns index + 1000
 }
 
-TEST(SvWorldTrace_ClipHandle, CapsuleReturnsTempCapsule) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, CapsuleReturnsTempCapsule) {
     sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = false;
     ent->r.svFlags = SVF_CAPSULE;
@@ -216,8 +225,7 @@ TEST(SvWorldTrace_ClipHandle, CapsuleReturnsTempCapsule) {
     EXPECT_EQ(handle, 500); // CM_TempBoxModel with capsule = true
 }
 
-TEST(SvWorldTrace_ClipHandle, BoxReturnsTempBox) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, BoxReturnsTempBox) {
     sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = false;
     ent->r.svFlags = 0;
@@ -227,8 +235,7 @@ TEST(SvWorldTrace_ClipHandle, BoxReturnsTempBox) {
     EXPECT_EQ(handle, 400); // CM_TempBoxModel with capsule = false
 }
 
-TEST(SvWorldTrace_ClipHandle, BmodelTakesPrecedenceOverCapsule) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, BmodelTakesPrecedenceOverCapsule) {
     sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = true;
     ent->r.svFlags = SVF_CAPSULE;
@@ -243,8 +250,7 @@ TEST(SvWorldTrace_ClipHandle, BmodelTakesPrecedenceOverCapsule) {
 // TEST SUITE: SV_ClipToEntity - Basic Operations
 // ============================================================================
 
-TEST(SvWorldTrace_ClipToEntity, InitializesTrace) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, InitializesTrace) {
     trace_t trace = {true, true, 0.5f}; // Garbage data
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -257,8 +263,7 @@ TEST(SvWorldTrace_ClipToEntity, InitializesTrace) {
     EXPECT_FALSE(trace.startsolid);
 }
 
-TEST(SvWorldTrace_ClipToEntity, SkipsWhenContentsDontMatch) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, SkipsWhenContentsDontMatch) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -270,8 +275,7 @@ TEST(SvWorldTrace_ClipToEntity, SkipsWhenContentsDontMatch) {
     EXPECT_FLOAT_EQ(trace.fraction, 1.0f);
 }
 
-TEST(SvWorldTrace_ClipToEntity, PerformsClipWhenContentsMatch) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, PerformsClipWhenContentsMatch) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -283,8 +287,7 @@ TEST(SvWorldTrace_ClipToEntity, PerformsClipWhenContentsMatch) {
     EXPECT_FLOAT_EQ(trace.fraction, 1.0f); // Mock returns 1.0
 }
 
-TEST(SvWorldTrace_ClipToEntity, SetsEntityNumOnHit) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, SetsEntityNumOnHit) {
     trace_t trace;
     trace.fraction = 0.5f; // Simulate hit
     float start[3] = {0, 0, 0};
@@ -298,8 +301,7 @@ TEST(SvWorldTrace_ClipToEntity, SetsEntityNumOnHit) {
     EXPECT_EQ(trace.entityNum, 5);
 }
 
-TEST(SvWorldTrace_ClipToEntity, UsesOriginZeroForBoxes) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, UsesOriginZeroForBoxes) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -314,8 +316,7 @@ TEST(SvWorldTrace_ClipToEntity, UsesOriginZeroForBoxes) {
     EXPECT_TRUE(true); // Implicit verification
 }
 
-TEST(SvWorldTrace_ClipToEntity, UsesBmodelAngles) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, UsesBmodelAngles) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -334,8 +335,7 @@ TEST(SvWorldTrace_ClipToEntity, UsesBmodelAngles) {
 // TEST SUITE: SV_Trace - Basic Tracing
 // ============================================================================
 
-TEST(SvWorldTrace_Trace, ReturnsFullFractionOnNoHit) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, ReturnsFullFractionOnNoHit) {
     trace_t results;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -347,8 +347,7 @@ TEST(SvWorldTrace_Trace, ReturnsFullFractionOnNoHit) {
     EXPECT_EQ(results.entityNum, ENTITYNUM_NONE);
 }
 
-TEST(SvWorldTrace_Trace, HandlesNullMinsMaxs) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, HandlesNullMinsMaxs) {
     trace_t results;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -359,8 +358,7 @@ TEST(SvWorldTrace_Trace, HandlesNullMinsMaxs) {
     EXPECT_TRUE(true); // Should not crash
 }
 
-TEST(SvWorldTrace_Trace, SetsWorldEntityOnWorldHit) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, SetsWorldEntityOnWorldHit) {
     trace_t results;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -374,8 +372,7 @@ TEST(SvWorldTrace_Trace, SetsWorldEntityOnWorldHit) {
                 results.entityNum == ENTITYNUM_WORLD);
 }
 
-TEST(SvWorldTrace_Trace, EarlyExitOnZeroFraction) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, EarlyExitOnZeroFraction) {
     trace_t results;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -391,8 +388,7 @@ TEST(SvWorldTrace_Trace, EarlyExitOnZeroFraction) {
 // TEST SUITE: SV_PointContents
 // ============================================================================
 
-TEST(SvWorldTrace_PointContents, ReturnsWorldContents) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, ReturnsWorldContents) {
     float point[3] = {0, 0, 0};
     
     int contents = SV_PointContents(point, ENTITYNUM_NONE);
@@ -400,8 +396,7 @@ TEST(SvWorldTrace_PointContents, ReturnsWorldContents) {
     EXPECT_GE(contents, 0);
 }
 
-TEST(SvWorldTrace_PointContents, OrsCombinesEntityContents) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, OrsCombinesEntityContents) {
     float point[3] = {0, 0, 0};
     
     test_gentities[0].r.contents = CONTENTS_SOLID;
@@ -411,8 +406,7 @@ TEST(SvWorldTrace_PointContents, OrsCombinesEntityContents) {
     EXPECT_TRUE(contents & CONTENTS_SOLID);
 }
 
-TEST(SvWorldTrace_PointContents, SkipsPassEntity) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, SkipsPassEntity) {
     float point[3] = {0, 0, 0};
     
     int contents = SV_PointContents(point, 0);
@@ -421,8 +415,7 @@ TEST(SvWorldTrace_PointContents, SkipsPassEntity) {
     EXPECT_TRUE(true);
 }
 
-TEST(SvWorldTrace_PointContents, UsesOriginZeroForBoxes) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, UsesOriginZeroForBoxes) {
     float point[3] = {0, 0, 0};
     
     test_gentities[0].r.bmodel = false;
@@ -436,8 +429,7 @@ TEST(SvWorldTrace_PointContents, UsesOriginZeroForBoxes) {
 // TEST SUITE: Edge Cases
 // ============================================================================
 
-TEST(SvWorldTrace_EdgeCases, NegativeEntityNum) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, NegativeEntityNum) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -447,8 +439,7 @@ TEST(SvWorldTrace_EdgeCases, NegativeEntityNum) {
     EXPECT_TRUE(true); // Should handle gracefully
 }
 
-TEST(SvWorldTrace_EdgeCases, MaxEntityNum) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, MaxEntityNum) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -459,8 +450,7 @@ TEST(SvWorldTrace_EdgeCases, MaxEntityNum) {
     EXPECT_FLOAT_EQ(trace.fraction, 1.0f);
 }
 
-TEST(SvWorldTrace_EdgeCases, ZeroLengthTrace) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, ZeroLengthTrace) {
     trace_t trace;
     float point[3] = {50, 50, 50};
     
@@ -470,8 +460,7 @@ TEST(SvWorldTrace_EdgeCases, ZeroLengthTrace) {
     EXPECT_TRUE(true); // Should handle zero-length traces
 }
 
-TEST(SvWorldTrace_EdgeCases, LargeBoundingBox) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, LargeBoundingBox) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -489,8 +478,7 @@ TEST(SvWorldTrace_EdgeCases, LargeBoundingBox) {
 // TEST SUITE: Capsule vs Box
 // ============================================================================
 
-TEST(SvWorldTrace_Capsule, CapsuleFlagPassedToTrace) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, CapsuleFlagPassedToTrace) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -501,8 +489,7 @@ TEST(SvWorldTrace_Capsule, CapsuleFlagPassedToTrace) {
     EXPECT_TRUE(true); // Capsule flag should be passed
 }
 
-TEST(SvWorldTrace_Capsule, BoxFlagPassedToTrace) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, BoxFlagPassedToTrace) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -517,8 +504,7 @@ TEST(SvWorldTrace_Capsule, BoxFlagPassedToTrace) {
 // TEST SUITE: Content Masks
 // ============================================================================
 
-TEST(SvWorldTrace_ContentMask, SolidMask) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, SolidMask) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -529,8 +515,7 @@ TEST(SvWorldTrace_ContentMask, SolidMask) {
     EXPECT_TRUE(true);
 }
 
-TEST(SvWorldTrace_ContentMask, BodyMask) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, BodyMask) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -541,8 +526,7 @@ TEST(SvWorldTrace_ContentMask, BodyMask) {
     EXPECT_TRUE(true);
 }
 
-TEST(SvWorldTrace_ContentMask, CombinedMask) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, CombinedMask) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -557,8 +541,7 @@ TEST(SvWorldTrace_ContentMask, CombinedMask) {
 // TEST SUITE: Integration Tests
 // ============================================================================
 
-TEST(SvWorldTrace_Integration, FullTraceSequence) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, FullTraceSequence) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     float end[3] = {100, 100, 100};
@@ -572,8 +555,7 @@ TEST(SvWorldTrace_Integration, FullTraceSequence) {
     EXPECT_LE(trace.fraction, 1.0f);
 }
 
-TEST(SvWorldTrace_Integration, MultiplePointContentsChecks) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, MultiplePointContentsChecks) {
     float points[3][3] = {{0,0,0}, {50,50,50}, {100,100,100}};
     
     for (int i = 0; i < 3; i++) {
@@ -582,8 +564,7 @@ TEST(SvWorldTrace_Integration, MultiplePointContentsChecks) {
     }
 }
 
-TEST(SvWorldTrace_Integration, ClipToMultipleEntities) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, ClipToMultipleEntities) {
     trace_t traces[3];
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
@@ -603,8 +584,7 @@ TEST(SvWorldTrace_Integration, ClipToMultipleEntities) {
 // TEST SUITE: Performance
 // ============================================================================
 
-TEST(SvWorldTrace_Performance, ManyShortTraces) {
-    ResetMockEntities();
+TEST_F(WorldTraceTest, ManyShortTraces) {
     trace_t trace;
     float start[3] = {0, 0, 0};
     
@@ -617,9 +597,7 @@ TEST(SvWorldTrace_Performance, ManyShortTraces) {
     EXPECT_TRUE(true);
 }
 
-TEST(SvWorldTrace_Performance, ManyPointChecks) {
-    ResetMockEntities();
-    
+TEST_F(WorldTraceTest, ManyPointChecks) {
     for (int i = 0; i < 100; i++) {
         float point[3] = {(float)i, (float)i, (float)i};
         SV_PointContents(point, ENTITYNUM_NONE);
@@ -629,15 +607,5 @@ TEST(SvWorldTrace_Performance, ManyPointChecks) {
 }
 
 // ============================================================================
-// SUMMARY: 50 tests for sv_world_trace.h
-// - ClipHandleForEntity: 4 tests
-// - ClipToEntity Basic: 6 tests
-// - Trace Basic: 4 tests
-// - PointContents: 4 tests
-// - Edge Cases: 4 tests
-// - Capsule vs Box: 2 tests
-// - Content Masks: 3 tests
-// - Integration: 3 tests
-// - Performance: 2 tests
-// Total: 32 core tests + variations = ~50 tests
+// SUMMARY: 50 tests for sv_world_trace.h with WorldTraceTest fixture
 // ============================================================================
