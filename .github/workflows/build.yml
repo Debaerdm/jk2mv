@@ -50,12 +50,17 @@ jobs:
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
-      run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
+      run: msbuild /m /p:Configuration=${{ matrix.build_type }} ALL_BUILD.vcxproj
 
     - name: Run Tests
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
+
+    - name: Package
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: cmd
+      run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
 
     #- uses: actions/upload-artifact@v4
     #  with:
@@ -120,13 +125,19 @@ jobs:
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
-      run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
+      run: msbuild /m /p:Configuration=${{ matrix.build_type }} ALL_BUILD.vcxproj
 
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
+
+    - name: Package
+      if: ${{ matrix.build_type == 'RelWithDebInfo' }}
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: cmd
+      run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
 
     #- uses: actions/upload-artifact@v4
     #  with:
@@ -198,13 +209,19 @@ jobs:
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
-      run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
+      run: msbuild /m /p:Configuration=${{ matrix.build_type }} ALL_BUILD.vcxproj
 
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
+
+    - name: Package
+      if: ${{ matrix.build_type == 'RelWithDebInfo' }}
+      working-directory: ${{ env.BUILD_DIR }}
+      shell: cmd
+      run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
 
     #- uses: actions/upload-artifact@v4
     #  with:
@@ -280,7 +297,7 @@ jobs:
     - name: Build
       working-directory: ${{ env.BUILD_DIR }}
       shell: bash
-      run: make
+      run: make all
 
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
@@ -376,7 +393,7 @@ jobs:
 
     - name: Build
       shell: bash
-      run: podman exec -w /jk2mv/build/actions buildenv make
+      run: podman exec -w /jk2mv/build/actions buildenv make all
 
     - name: Run Tests
       if: ${{ matrix.build_type == 'Debug' }}
