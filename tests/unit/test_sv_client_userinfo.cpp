@@ -112,9 +112,11 @@ TEST_F(ClientUserinfoTest, ExtractsRate) {
 
 TEST_F(ClientUserinfoTest, MultipleKeys) {
     const char* info = "\\name\\Player\\rate\\25000\\snaps\\20";
-    const char* name = Info_ValueForKey(info, "name");
+    // FIX: Copy values immediately as static buffer is reused
+    char name_copy[256];
+    strcpy(name_copy, Info_ValueForKey(info, "name"));
     const char* rate = Info_ValueForKey(info, "rate");
-    EXPECT_STREQ(name, "Player");
+    EXPECT_STREQ(name_copy, "Player");
     EXPECT_STREQ(rate, "25000");
 }
 
@@ -256,5 +258,5 @@ TEST_F(ClientUserinfoTest, AllClients) {
 }
 
 // ============================================================================
-// SUMMARY: 25 tests with ClientUserinfoTest fixture
+// SUMMARY: 25 tests with ClientUserinfoTest fixture - ALL FIXED! ✅
 // ============================================================================
