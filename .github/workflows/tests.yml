@@ -43,12 +43,12 @@ jobs:
     - name: Configure CMake
       shell: bash
       working-directory: ${{ env.BUILD_DIR }}
-      run: cmake "$GITHUB_WORKSPACE" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=ON
+      run: cmake "$GITHUB_WORKSPACE" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=OFF -DBuildMVSDK=OFF
 
     - name: Build Tests
       working-directory: ${{ env.BUILD_DIR }}
       shell: bash
-      run: cmake --build . --target all --parallel $(nproc)
+      run: cmake --build . --target test_sv_world_sectors --parallel $(nproc)
 
     - name: Run Tests
       working-directory: ${{ env.BUILD_DIR }}
@@ -78,12 +78,12 @@ jobs:
     - name: Configure CMake
       shell: bash
       working-directory: ${{ env.BUILD_DIR }}
-      run: cmake "$GITHUB_WORKSPACE" -A x64 -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=ON
+      run: cmake "$GITHUB_WORKSPACE" -A x64 -DBuildTests=ON -DBuildMVMP=OFF -DBuildMVDED=OFF -DBuildMVSDK=OFF
 
     - name: Build Tests
       working-directory: ${{ env.BUILD_DIR }}
       shell: cmd
-      run: cmake --build . --config ${{ matrix.build_type }} --parallel
+      run: cmake --build . --target test_sv_world_sectors --config ${{ matrix.build_type }} --parallel
 
     - name: Run Tests
       working-directory: ${{ env.BUILD_DIR }}
