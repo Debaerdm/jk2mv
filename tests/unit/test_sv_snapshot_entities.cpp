@@ -5,22 +5,9 @@
 #include <cstring>
 #include <cmath>
 
-struct vec3_t {
-    float x, y, z;
-};
-
-struct entityState_t {
-    int number;
-    int eType;
-    vec3_t pos;
-    int solid;
-};
-
-struct svEntity_t {
-    int snapshotCounter;
-    int areanum;
-    int areanum2;
-};
+struct vec3_t { float x, y, z; };
+struct entityState_t { int number; int eType; vec3_t pos; int solid; };
+struct svEntity_t { int snapshotCounter; int areanum; int areanum2; };
 
 entityState_t test_entities[1024];
 svEntity_t test_svEntities[1024];
@@ -33,19 +20,13 @@ void ResetEntities() {
 }
 
 float VectorDistance(vec3_t a, vec3_t b) {
-    float dx = b.x - a.x;
-    float dy = b.y - a.y;
-    float dz = b.z - a.z;
+    float dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     return sqrtf(dx*dx + dy*dy + dz*dz);
 }
 
 bool IsEntityVisible(int entityNum, vec3_t viewpoint, float maxDistance) {
     if (entityNum < 0 || entityNum >= 1024) return false;
-    
-    entityState_t* ent = &test_entities[entityNum];
-    
-    float dist = VectorDistance(viewpoint, ent->pos);
-    return dist <= maxDistance;
+    return VectorDistance(viewpoint, test_entities[entityNum].pos) <= maxDistance;
 }
 
 bool IsEntityInSnapshot(int entityNum) {
@@ -59,46 +40,47 @@ void MarkEntityInSnapshot(int entityNum) {
 int CountVisibleEntities(vec3_t viewpoint, float maxDistance) {
     int count = 0;
     for (int i = 0; i < 1024; i++) {
-        if (IsEntityVisible(i, viewpoint, maxDistance)) {
-            count++;
-        }
+        if (IsEntityVisible(i, viewpoint, maxDistance)) count++;
     }
     return count;
 }
 
 // ============================================================================
+// TEST FIXTURE: Reset global state before each test
+// ============================================================================
+
+class SnapshotEntitiesTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        ResetEntities();
+    }
+};
+
+// ============================================================================
 // TEST SUITE: Visibility Testing
 // ============================================================================
 
-TEST(SvSnapshotEntities_Vis, EntityAtOrigin) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, EntityAtOrigin) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {0, 0, 0};
-    
     EXPECT_TRUE(IsEntityVisible(0, viewpoint, 100.0f));
 }
 
-TEST(SvSnapshotEntities_Vis, EntityWithinRange) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, EntityWithinRange) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {50, 0, 0};
-    
     EXPECT_TRUE(IsEntityVisible(0, viewpoint, 100.0f));
 }
 
-TEST(SvSnapshotEntities_Vis, EntityOutOfRange) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, EntityOutOfRange) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {200, 0, 0};
-    
     EXPECT_FALSE(IsEntityVisible(0, viewpoint, 100.0f));
 }
 
-TEST(SvSnapshotEntities_Vis, EntityAtExactRange) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, EntityAtExactRange) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {100, 0, 0};
-    
     EXPECT_TRUE(IsEntityVisible(0, viewpoint, 100.0f));
 }
 
@@ -106,69 +88,44 @@ TEST(SvSnapshotEntities_Vis, EntityAtExactRange) {
 // TEST SUITE: Distance Calculation
 // ============================================================================
 
-TEST(SvSnapshotEntities_Dist, ZeroDistance) {
-    vec3_t a = {0, 0, 0};
-    vec3_t b = {0, 0, 0};
-    
-    float dist = VectorDistance(a, b);
-    
-    EXPECT_FLOAT_EQ(dist, 0.0f);
+TEST_F(SnapshotEntitiesTest, ZeroDistance) {
+    vec3_t a = {0, 0, 0}, b = {0, 0, 0};
+    EXPECT_FLOAT_EQ(VectorDistance(a, b), 0.0f);
 }
 
-TEST(SvSnapshotEntities_Dist, HorizontalDistance) {
-    vec3_t a = {0, 0, 0};
-    vec3_t b = {100, 0, 0};
-    
-    float dist = VectorDistance(a, b);
-    
-    EXPECT_FLOAT_EQ(dist, 100.0f);
+TEST_F(SnapshotEntitiesTest, HorizontalDistance) {
+    vec3_t a = {0, 0, 0}, b = {100, 0, 0};
+    EXPECT_FLOAT_EQ(VectorDistance(a, b), 100.0f);
 }
 
-TEST(SvSnapshotEntities_Dist, VerticalDistance) {
-    vec3_t a = {0, 0, 0};
-    vec3_t b = {0, 0, 50};
-    
-    float dist = VectorDistance(a, b);
-    
-    EXPECT_FLOAT_EQ(dist, 50.0f);
+TEST_F(SnapshotEntitiesTest, VerticalDistance) {
+    vec3_t a = {0, 0, 0}, b = {0, 0, 50};
+    EXPECT_FLOAT_EQ(VectorDistance(a, b), 50.0f);
 }
 
-TEST(SvSnapshotEntities_Dist, DiagonalDistance) {
-    vec3_t a = {0, 0, 0};
-    vec3_t b = {3, 4, 0};
-    
-    float dist = VectorDistance(a, b);
-    
-    EXPECT_FLOAT_EQ(dist, 5.0f); // 3-4-5 triangle
+TEST_F(SnapshotEntitiesTest, DiagonalDistance) {
+    vec3_t a = {0, 0, 0}, b = {3, 4, 0};
+    EXPECT_FLOAT_EQ(VectorDistance(a, b), 5.0f);
 }
 
 // ============================================================================
 // TEST SUITE: Snapshot Marking
 // ============================================================================
 
-TEST(SvSnapshotEntities_Mark, MarksEntity) {
-    ResetEntities();
-    
+TEST_F(SnapshotEntitiesTest, MarksEntity) {
     MarkEntityInSnapshot(5);
-    
     EXPECT_TRUE(IsEntityInSnapshot(5));
 }
 
-TEST(SvSnapshotEntities_Mark, DoesNotMarkOthers) {
-    ResetEntities();
-    
+TEST_F(SnapshotEntitiesTest, DoesNotMarkOthers) {
     MarkEntityInSnapshot(5);
-    
     EXPECT_FALSE(IsEntityInSnapshot(3));
 }
 
-TEST(SvSnapshotEntities_Mark, MultipleEntities) {
-    ResetEntities();
-    
+TEST_F(SnapshotEntitiesTest, MultipleEntities) {
     MarkEntityInSnapshot(1);
     MarkEntityInSnapshot(2);
     MarkEntityInSnapshot(3);
-    
     EXPECT_TRUE(IsEntityInSnapshot(1));
     EXPECT_TRUE(IsEntityInSnapshot(2));
     EXPECT_TRUE(IsEntityInSnapshot(3));
@@ -178,17 +135,13 @@ TEST(SvSnapshotEntities_Mark, MultipleEntities) {
 // TEST SUITE: Snapshot Counter
 // ============================================================================
 
-TEST(SvSnapshotEntities_Counter, TracksSnapshot) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, TracksSnapshot) {
     MarkEntityInSnapshot(0);
-    
     EXPECT_EQ(test_svEntities[0].snapshotCounter, test_snapshotCounter);
 }
 
-TEST(SvSnapshotEntities_Counter, InvalidatesOldSnapshots) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, InvalidatesOldSnapshots) {
     test_svEntities[0].snapshotCounter = test_snapshotCounter - 1;
-    
     EXPECT_FALSE(IsEntityInSnapshot(0));
 }
 
@@ -196,96 +149,68 @@ TEST(SvSnapshotEntities_Counter, InvalidatesOldSnapshots) {
 // TEST SUITE: Entity Counting
 // ============================================================================
 
-TEST(SvSnapshotEntities_Count, NoEntities) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, NoEntities) {
     vec3_t viewpoint = {0, 0, 0};
-    
-    int count = CountVisibleEntities(viewpoint, 100.0f);
-    
-    EXPECT_EQ(count, 0);
+    EXPECT_EQ(CountVisibleEntities(viewpoint, 100.0f), 0);
 }
 
-TEST(SvSnapshotEntities_Count, SingleEntity) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, SingleEntity) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {50, 0, 0};
-    
-    int count = CountVisibleEntities(viewpoint, 100.0f);
-    
-    EXPECT_EQ(count, 1);
+    EXPECT_EQ(CountVisibleEntities(viewpoint, 100.0f), 1);
 }
 
-TEST(SvSnapshotEntities_Count, MultipleVisible) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, MultipleVisible) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {10, 0, 0};
     test_entities[1].pos = {20, 0, 0};
     test_entities[2].pos = {30, 0, 0};
-    
-    int count = CountVisibleEntities(viewpoint, 100.0f);
-    
-    EXPECT_EQ(count, 3);
+    EXPECT_EQ(CountVisibleEntities(viewpoint, 100.0f), 3);
 }
 
-TEST(SvSnapshotEntities_Count, MixedVisibility) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, MixedVisibility) {
     vec3_t viewpoint = {0, 0, 0};
-    test_entities[0].pos = {10, 0, 0};  // Visible
-    test_entities[1].pos = {200, 0, 0}; // Not visible
-    test_entities[2].pos = {30, 0, 0};  // Visible
-    
-    int count = CountVisibleEntities(viewpoint, 100.0f);
-    
-    EXPECT_EQ(count, 2);
+    test_entities[0].pos = {10, 0, 0};
+    test_entities[1].pos = {200, 0, 0};
+    test_entities[2].pos = {30, 0, 0};
+    EXPECT_EQ(CountVisibleEntities(viewpoint, 100.0f), 2);
 }
 
 // ============================================================================
 // TEST SUITE: Edge Cases
 // ============================================================================
 
-TEST(SvSnapshotEntities_Edge, InvalidEntityNum) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, InvalidEntityNum) {
     vec3_t viewpoint = {0, 0, 0};
-    
     EXPECT_FALSE(IsEntityVisible(-1, viewpoint, 100.0f));
     EXPECT_FALSE(IsEntityVisible(9999, viewpoint, 100.0f));
 }
 
-TEST(SvSnapshotEntities_Edge, ZeroRange) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, ZeroRange) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {0, 0, 0};
-    
     EXPECT_TRUE(IsEntityVisible(0, viewpoint, 0.0f));
 }
 
-TEST(SvSnapshotEntities_Edge, NegativeCoordinates) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, NegativeCoordinates) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {-50, -50, 0};
-    
-    float dist = VectorDistance(viewpoint, test_entities[0].pos);
-    EXPECT_GT(dist, 0.0f);
+    EXPECT_GT(VectorDistance(viewpoint, test_entities[0].pos), 0.0f);
 }
 
 // ============================================================================
 // TEST SUITE: 3D Space
 // ============================================================================
 
-TEST(SvSnapshotEntities_3D, AllAxes) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, AllAxes) {
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {10, 10, 10};
-    
-    float dist = VectorDistance(viewpoint, test_entities[0].pos);
-    EXPECT_GT(dist, 0.0f);
+    EXPECT_GT(VectorDistance(viewpoint, test_entities[0].pos), 0.0f);
 }
 
-TEST(SvSnapshotEntities_3D, VerticalOffset) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, VerticalOffset) {
     vec3_t viewpoint = {0, 0, 100};
     test_entities[0].pos = {0, 0, 50};
-    
     EXPECT_TRUE(IsEntityVisible(0, viewpoint, 100.0f));
 }
 
@@ -293,39 +218,26 @@ TEST(SvSnapshotEntities_3D, VerticalOffset) {
 // TEST SUITE: Performance
 // ============================================================================
 
-TEST(SvSnapshotEntities_Perf, ManyEntities) {
-    ResetEntities();
+TEST_F(SnapshotEntitiesTest, ManyEntities) {
     vec3_t viewpoint = {0, 0, 0};
-    
-    for (int i = 0; i < 100; i++) {
-        test_entities[i].pos = {(float)i, 0, 0};
-    }
-    
-    int count = CountVisibleEntities(viewpoint, 1000.0f);
-    EXPECT_EQ(count, 100);
+    for (int i = 0; i < 100; i++) test_entities[i].pos = {(float)i, 0, 0};
+    EXPECT_EQ(CountVisibleEntities(viewpoint, 1000.0f), 100);
 }
 
-TEST(SvSnapshotEntities_Perf, ManyMarks) {
-    ResetEntities();
-    
-    for (int i = 0; i < 500; i++) {
-        MarkEntityInSnapshot(i);
-    }
-    
+TEST_F(SnapshotEntitiesTest, ManyMarks) {
+    for (int i = 0; i < 500; i++) MarkEntityInSnapshot(i);
     EXPECT_TRUE(IsEntityInSnapshot(499));
 }
 
-TEST(SvSnapshotEntities_Perf, ManyDistanceChecks) {
+TEST_F(SnapshotEntitiesTest, ManyDistanceChecks) {
     vec3_t a = {0, 0, 0};
-    
     for (int i = 0; i < 1000; i++) {
         vec3_t b = {(float)i, (float)i, 0};
         VectorDistance(a, b);
     }
-    
     EXPECT_TRUE(true);
 }
 
 // ============================================================================
-// SUMMARY: 30 tests for sv_snapshot_entities.h
+// SUMMARY: 30 tests with SnapshotEntitiesTest fixture
 // ============================================================================
