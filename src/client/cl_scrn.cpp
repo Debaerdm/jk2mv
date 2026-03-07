@@ -18,6 +18,18 @@ static qboolean SCR_IsColorCode(const char *s)
 	return Q_IsColorString(s) || (MV_USE102COLOR && Q_IsColorString_1_02(s));
 }
 
+static qboolean SCR_ShouldSkipCharDraw(int ch, float y, float minY)
+{
+	return ch == ' ' || y < minY;
+}
+
+static void SCR_SetStringColorFromCode(vec4_t color, const float *setColor, const char *s)
+{
+	Com_Memcpy(color, g_color_table[ColorIndex(*(s + 1))], sizeof(vec4_t));
+	color[3] = setColor[3];
+	re.SetColor(color);
+}
+
 /*
 ================
 SCR_DrawNamedPic
@@ -75,11 +87,7 @@ static void SCR_DrawChar( int x, int y, float size, int ch ) {
 
 	ch &= 255;
 
-	if ( ch == ' ' ) {
-		return;
-	}
-
-	if ( y < -size ) {
+	if ( SCR_ShouldSkipCharDraw( ch, y, -size ) ) {
 		return;
 	}
 
@@ -115,11 +123,7 @@ void SCR_DrawSmallChar( int x, int y, int ch ) {
 
 	ch &= 255;
 
-	if ( ch == ' ' ) {
-		return;
-	}
-
-	if ( y < -con.charHeight ) {
+	if ( SCR_ShouldSkipCharDraw( ch, y, -con.charHeight ) ) {
 		return;
 	}
 
@@ -185,9 +189,7 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	while ( *s ) {
 		if ( SCR_IsColorCode( s ) ) {
 			if ( !forceColor ) {
-				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
-				color[3] = setColor[3];
-				re.SetColor( color );
+				SCR_SetStringColorFromCode( color, setColor, s );
 			}
 			s += 2;
 			continue;
@@ -235,9 +237,7 @@ void SCR_DrawSmallStringExt( int x, int y, const char *string, const vec4_t setC
 	while ( *s ) {
 		if ( SCR_IsColorCode( s ) ) {
 			if ( !forceColor ) {
-				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
-				color[3] = setColor[3];
-				re.SetColor( color );
+				SCR_SetStringColorFromCode( color, setColor, s );
 			}
 			s += 2;
 			continue;
