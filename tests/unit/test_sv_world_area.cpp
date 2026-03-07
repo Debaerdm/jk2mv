@@ -153,11 +153,21 @@ void AddEntityToSector(int entityIndex, int sectorIndex, float minX, float minY,
 }
 
 // ============================================================================
+// TEST FIXTURE: Reset global state before each test
+// ============================================================================
+
+class WorldAreaTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        ResetMockWorld();
+    }
+};
+
+// ============================================================================
 // TEST SUITE: SV_AreaEntities - Basic Operations
 // ============================================================================
 
-TEST(SvWorldArea_Basic, EmptyWorldReturnsZero) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, EmptyWorldReturnsZero) {
     SetupSimpleLeafNode();
     
     float mins[3] = {0, 0, 0};
@@ -169,8 +179,7 @@ TEST(SvWorldArea_Basic, EmptyWorldReturnsZero) {
     EXPECT_EQ(count, 0);
 }
 
-TEST(SvWorldArea_Basic, FindsSingleEntity) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, FindsSingleEntity) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -185,8 +194,7 @@ TEST(SvWorldArea_Basic, FindsSingleEntity) {
     EXPECT_EQ(list[0], 0);
 }
 
-TEST(SvWorldArea_Basic, FindsMultipleEntities) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, FindsMultipleEntities) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -202,8 +210,7 @@ TEST(SvWorldArea_Basic, FindsMultipleEntities) {
     EXPECT_EQ(count, 3);
 }
 
-TEST(SvWorldArea_Basic, RespectsMaxCount) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, RespectsMaxCount) {
     SetupSimpleLeafNode();
     
     for (int i = 0; i < 10; i++) {
@@ -219,8 +226,7 @@ TEST(SvWorldArea_Basic, RespectsMaxCount) {
     EXPECT_EQ(count, 5);  // Should stop at maxcount
 }
 
-TEST(SvWorldArea_Basic, ReturnsEntityIndices) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, ReturnsEntityIndices) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(5, 0, 0, 0, 0, 10, 10, 10);
@@ -240,8 +246,7 @@ TEST(SvWorldArea_Basic, ReturnsEntityIndices) {
 // TEST SUITE: AABB Intersection Tests
 // ============================================================================
 
-TEST(SvWorldArea_AABB, ExactOverlap) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, ExactOverlap) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -255,8 +260,7 @@ TEST(SvWorldArea_AABB, ExactOverlap) {
     EXPECT_EQ(count, 1);
 }
 
-TEST(SvWorldArea_AABB, PartialOverlap) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, PartialOverlap) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -270,8 +274,7 @@ TEST(SvWorldArea_AABB, PartialOverlap) {
     EXPECT_EQ(count, 1);
 }
 
-TEST(SvWorldArea_AABB, NoOverlapXAxis) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, NoOverlapXAxis) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -285,8 +288,7 @@ TEST(SvWorldArea_AABB, NoOverlapXAxis) {
     EXPECT_EQ(count, 0);
 }
 
-TEST(SvWorldArea_AABB, NoOverlapYAxis) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, NoOverlapYAxis) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -300,8 +302,7 @@ TEST(SvWorldArea_AABB, NoOverlapYAxis) {
     EXPECT_EQ(count, 0);
 }
 
-TEST(SvWorldArea_AABB, NoOverlapZAxis) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, NoOverlapZAxis) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -315,8 +316,7 @@ TEST(SvWorldArea_AABB, NoOverlapZAxis) {
     EXPECT_EQ(count, 0);
 }
 
-TEST(SvWorldArea_AABB, TouchingEdge) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, TouchingEdge) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -330,8 +330,7 @@ TEST(SvWorldArea_AABB, TouchingEdge) {
     EXPECT_EQ(count, 0);  // Touching but not overlapping
 }
 
-TEST(SvWorldArea_AABB, ContainsEntity) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, ContainsEntity) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 5, 5, 5, 10, 10, 10);
@@ -345,8 +344,7 @@ TEST(SvWorldArea_AABB, ContainsEntity) {
     EXPECT_EQ(count, 1);
 }
 
-TEST(SvWorldArea_AABB, EntityContainsQuery) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, EntityContainsQuery) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 100, 100, 100);
@@ -364,9 +362,7 @@ TEST(SvWorldArea_AABB, EntityContainsQuery) {
 // TEST SUITE: Tree Recursion
 // ============================================================================
 
-TEST(SvWorldArea_Recursion, TwoLevelTree) {
-    ResetMockWorld();
-    
+TEST_F(WorldAreaTest, TwoLevelTree) {
     // Root node splits at X=50
     test_sv_worldSectors[0].axis = 0;
     test_sv_worldSectors[0].dist = 50.0f;
@@ -393,9 +389,7 @@ TEST(SvWorldArea_Recursion, TwoLevelTree) {
     EXPECT_EQ(count, 2);
 }
 
-TEST(SvWorldArea_Recursion, QueryLeftSideOnly) {
-    ResetMockWorld();
-    
+TEST_F(WorldAreaTest, QueryLeftSideOnly) {
     test_sv_worldSectors[0].axis = 0;
     test_sv_worldSectors[0].dist = 50.0f;
     test_sv_worldSectors[0].children[0] = &test_sv_worldSectors[1];
@@ -417,9 +411,7 @@ TEST(SvWorldArea_Recursion, QueryLeftSideOnly) {
     EXPECT_EQ(list[0], 0);
 }
 
-TEST(SvWorldArea_Recursion, QueryRightSideOnly) {
-    ResetMockWorld();
-    
+TEST_F(WorldAreaTest, QueryRightSideOnly) {
     test_sv_worldSectors[0].axis = 0;
     test_sv_worldSectors[0].dist = 50.0f;
     test_sv_worldSectors[0].children[0] = &test_sv_worldSectors[1];
@@ -441,9 +433,7 @@ TEST(SvWorldArea_Recursion, QueryRightSideOnly) {
     EXPECT_EQ(list[0], 1);
 }
 
-TEST(SvWorldArea_Recursion, QueryCrossesPartition) {
-    ResetMockWorld();
-    
+TEST_F(WorldAreaTest, QueryCrossesPartition) {
     test_sv_worldSectors[0].axis = 0;
     test_sv_worldSectors[0].dist = 50.0f;
     test_sv_worldSectors[0].children[0] = &test_sv_worldSectors[1];
@@ -468,8 +458,7 @@ TEST(SvWorldArea_Recursion, QueryCrossesPartition) {
 // TEST SUITE: Edge Cases
 // ============================================================================
 
-TEST(SvWorldArea_EdgeCases, ZeroSizeQuery) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, ZeroSizeQuery) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -482,8 +471,7 @@ TEST(SvWorldArea_EdgeCases, ZeroSizeQuery) {
     EXPECT_EQ(count, 1);  // Point inside entity
 }
 
-TEST(SvWorldArea_EdgeCases, NegativeCoordinates) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, NegativeCoordinates) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, -50, -50, -50, -10, -10, -10);
@@ -497,8 +485,7 @@ TEST(SvWorldArea_EdgeCases, NegativeCoordinates) {
     EXPECT_EQ(count, 1);
 }
 
-TEST(SvWorldArea_EdgeCases, VeryLargeQuery) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, VeryLargeQuery) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -512,8 +499,7 @@ TEST(SvWorldArea_EdgeCases, VeryLargeQuery) {
     EXPECT_EQ(count, 1);
 }
 
-TEST(SvWorldArea_EdgeCases, MaxCountZero) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, MaxCountZero) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -531,8 +517,7 @@ TEST(SvWorldArea_EdgeCases, MaxCountZero) {
 // TEST SUITE: Performance & Stress
 // ============================================================================
 
-TEST(SvWorldArea_Performance, ManyEntitiesInOneSector) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, ManyEntitiesInOneSector) {
     SetupSimpleLeafNode();
     
     for (int i = 0; i < 100; i++) {
@@ -548,8 +533,7 @@ TEST(SvWorldArea_Performance, ManyEntitiesInOneSector) {
     EXPECT_EQ(count, 100);
 }
 
-TEST(SvWorldArea_Performance, ManyQueriesSameArea) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, ManyQueriesSameArea) {
     SetupSimpleLeafNode();
     
     AddEntityToSector(0, 0, 0, 0, 0, 10, 10, 10);
@@ -564,8 +548,7 @@ TEST(SvWorldArea_Performance, ManyQueriesSameArea) {
     }
 }
 
-TEST(SvWorldArea_Stress, LongEntityChain) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, LongEntityChain) {
     SetupSimpleLeafNode();
     
     for (int i = 0; i < 50; i++) {
@@ -585,8 +568,7 @@ TEST(SvWorldArea_Stress, LongEntityChain) {
 // TEST SUITE: Integration Tests
 // ============================================================================
 
-TEST(SvWorldArea_Integration, ComplexScene) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, ComplexScene) {
     SetupSimpleLeafNode();
     
     // Add entities in various positions
@@ -603,8 +585,7 @@ TEST(SvWorldArea_Integration, ComplexScene) {
     EXPECT_EQ(count, 3);
 }
 
-TEST(SvWorldArea_Integration, MultipleSmallQueries) {
-    ResetMockWorld();
+TEST_F(WorldAreaTest, MultipleSmallQueries) {
     SetupSimpleLeafNode();
     
     for (int i = 0; i < 10; i++) {
@@ -623,12 +604,13 @@ TEST(SvWorldArea_Integration, MultipleSmallQueries) {
 }
 
 // ============================================================================
-// SUMMARY: 50 tests for sv_world_area.h
+// SUMMARY: 26 tests for sv_world_area.h
 // - Basic Operations: 5 tests
 // - AABB Intersection: 8 tests
 // - Tree Recursion: 4 tests
 // - Edge Cases: 4 tests
 // - Performance: 3 tests
 // - Integration: 2 tests
-// Total: 26 core tests + variations = ~50 tests
+//
+// KEY FIX: Added WorldAreaTest fixture with SetUp() to reset global state
 // ============================================================================
