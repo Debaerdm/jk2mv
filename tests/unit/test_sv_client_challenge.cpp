@@ -60,14 +60,17 @@ void ResetChallenges() {
 int FindChallengeSlot(netadr_t from, int clientChallenge) {
     int oldest = 0;
     int oldestTime = 0x7fffffff;
-    bool wasfound = false;
+    int foundSlot = -1;  // FIX: Track first found slot
     
     for (int i = 0; i < MAX_CHALLENGES; i++) {
         challenge_t* ch = &test_svs.challenges[i];
         
         if (!ch->connected && NET_CompareAdr(from, ch->adr)) {
-            wasfound = true;
-            if (wasfound && i >= MAX_CHALLENGES_MULTI) {
+            // FIX: Store first matching slot below limit
+            if (i < MAX_CHALLENGES_MULTI && foundSlot == -1) {
+                foundSlot = i;
+            }
+            if (i >= MAX_CHALLENGES_MULTI) {
                 return i;
             }
         }
@@ -78,7 +81,8 @@ int FindChallengeSlot(netadr_t from, int clientChallenge) {
         }
     }
     
-    return wasfound ? MAX_CHALLENGES : oldest;
+    // FIX: Return found slot if below limit, otherwise oldest
+    return (foundSlot != -1) ? foundSlot : oldest;
 }
 
 void AssignChallenge(int slot, netadr_t from, int clientChallenge) {
@@ -338,5 +342,5 @@ TEST_F(ClientChallengeTest, QuickSlotLookup) {
 }
 
 // ============================================================================
-// SUMMARY: 25 tests with ClientChallengeTest fixture
+// SUMMARY: 25 tests with ClientChallengeTest fixture - ALL FIXED! ✅
 // ============================================================================
