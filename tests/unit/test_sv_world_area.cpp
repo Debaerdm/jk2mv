@@ -37,32 +37,25 @@ typedef struct {
     int maxcount;
 } areaParms_t;
 
-// Mock server state
-namespace MockServer {
-    struct server_t {
-        svEntity_t svEntities[MAX_GENTITIES];
-    };
-    
-    server_t sv;
-    sharedEntity_t gentities[MAX_GENTITIES];
-    worldSector_t sv_worldSectors[64];
-    
-    sharedEntity_t* SV_GEntityForSvEntity(svEntity_t* svEnt) {
-        if (!svEnt) return nullptr;
-        int index = svEnt - sv.svEntities;
-        if (index < 0 || index >= MAX_GENTITIES) return nullptr;
-        return &gentities[index];
-    }
-    
-    void Com_Printf(const char* fmt, ...) {
-        // Mock print - do nothing
-    }
+// Global test state
+struct server_t {
+    svEntity_t svEntities[MAX_GENTITIES];
+};
+
+server_t test_sv;
+sharedEntity_t test_gentities[MAX_GENTITIES];
+worldSector_t test_sv_worldSectors[64];
+
+sharedEntity_t* SV_GEntityForSvEntity(svEntity_t* svEnt) {
+    if (!svEnt) return nullptr;
+    int index = svEnt - test_sv.svEntities;
+    if (index < 0 || index >= MAX_GENTITIES) return nullptr;
+    return &test_gentities[index];
 }
 
-#define sv MockServer::sv
-#define sv_worldSectors MockServer::sv_worldSectors
-#define SV_GEntityForSvEntity MockServer::SV_GEntityForSvEntity
-#define Com_Printf MockServer::Com_Printf
+void Com_Printf(const char* fmt, ...) {
+    // Mock print - do nothing
+}
 
 // Forward declarations
 void SV_AreaEntities_r(worldSector_t* node, areaParms_t* ap);
@@ -93,7 +86,7 @@ void SV_AreaEntities_r(worldSector_t* node, areaParms_t* ap) {
             return;
         }
         
-        ap->list[ap->count] = check - sv.svEntities;
+        ap->list[ap->count] = check - test_sv.svEntities;
         ap->count++;
     }
     
@@ -119,34 +112,34 @@ int SV_AreaEntities(const float* mins, const float* maxs, int* entityList, int m
     ap.count = 0;
     ap.maxcount = maxcount;
     
-    SV_AreaEntities_r(sv_worldSectors, &ap);
+    SV_AreaEntities_r(test_sv_worldSectors, &ap);
     
     return ap.count;
 }
 
 // Helper functions
 void ResetMockWorld() {
-    std::memset(&sv, 0, sizeof(sv));
-    std::memset(MockServer::gentities, 0, sizeof(MockServer::gentities));
-    std::memset(sv_worldSectors, 0, sizeof(sv_worldSectors));
+    std::memset(&test_sv, 0, sizeof(test_sv));
+    std::memset(test_gentities, 0, sizeof(test_gentities));
+    std::memset(test_sv_worldSectors, 0, sizeof(test_sv_worldSectors));
     
     // Initialize entity numbers
     for (int i = 0; i < MAX_GENTITIES; i++) {
-        MockServer::gentities[i].s.number = i;
+        test_gentities[i].s.number = i;
     }
 }
 
 void SetupSimpleLeafNode() {
-    sv_worldSectors[0].axis = -1;  // Leaf node
-    sv_worldSectors[0].entities = nullptr;
-    sv_worldSectors[0].children[0] = nullptr;
-    sv_worldSectors[0].children[1] = nullptr;
+    test_sv_worldSectors[0].axis = -1;  // Leaf node
+    test_sv_worldSectors[0].entities = nullptr;
+    test_sv_worldSectors[0].children[0] = nullptr;
+    test_sv_worldSectors[0].children[1] = nullptr;
 }
 
 void AddEntityToSector(int entityIndex, int sectorIndex, float minX, float minY, float minZ,
                        float maxX, float maxY, float maxZ) {
-    svEntity_t* ent = &sv.svEntities[entityIndex];
-    sharedEntity_t* gent = &MockServer::gentities[entityIndex];
+    svEntity_t* ent = &test_sv.svEntities[entityIndex];
+    sharedEntity_t* gent = &test_gentities[entityIndex];
     
     gent->r.absmin[0] = minX;
     gent->r.absmin[1] = minY;
@@ -155,8 +148,8 @@ void AddEntityToSector(int entityIndex, int sectorIndex, float minX, float minY,
     gent->r.absmax[1] = maxY;
     gent->r.absmax[2] = maxZ;
     
-    ent->nextEntityInWorldSector = sv_worldSectors[sectorIndex].entities;
-    sv_worldSectors[sectorIndex].entities = ent;
+    ent->nextEntityInWorldSector = test_sv_worldSectors[sectorIndex].entities;
+    test_sv_worldSectors[sectorIndex].entities = ent;
 }
 
 // ============================================================================
@@ -375,18 +368,18 @@ TEST(SvWorldArea_Recursion, TwoLevelTree) {
     ResetMockWorld();
     
     // Root node splits at X=50
-    sv_worldSectors[0].axis = 0;
-    sv_worldSectors[0].dist = 50.0f;
-    sv_worldSectors[0].children[0] = &sv_worldSectors[1];
-    sv_worldSectors[0].children[1] = &sv_worldSectors[2];
+    test_sv_worldSectors[0].axis = 0;
+    test_sv_worldSectors[0].dist = 50.0f;
+    test_sv_worldSectors[0].children[0] = &test_sv_worldSectors[1];
+    test_sv_worldSectors[0].children[1] = &test_sv_worldSectors[2];
     
     // Left child (X > 50)
-    sv_worldSectors[1].axis = -1;
-    sv_worldSectors[1].entities = nullptr;
+    test_sv_worldSectors[1].axis = -1;
+    test_sv_worldSectors[1].entities = nullptr;
     
     // Right child (X < 50)
-    sv_worldSectors[2].axis = -1;
-    sv_worldSectors[2].entities = nullptr;
+    test_sv_worldSectors[2].axis = -1;
+    test_sv_worldSectors[2].entities = nullptr;
     
     AddEntityToSector(0, 1, 60, 0, 0, 70, 10, 10);  // Left side
     AddEntityToSector(1, 2, 10, 0, 0, 20, 10, 10);  // Right side
@@ -403,13 +396,13 @@ TEST(SvWorldArea_Recursion, TwoLevelTree) {
 TEST(SvWorldArea_Recursion, QueryLeftSideOnly) {
     ResetMockWorld();
     
-    sv_worldSectors[0].axis = 0;
-    sv_worldSectors[0].dist = 50.0f;
-    sv_worldSectors[0].children[0] = &sv_worldSectors[1];
-    sv_worldSectors[0].children[1] = &sv_worldSectors[2];
+    test_sv_worldSectors[0].axis = 0;
+    test_sv_worldSectors[0].dist = 50.0f;
+    test_sv_worldSectors[0].children[0] = &test_sv_worldSectors[1];
+    test_sv_worldSectors[0].children[1] = &test_sv_worldSectors[2];
     
-    sv_worldSectors[1].axis = -1;
-    sv_worldSectors[2].axis = -1;
+    test_sv_worldSectors[1].axis = -1;
+    test_sv_worldSectors[2].axis = -1;
     
     AddEntityToSector(0, 1, 60, 0, 0, 70, 10, 10);
     AddEntityToSector(1, 2, 10, 0, 0, 20, 10, 10);
@@ -427,13 +420,13 @@ TEST(SvWorldArea_Recursion, QueryLeftSideOnly) {
 TEST(SvWorldArea_Recursion, QueryRightSideOnly) {
     ResetMockWorld();
     
-    sv_worldSectors[0].axis = 0;
-    sv_worldSectors[0].dist = 50.0f;
-    sv_worldSectors[0].children[0] = &sv_worldSectors[1];
-    sv_worldSectors[0].children[1] = &sv_worldSectors[2];
+    test_sv_worldSectors[0].axis = 0;
+    test_sv_worldSectors[0].dist = 50.0f;
+    test_sv_worldSectors[0].children[0] = &test_sv_worldSectors[1];
+    test_sv_worldSectors[0].children[1] = &test_sv_worldSectors[2];
     
-    sv_worldSectors[1].axis = -1;
-    sv_worldSectors[2].axis = -1;
+    test_sv_worldSectors[1].axis = -1;
+    test_sv_worldSectors[2].axis = -1;
     
     AddEntityToSector(0, 1, 60, 0, 0, 70, 10, 10);
     AddEntityToSector(1, 2, 10, 0, 0, 20, 10, 10);
@@ -451,13 +444,13 @@ TEST(SvWorldArea_Recursion, QueryRightSideOnly) {
 TEST(SvWorldArea_Recursion, QueryCrossesPartition) {
     ResetMockWorld();
     
-    sv_worldSectors[0].axis = 0;
-    sv_worldSectors[0].dist = 50.0f;
-    sv_worldSectors[0].children[0] = &sv_worldSectors[1];
-    sv_worldSectors[0].children[1] = &sv_worldSectors[2];
+    test_sv_worldSectors[0].axis = 0;
+    test_sv_worldSectors[0].dist = 50.0f;
+    test_sv_worldSectors[0].children[0] = &test_sv_worldSectors[1];
+    test_sv_worldSectors[0].children[1] = &test_sv_worldSectors[2];
     
-    sv_worldSectors[1].axis = -1;
-    sv_worldSectors[2].axis = -1;
+    test_sv_worldSectors[1].axis = -1;
+    test_sv_worldSectors[2].axis = -1;
     
     AddEntityToSector(0, 1, 60, 0, 0, 70, 10, 10);
     AddEntityToSector(1, 2, 10, 0, 0, 20, 10, 10);

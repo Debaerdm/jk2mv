@@ -45,6 +45,8 @@ typedef int qboolean;
 const qboolean qtrue = 1;
 const qboolean qfalse = 0;
 
+float vec3_origin[3] = {0, 0, 0};
+
 // Mock collision manager
 namespace MockCM {
     clipHandle_t CM_InlineModel(int index) { return index + 1000; }
@@ -82,55 +84,41 @@ namespace MockCM {
     }
 }
 
-#define CM_InlineModel MockCM::CM_InlineModel
-#define CM_TempBoxModel MockCM::CM_TempBoxModel
-#define CM_BoxTrace MockCM::CM_BoxTrace
-#define CM_TransformedBoxTrace MockCM::CM_TransformedBoxTrace
-#define CM_PointContents MockCM::CM_PointContents
-#define CM_TransformedPointContents MockCM::CM_TransformedPointContents
-
 // Mock server
-namespace MockServer {
-    sharedEntity_t gentities[MAX_GENTITIES];
-    
-    sharedEntity_t* SV_GentityNum(int num) {
-        if (num < 0 || num >= MAX_GENTITIES) return nullptr;
-        return &gentities[num];
-    }
-    
-    int SV_AreaEntities(const float* mins, const float* maxs, int* list, int maxcount) {
-        // Mock: return first 3 entities
-        int count = 0;
-        for (int i = 0; i < 3 && count < maxcount; i++) {
-            list[count++] = i;
-        }
-        return count;
-    }
+sharedEntity_t test_gentities[MAX_GENTITIES];
+
+sharedEntity_t* SV_GentityNum(int num) {
+    if (num < 0 || num >= MAX_GENTITIES) return nullptr;
+    return &test_gentities[num];
 }
 
-#define SV_GentityNum MockServer::SV_GentityNum
-#define SV_AreaEntities MockServer::SV_AreaEntities
-
-float vec3_origin[3] = {0, 0, 0};
+int SV_AreaEntities(const float* mins, const float* maxs, int* list, int maxcount) {
+    // Mock: return first 3 entities
+    int count = 0;
+    for (int i = 0; i < 3 && count < maxcount; i++) {
+        list[count++] = i;
+    }
+    return count;
+}
 
 // Helper to clear mock data
 void ResetMockEntities() {
-    std::memset(MockServer::gentities, 0, sizeof(MockServer::gentities));
+    std::memset(test_gentities, 0, sizeof(test_gentities));
     for (int i = 0; i < MAX_GENTITIES; i++) {
-        MockServer::gentities[i].s.number = i;
-        MockServer::gentities[i].r.ownerNum = ENTITYNUM_NONE;
+        test_gentities[i].s.number = i;
+        test_gentities[i].r.ownerNum = ENTITYNUM_NONE;
     }
 }
 
 // Include functions under test
 clipHandle_t SV_ClipHandleForEntity(const sharedEntity_t* ent) {
     if (ent->r.bmodel) {
-        return CM_InlineModel(ent->s.modelindex);
+        return MockCM::CM_InlineModel(ent->s.modelindex);
     }
     if (ent->r.svFlags & SVF_CAPSULE) {
-        return CM_TempBoxModel(ent->r.mins, ent->r.maxs, qtrue);
+        return MockCM::CM_TempBoxModel(ent->r.mins, ent->r.maxs, qtrue);
     }
-    return CM_TempBoxModel(ent->r.mins, ent->r.maxs, qfalse);
+    return MockCM::CM_TempBoxModel(ent->r.mins, ent->r.maxs, qfalse);
 }
 
 void SV_ClipToEntity(trace_t* trace, const float* start, const float* mins, 
@@ -152,7 +140,7 @@ void SV_ClipToEntity(trace_t* trace, const float* start, const float* mins,
         angles = vec3_origin;
     }
     
-    CM_TransformedBoxTrace(trace, start, end, mins, maxs, clipHandle,
+    MockCM::CM_TransformedBoxTrace(trace, start, end, mins, maxs, clipHandle,
                           contentmask, origin, angles, capsule);
     
     if (trace->fraction < 1) {
@@ -167,7 +155,7 @@ void SV_Trace(trace_t* results, const float* start, const float* mins,
     if (!maxs) maxs = vec3_origin;
     
     trace_t trace;
-    CM_BoxTrace(&trace, start, end, mins, maxs, 0, contentmask, capsule);
+    MockCM::CM_BoxTrace(&trace, start, end, mins, maxs, 0, contentmask, capsule);
     trace.entityNum = trace.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
     
     if (trace.fraction == 0) {
@@ -179,7 +167,7 @@ void SV_Trace(trace_t* results, const float* start, const float* mins,
 }
 
 int SV_PointContents(const float* p, int passEntityNum) {
-    int contents = CM_PointContents(p, 0);
+    int contents = MockCM::CM_PointContents(p, 0);
     
     int touch[MAX_GENTITIES];
     int num = SV_AreaEntities(p, p, touch, MAX_GENTITIES);
@@ -195,7 +183,7 @@ int SV_PointContents(const float* p, int passEntityNum) {
             angles = vec3_origin;
         }
         
-        int c2 = CM_TransformedPointContents(p, clipHandle, hit->s.origin, hit->s.angles);
+        int c2 = MockCM::CM_TransformedPointContents(p, clipHandle, hit->s.origin, hit->s.angles);
         contents |= c2;
     }
     
@@ -208,7 +196,7 @@ int SV_PointContents(const float* p, int passEntityNum) {
 
 TEST(SvWorldTrace_ClipHandle, BmodelReturnsInlineModel) {
     ResetMockEntities();
-    sharedEntity_t* ent = &MockServer::gentities[0];
+    sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = true;
     ent->s.modelindex = 5;
     
@@ -219,7 +207,7 @@ TEST(SvWorldTrace_ClipHandle, BmodelReturnsInlineModel) {
 
 TEST(SvWorldTrace_ClipHandle, CapsuleReturnsTempCapsule) {
     ResetMockEntities();
-    sharedEntity_t* ent = &MockServer::gentities[0];
+    sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = false;
     ent->r.svFlags = SVF_CAPSULE;
     
@@ -228,9 +216,9 @@ TEST(SvWorldTrace_ClipHandle, CapsuleReturnsTempCapsule) {
     EXPECT_EQ(handle, 500); // CM_TempBoxModel with capsule = true
 }
 
-TEST(SvWorldTrace_ClipHandle, BoxReturns TempBox) {
+TEST(SvWorldTrace_ClipHandle, BoxReturnsTempBox) {
     ResetMockEntities();
-    sharedEntity_t* ent = &MockServer::gentities[0];
+    sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = false;
     ent->r.svFlags = 0;
     
@@ -241,7 +229,7 @@ TEST(SvWorldTrace_ClipHandle, BoxReturns TempBox) {
 
 TEST(SvWorldTrace_ClipHandle, BmodelTakesPrecedenceOverCapsule) {
     ResetMockEntities();
-    sharedEntity_t* ent = &MockServer::gentities[0];
+    sharedEntity_t* ent = &test_gentities[0];
     ent->r.bmodel = true;
     ent->r.svFlags = SVF_CAPSULE;
     ent->s.modelindex = 3;
@@ -261,7 +249,7 @@ TEST(SvWorldTrace_ClipToEntity, InitializesTrace) {
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
     
-    MockServer::gentities[0].r.contents = 0; // No contents
+    test_gentities[0].r.contents = 0; // No contents
     
     SV_ClipToEntity(&trace, start, nullptr, nullptr, end, 0, CONTENTS_SOLID, false);
     
@@ -275,7 +263,7 @@ TEST(SvWorldTrace_ClipToEntity, SkipsWhenContentsDontMatch) {
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
     
-    MockServer::gentities[0].r.contents = CONTENTS_BODY;
+    test_gentities[0].r.contents = CONTENTS_BODY;
     
     SV_ClipToEntity(&trace, start, nullptr, nullptr, end, 0, CONTENTS_SOLID, false);
     
@@ -288,7 +276,7 @@ TEST(SvWorldTrace_ClipToEntity, PerformsClipWhenContentsMatch) {
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
     
-    MockServer::gentities[0].r.contents = CONTENTS_SOLID;
+    test_gentities[0].r.contents = CONTENTS_SOLID;
     
     SV_ClipToEntity(&trace, start, nullptr, nullptr, end, 0, CONTENTS_SOLID, false);
     
@@ -302,8 +290,8 @@ TEST(SvWorldTrace_ClipToEntity, SetsEntityNumOnHit) {
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
     
-    MockServer::gentities[5].r.contents = CONTENTS_SOLID;
-    MockServer::gentities[5].s.number = 5;
+    test_gentities[5].r.contents = CONTENTS_SOLID;
+    test_gentities[5].s.number = 5;
     
     SV_ClipToEntity(&trace, start, nullptr, nullptr, end, 5, CONTENTS_SOLID, false);
     
@@ -316,9 +304,9 @@ TEST(SvWorldTrace_ClipToEntity, UsesOriginZeroForBoxes) {
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
     
-    MockServer::gentities[0].r.bmodel = false;
-    MockServer::gentities[0].r.contents = CONTENTS_SOLID;
-    MockServer::gentities[0].r.currentAngles[0] = 45.0f;
+    test_gentities[0].r.bmodel = false;
+    test_gentities[0].r.contents = CONTENTS_SOLID;
+    test_gentities[0].r.currentAngles[0] = 45.0f;
     
     SV_ClipToEntity(&trace, start, nullptr, nullptr, end, 0, CONTENTS_SOLID, false);
     
@@ -332,9 +320,9 @@ TEST(SvWorldTrace_ClipToEntity, UsesBmodelAngles) {
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
     
-    MockServer::gentities[0].r.bmodel = true;
-    MockServer::gentities[0].r.contents = CONTENTS_SOLID;
-    MockServer::gentities[0].r.currentAngles[0] = 45.0f;
+    test_gentities[0].r.bmodel = true;
+    test_gentities[0].r.contents = CONTENTS_SOLID;
+    test_gentities[0].r.currentAngles[0] = 45.0f;
     
     SV_ClipToEntity(&trace, start, nullptr, nullptr, end, 0, CONTENTS_SOLID, false);
     
@@ -416,7 +404,7 @@ TEST(SvWorldTrace_PointContents, OrsCombinesEntityContents) {
     ResetMockEntities();
     float point[3] = {0, 0, 0};
     
-    MockServer::gentities[0].r.contents = CONTENTS_SOLID;
+    test_gentities[0].r.contents = CONTENTS_SOLID;
     
     int contents = SV_PointContents(point, ENTITYNUM_NONE);
     
@@ -437,7 +425,7 @@ TEST(SvWorldTrace_PointContents, UsesOriginZeroForBoxes) {
     ResetMockEntities();
     float point[3] = {0, 0, 0};
     
-    MockServer::gentities[0].r.bmodel = false;
+    test_gentities[0].r.bmodel = false;
     
     int contents = SV_PointContents(point, ENTITYNUM_NONE);
     
@@ -601,7 +589,7 @@ TEST(SvWorldTrace_Integration, ClipToMultipleEntities) {
     float end[3] = {100, 0, 0};
     
     for (int i = 0; i < 3; i++) {
-        MockServer::gentities[i].r.contents = CONTENTS_SOLID;
+        test_gentities[i].r.contents = CONTENTS_SOLID;
         SV_ClipToEntity(&traces[i], start, nullptr, nullptr, end, i,
                        CONTENTS_SOLID, false);
     }
