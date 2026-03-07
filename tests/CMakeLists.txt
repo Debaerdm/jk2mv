@@ -38,7 +38,10 @@ function(add_jk2mv_test test_name)
     ${GlobalDefines}
     ${DebugDefines}
   )
-  gtest_discover_tests(${test_name})
+  # Use POST_BUILD discovery mode to avoid running tests during cmake configuration
+  gtest_discover_tests(${test_name}
+    DISCOVERY_MODE POST_BUILD
+  )
 endfunction()
 
 # Unit tests
