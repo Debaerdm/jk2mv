@@ -42,6 +42,7 @@ option(BuildPortableVersion "Build portable version (does not read or write file
 option(BuildMVMP "Whether to create targets for the client (jk2mvmp & jk2mvmenu)" ON)
 option(BuildMVDED "Whether to create targets for the dedicated server (jk2mvded)" ON)
 option(BuildMVSDK "Whether to build and integrate the mvsdk modules" ON)
+option(BuildTests "Whether to build the test suite (requires Google Test)" OFF)
 
 set(SystemProcessor "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Option to override CMAKE_SYSTEM_PROCESSOR")
 
@@ -439,3 +440,9 @@ include(CPack)
 
 add_subdirectory(assets)
 add_subdirectory(src)
+
+# Tests (optional)
+if(BuildTests)
+	message(STATUS "Building tests enabled")
+	add_subdirectory(tests)
+endif()
