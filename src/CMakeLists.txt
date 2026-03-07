@@ -272,6 +272,10 @@ function(mv_apply_common_target_definitions Target)
 	endif()
 endfunction()
 
+function(mv_apply_target_include_dirs Target)
+	set_target_properties(${Target} PROPERTIES INCLUDE_DIRECTORIES "${ARGN}")
+endfunction()
+
 # jk2mvmp
 if (BuildMVMP)
 	set(MVMPFiles ${MVMPDEDFiles})
@@ -493,7 +497,7 @@ if (BuildMVMP)
 	mv_apply_common_target_definitions(${MVMP})
 
 	set_target_properties(${MVMP} PROPERTIES CXX_STANDARD 11)
-	set_target_properties(${MVMP} PROPERTIES INCLUDE_DIRECTORIES "${MVMPIncludeDirs}")
+	mv_apply_target_include_dirs(${MVMP} ${MVMPIncludeDirs})
 	target_link_libraries(${MVMP} ${MVMPLibraries} ${JPEG_LIBRARIES} ${PNG_LIBRARIES} ${MINIZIP_LIBRARIES} ${ZLIB_LIBRARIES})
 	set_target_properties(${MVMP} PROPERTIES PROJECT_LABEL "jk2mvmp")
 
@@ -581,7 +585,7 @@ if (BuildMVMP)
 	mv_apply_common_target_definitions(${MVMENU} ${MVMENUDefines})
 
 	set_target_properties(${MVMENU} PROPERTIES C_STANDARD 90)
-	set_target_properties(${MVMENU} PROPERTIES INCLUDE_DIRECTORIES "${MVMENUIncludeDirs}")
+	mv_apply_target_include_dirs(${MVMENU} ${MVMENUIncludeDirs})
 	set_target_properties(${MVMENU} PROPERTIES PROJECT_LABEL "jk2mvmenu")
 
 	if(BuildPortableVersion)
@@ -627,7 +631,7 @@ if (BuildMVDED)
 	mv_apply_common_target_definitions(${MVDED} ${MVDEDDefines})
 
 	set_target_properties(${MVDED} PROPERTIES CXX_STANDARD 11)
-	set_target_properties(${MVDED} PROPERTIES INCLUDE_DIRECTORIES "${MVDEDIncludeDirs}")
+	mv_apply_target_include_dirs(${MVDED} ${MVDEDIncludeDirs})
 	target_link_libraries(${MVDED} ${MVDEDLibraries} ${MINIZIP_LIBRARIES} ${ZLIB_LIBRARIES})
 	set_target_properties(${MVDED} PROPERTIES PROJECT_LABEL "jk2mvded")
 
