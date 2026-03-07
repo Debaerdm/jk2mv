@@ -30,6 +30,18 @@ static void SCR_SetStringColorFromCode(vec4_t color, const float *setColor, cons
 	re.SetColor(color);
 }
 
+static void SCR_DrawDefaultConnectBackground(void)
+{
+	qhandle_t hShader = re.RegisterShader("menu/art/unknownmap");
+	re.DrawStretchPic(0, 0, 640, 480, 0, 0, 1, 1, hShader, 1, 1);
+}
+
+static void SCR_DrawConnectScreen(qboolean overlay)
+{
+	VM_Call(uivm, UI_REFRESH, cls.realtime);
+	VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, overlay);
+}
+
 /*
 ================
 SCR_DrawNamedPic
@@ -443,15 +455,10 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		case CA_CONNECTING:
 		case CA_CHALLENGING:
 		case CA_CONNECTED:
-			{
-				// workaround for ingame UI not loading connect.menu
-				qhandle_t hShader = re.RegisterShader("menu/art/unknownmap");
-				re.DrawStretchPic(0, 0, 640, 480, 0, 0, 1, 1, hShader, 1, 1);
-			}
+			// workaround for ingame UI not loading connect.menu
+			SCR_DrawDefaultConnectBackground();
 			// connecting clients will only show the connection dialog
-			// refresh to update the time
-			VM_Call(uivm, UI_REFRESH, cls.realtime);
-			VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, qfalse);
+			SCR_DrawConnectScreen(qfalse);
 			break;
 		case CA_LOADING:
 		case CA_PRIMED:
@@ -462,9 +469,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 
 			// also draw the connection information, so it doesn't
 			// flash away too briefly on local or lan games
-			// refresh to update the time
-			VM_Call(uivm, UI_REFRESH, cls.realtime);
-			VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, qtrue);
+			SCR_DrawConnectScreen(qtrue);
 			break;
 		case CA_ACTIVE:
 			CL_CGameRendering( stereoFrame );
