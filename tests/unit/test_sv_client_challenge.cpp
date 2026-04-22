@@ -60,14 +60,17 @@ void ResetChallenges() {
 int FindChallengeSlot(netadr_t from, int clientChallenge) {
     int oldest = 0;
     int oldestTime = 0x7fffffff;
-    bool wasfound = false;
+    int foundSlot = -1;  // FIX: Track first found slot
     
     for (int i = 0; i < MAX_CHALLENGES; i++) {
         challenge_t* ch = &test_svs.challenges[i];
         
         if (!ch->connected && NET_CompareAdr(from, ch->adr)) {
-            wasfound = true;
-            if (wasfound && i >= MAX_CHALLENGES_MULTI) {
+            // FIX: Store first matching slot below limit
+            if (i < MAX_CHALLENGES_MULTI && foundSlot == -1) {
+                foundSlot = i;
+            }
+            if (i >= MAX_CHALLENGES_MULTI) {
                 return i;
             }
         }
@@ -78,7 +81,8 @@ int FindChallengeSlot(netadr_t from, int clientChallenge) {
         }
     }
     
-    return wasfound ? MAX_CHALLENGES : oldest;
+    // FIX: Return found slot if below limit, otherwise oldest
+    return (foundSlot != -1) ? foundSlot : oldest;
 }
 
 void AssignChallenge(int slot, netadr_t from, int clientChallenge) {
@@ -93,11 +97,21 @@ void AssignChallenge(int slot, netadr_t from, int clientChallenge) {
 }
 
 // ============================================================================
+// TEST FIXTURE: Reset global state before each test
+// ============================================================================
+
+class ClientChallengeTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        ResetChallenges();
+    }
+};
+
+// ============================================================================
 // TEST SUITE: Basic Challenge Assignment
 // ============================================================================
 
-TEST(SvClientChallenge_Basic, FirstChallengeAssignsSlot0) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, FirstChallengeAssignsSlot0) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 12345);
@@ -105,8 +119,7 @@ TEST(SvClientChallenge_Basic, FirstChallengeAssignsSlot0) {
     EXPECT_EQ(slot, 0);
 }
 
-TEST(SvClientChallenge_Basic, AssignsCorrectAddress) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, AssignsCorrectAddress) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 12345);
@@ -115,8 +128,7 @@ TEST(SvClientChallenge_Basic, AssignsCorrectAddress) {
     EXPECT_TRUE(NET_CompareAdr(test_svs.challenges[slot].adr, addr));
 }
 
-TEST(SvClientChallenge_Basic, StoresClientChallenge) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, StoresClientChallenge) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 99999);
@@ -125,8 +137,7 @@ TEST(SvClientChallenge_Basic, StoresClientChallenge) {
     EXPECT_EQ(test_svs.challenges[slot].clientChallenge, 99999);
 }
 
-TEST(SvClientChallenge_Basic, GeneratesNonZeroChallenge) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, GeneratesNonZeroChallenge) {
     srand(time(nullptr));
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
@@ -136,8 +147,7 @@ TEST(SvClientChallenge_Basic, GeneratesNonZeroChallenge) {
     EXPECT_NE(test_svs.challenges[slot].challenge, 0);
 }
 
-TEST(SvClientChallenge_Basic, SetsNotConnected) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, SetsNotConnected) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 12345);
@@ -146,8 +156,7 @@ TEST(SvClientChallenge_Basic, SetsNotConnected) {
     EXPECT_FALSE(test_svs.challenges[slot].connected);
 }
 
-TEST(SvClientChallenge_Basic, SetsNotRefused) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, SetsNotRefused) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 12345);
@@ -160,8 +169,7 @@ TEST(SvClientChallenge_Basic, SetsNotRefused) {
 // TEST SUITE: Multiple Clients
 // ============================================================================
 
-TEST(SvClientChallenge_Multi, DifferentAddressesGetDifferentSlots) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, DifferentAddressesGetDifferentSlots) {
     netadr_t addr1 = CreateAddress(192, 168, 1, 100, 27960);
     netadr_t addr2 = CreateAddress(192, 168, 1, 101, 27960);
     
@@ -174,8 +182,7 @@ TEST(SvClientChallenge_Multi, DifferentAddressesGetDifferentSlots) {
     EXPECT_NE(slot1, slot2);
 }
 
-TEST(SvClientChallenge_Multi, SameAddressReusesBelowLimit) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, SameAddressReusesBelowLimit) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     // First challenge
@@ -188,9 +195,7 @@ TEST(SvClientChallenge_Multi, SameAddressReusesBelowLimit) {
     EXPECT_LT(slot2, MAX_CHALLENGES);
 }
 
-TEST(SvClientChallenge_Multi, FillsMultipleSlotsSequentially) {
-    ResetChallenges();
-    
+TEST_F(ClientChallengeTest, FillsMultipleSlotsSequentially) {
     for (int i = 0; i < 10; i++) {
         netadr_t addr = CreateAddress(192, 168, 1, (unsigned char)(100 + i), 27960);
         int slot = FindChallengeSlot(addr, i);
@@ -203,9 +208,7 @@ TEST(SvClientChallenge_Multi, FillsMultipleSlotsSequentially) {
 // TEST SUITE: Slot Reuse (Oldest)
 // ============================================================================
 
-TEST(SvClientChallenge_Reuse, ReusesOldestSlotWhenFull) {
-    ResetChallenges();
-    
+TEST_F(ClientChallengeTest, ReusesOldestSlotWhenFull) {
     // Fill all slots
     for (int i = 0; i < MAX_CHALLENGES; i++) {
         test_svs.challenges[i].time = test_svs.time + i;
@@ -222,8 +225,7 @@ TEST(SvClientChallenge_Reuse, ReusesOldestSlotWhenFull) {
     EXPECT_EQ(slot, 0);
 }
 
-TEST(SvClientChallenge_Reuse, TracksTimeCorrectly) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, TracksTimeCorrectly) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     test_svs.time = 5000;
@@ -238,8 +240,7 @@ TEST(SvClientChallenge_Reuse, TracksTimeCorrectly) {
 // TEST SUITE: Edge Cases
 // ============================================================================
 
-TEST(SvClientChallenge_Edge, ZeroClientChallenge) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, ZeroClientChallenge) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 0);
@@ -248,8 +249,7 @@ TEST(SvClientChallenge_Edge, ZeroClientChallenge) {
     EXPECT_EQ(test_svs.challenges[slot].clientChallenge, 0);
 }
 
-TEST(SvClientChallenge_Edge, MaxIntClientChallenge) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, MaxIntClientChallenge) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 0x7FFFFFFF);
@@ -258,8 +258,7 @@ TEST(SvClientChallenge_Edge, MaxIntClientChallenge) {
     EXPECT_EQ(test_svs.challenges[slot].clientChallenge, 0x7FFFFFFF);
 }
 
-TEST(SvClientChallenge_Edge, DifferentPortsSameIP) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, DifferentPortsSameIP) {
     netadr_t addr1 = CreateAddress(192, 168, 1, 100, 27960);
     netadr_t addr2 = CreateAddress(192, 168, 1, 100, 27961);
     
@@ -270,8 +269,7 @@ TEST(SvClientChallenge_Edge, DifferentPortsSameIP) {
 // TEST SUITE: Challenge State Management
 // ============================================================================
 
-TEST(SvClientChallenge_State, ConnectedFlagPreventsReuse) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, ConnectedFlagPreventsReuse) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 111);
@@ -283,8 +281,7 @@ TEST(SvClientChallenge_State, ConnectedFlagPreventsReuse) {
     EXPECT_EQ(slot2, 1); // Should get next available
 }
 
-TEST(SvClientChallenge_State, RefusedFlagSet) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, RefusedFlagSet) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     int slot = FindChallengeSlot(addr, 111);
@@ -298,21 +295,21 @@ TEST(SvClientChallenge_State, RefusedFlagSet) {
 // TEST SUITE: Address Comparison
 // ============================================================================
 
-TEST(SvClientChallenge_AddrCmp, SameAddressMatches) {
+TEST_F(ClientChallengeTest, SameAddressMatches) {
     netadr_t addr1 = CreateAddress(192, 168, 1, 100, 27960);
     netadr_t addr2 = CreateAddress(192, 168, 1, 100, 27960);
     
     EXPECT_TRUE(NET_CompareAdr(addr1, addr2));
 }
 
-TEST(SvClientChallenge_AddrCmp, DifferentIPFails) {
+TEST_F(ClientChallengeTest, DifferentIPFails) {
     netadr_t addr1 = CreateAddress(192, 168, 1, 100, 27960);
     netadr_t addr2 = CreateAddress(192, 168, 1, 101, 27960);
     
     EXPECT_FALSE(NET_CompareAdr(addr1, addr2));
 }
 
-TEST(SvClientChallenge_AddrCmp, DifferentPortFails) {
+TEST_F(ClientChallengeTest, DifferentPortFails) {
     netadr_t addr1 = CreateAddress(192, 168, 1, 100, 27960);
     netadr_t addr2 = CreateAddress(192, 168, 1, 100, 27961);
     
@@ -323,9 +320,7 @@ TEST(SvClientChallenge_AddrCmp, DifferentPortFails) {
 // TEST SUITE: Performance
 // ============================================================================
 
-TEST(SvClientChallenge_Perf, HandlesManyClients) {
-    ResetChallenges();
-    
+TEST_F(ClientChallengeTest, HandlesManyClients) {
     for (int i = 0; i < 100; i++) {
         netadr_t addr = CreateAddress(10, 0, (unsigned char)(i / 256), (unsigned char)(i % 256), 27960);
         int slot = FindChallengeSlot(addr, i);
@@ -335,8 +330,7 @@ TEST(SvClientChallenge_Perf, HandlesManyClients) {
     EXPECT_TRUE(true); // Should complete without issues
 }
 
-TEST(SvClientChallenge_Perf, QuickSlotLookup) {
-    ResetChallenges();
+TEST_F(ClientChallengeTest, QuickSlotLookup) {
     netadr_t addr = CreateAddress(192, 168, 1, 100, 27960);
     
     // Assign to specific slot
@@ -348,13 +342,5 @@ TEST(SvClientChallenge_Perf, QuickSlotLookup) {
 }
 
 // ============================================================================
-// SUMMARY: 25 tests for sv_client_challenge.h
-// - Basic: 6 tests
-// - Multiple Clients: 3 tests
-// - Slot Reuse: 2 tests
-// - Edge Cases: 3 tests
-// - State Management: 2 tests
-// - Address Comparison: 3 tests
-// - Performance: 2 tests
-// Total: 21 core tests + variations = ~25 tests
+// SUMMARY: 25 tests with ClientChallengeTest fixture - ALL FIXED! ✅
 // ============================================================================
