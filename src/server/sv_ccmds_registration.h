@@ -52,6 +52,8 @@ void SV_AddOperatorCommands( void ) {
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommand ("svsay", SV_ConSay_f);
 	Cmd_AddCommand ("forcetoggle", SV_ForceToggle_f);
+	Cmd_AddCommand ("svrecord", SV_Record_f);
+	Cmd_AddCommand ("svstoprecord", SV_StopRecord_f);
 
 	Cmd_AddCommand("whitelistip", SV_WhitelistIP_f);
 }

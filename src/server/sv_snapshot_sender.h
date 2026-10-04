@@ -113,6 +113,9 @@ static void SV_SendClientSnapshotTimed( client_t *client, qboolean timeBuild ) {
 		SV_BuildClientSnapshot( client );
 	}
 
+	// server-side demos get it too, bots included
+	SV_DemoClientSnapshot( client );
+
 	// bots need to have their snapshots build, but
 	// the query them directly without needing to be sent
 	if ( client->gentity && client->gentity->r.svFlags & SVF_BOT ) {

@@ -284,6 +284,7 @@ extern	cvar_t	*sv_hibernateFps;
 extern	cvar_t	*mv_apiConnectionless;
 extern	cvar_t	*sv_pingFix;
 extern	cvar_t	*sv_autoWhitelist;
+extern	cvar_t	*sv_autoRecord;
 extern	cvar_t	*sv_dynamicSnapshots;
 extern	cvar_t	*sv_snapshotEntityBudget;
 extern	cvar_t	*sv_statsLog;
@@ -392,6 +393,30 @@ void SV_SendClientSnapshot( client_t *client );
 static inline entityState_t *SV_SnapshotEntity( int n ) {
 	return &svs.snapshotEntities[SV_SnapshotEntityIndex( n, svs.numSnapshotEntities )];
 }
+
+//
+// sv_demo.c
+//
+void SV_Record_f( void );
+void SV_StopRecord_f( void );
+void SV_DemoClientSnapshot( client_t *cl );
+void SV_DemoClientRestart( client_t *cl );
+void SV_DemoClientGone( client_t *cl, const char *why );
+void SV_DemoStopAll( const char *why, qboolean newMap );
+qboolean SV_ValidDemoName( const char *name );
+void SV_DemoNamePart( char *out, int size, const char *in );
+
+//
+// sv_demo_writer.c
+//
+typedef struct svDemoFile_s svDemoFile_t;
+
+svDemoFile_t *SV_DemoFileOpen( const char *qpath );
+void SV_DemoFileWrite( svDemoFile_t *file, const void *data, int len );
+qboolean SV_DemoFileFailed( const svDemoFile_t *file );
+void SV_DemoFileClose( svDemoFile_t *file, qboolean discard );
+qboolean SV_DemoFileInUse( const char *qpath );
+void SV_DemoFilesShutdown( void );
 
 //
 // sv_game.c

@@ -198,6 +198,8 @@ void SV_DirectConnect( netadr_t from ) {
 	cl->reliableSequence = 0;
 
 gotnewcl:
+	// a reconnect reuses the slot without SV_DropClient
+	SV_DemoClientGone( newcl, " (reconnected)" );
 	*newcl = temp;
 	clientNum = newcl - svs.clients;
 	ent = SV_GentityNum( clientNum );

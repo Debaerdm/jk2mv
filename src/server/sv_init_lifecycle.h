@@ -109,6 +109,7 @@ void SV_Init (void) {
 	mv_apiConnectionless = Cvar_Get("mv_apiConnectionless", "1", CVAR_ARCHIVE | CVAR_INIT | CVAR_VM_NOWRITE);
 	sv_pingFix = Cvar_Get("sv_pingFix", "1", CVAR_ARCHIVE);
 	sv_autoWhitelist = Cvar_Get("sv_autoWhitelist", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
+	sv_autoRecord = Cvar_Get("sv_autoRecord", "0", CVAR_ARCHIVE);
 	sv_dynamicSnapshots = Cvar_Get("sv_dynamicSnapshots", "1", CVAR_ARCHIVE);
 	sv_snapshotEntityBudget = Cvar_Get("sv_snapshotEntityBudget", XSTRING(SNAPSHOT_ENTITY_BUDGET_DEFAULT), CVAR_ARCHIVE | CVAR_LATCH);
 	sv_statsLog = Cvar_Get("sv_statsLog", "0", CVAR_TEMP);
@@ -171,6 +172,9 @@ void SV_Shutdown( char *finalmsg )
 	}
 
 	Com_Printf( "----- Server Shutdown (%s) -----\n", finalmsg );
+
+	// before the final messages: their "disconnect" doesn't belong in a demo
+	SV_DemoStopAll( " (server shutdown)", qfalse );
 
 	if ( svs.clients && !com_errorEntered ) {
 		SV_FinalMessage( finalmsg );

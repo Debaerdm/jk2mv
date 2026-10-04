@@ -809,6 +809,25 @@ Server-Side
 
 ..
 
+:Name: sv_autoRecord
+:Values: "0", "1", "2"
+:Default: "0"
+:Description:
+   Records a server-side demo (see ``svrecord``) of every player from their
+   first snapshot in the game, a new one on each map, until they leave, the
+   map changes or ``svstoprecord`` stops it. The files are
+   demos/<date>-<time>_<map>_<client number>_<player name>.dm_16 (.dm_15 on
+   1.02 and 1.03 servers). Nothing is ever deleted: a recorded player takes
+   about 1.5 KB/s of disk in a quiet game and up to 15 KB/s in a 25-player
+   fight at sv_fps 40 (100 KB to 1 MB per minute), so clean the folder up
+   regularly.
+
+   | 0: Off.
+   | 1: Players.
+   | 2: Players and bots.
+
+..
+
 :Name: sv_autoWhitelist
 :Values: "0", "1"
 :Default: "1"
@@ -1052,6 +1071,22 @@ Other Changes
   N times longer. At most 1000 game frames per second: 16 frames at 60 fps,
   none above 500 fps. ``cl_aviFrameRate`` and ``cl_aviMotionBlur`` are read
   when a recording starts.
+* ``svrecord <client number | all> [name]`` (server console and rcon)
+  records a server-side demo of a client in the game, bots included, or of
+  every client in the game with ``all``: the demo that client would record
+  itself, with what the server sends it (its view, the chat and the private
+  messages it gets), in the client demo format of the server's game version
+  (.dm_16 on 1.04, .dm_15 on 1.02 and 1.03), played with ``demo``. The file
+  is demos/<name>.dm_16, demos/<name>_<client number>.dm_16 with ``all``, or
+  demos/<date>-<time>_<map>_<client number>_<player name>.dm_16 without a
+  name. Names are up to 42 letters, digits, '_', '-' and '.'; an existing
+  file is never overwritten (_2, _3... are added). The demo goes on through
+  ``map_restart`` and ends when the client leaves, the map changes or the
+  server stops. Clients see no difference, and the files are written outside
+  the server frame, so a slow disk doesn't hold the game up. ``svrecord``
+  alone lists the demos being recorded. See also ``sv_autoRecord``.
+* ``svstoprecord [client number | all]`` ends the server-side demo of a
+  client, or all of them (the default).
 * ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
 * ``testscene <map> [x y z [yaw [pitch]]] [dlight | dlights] [spin]`` draws a
   map from a fixed camera while disconnected, in place of the main menu and

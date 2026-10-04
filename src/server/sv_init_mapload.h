@@ -89,6 +89,9 @@ void SV_SpawnServer( char *server, qboolean killBots, ForceReload_e eForceReload
 	Com_Printf("------ Server Initialization ------\n");
 	Com_Printf("Server: %s\n", server);
 
+	// server demos end with the map, before the snapshot entities go
+	SV_DemoStopAll( " (map change)", qtrue );
+
 	SV_SendMapChange();
 
 	RE_RegisterMedia_LevelLoadBegin(server, eForceReload);

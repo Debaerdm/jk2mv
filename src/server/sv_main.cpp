@@ -54,6 +54,7 @@ cvar_t  *sv_hibernateFps;
 cvar_t	*mv_apiConnectionless;
 cvar_t	*sv_pingFix;
 cvar_t	*sv_autoWhitelist;
+cvar_t	*sv_autoRecord;
 cvar_t	*sv_dynamicSnapshots;
 cvar_t	*sv_snapshotEntityBudget;
 cvar_t	*sv_statsLog;

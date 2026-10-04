@@ -45,6 +45,7 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 
 	SV_CloseDownload( drop );
 	NET_HTTP_DenyClient( drop - svs.clients );
+	SV_DemoClientGone( drop, " (disconnected)" );
 
 	SV_SendServerCommand( NULL, "print \"%s" S_COLOR_WHITE " %s\n\"", drop->name, reason );
 

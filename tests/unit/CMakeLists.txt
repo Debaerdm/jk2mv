@@ -187,6 +187,26 @@ add_jk2mv_test(test_sv_stats
   ${CMAKE_SOURCE_DIR}/src/server/sv_stats.cpp
 )
 
+# ==============================================================================
+# Server: server-side demos (links the real engine sources)
+# ==============================================================================
+
+add_jk2mv_test(test_sv_demo
+  test_sv_demo.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/sv_demo.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/msg.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/huffman.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_shared.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_math.cpp
+)
+
+add_jk2mv_test(test_sv_demo_writer
+  test_sv_demo_writer.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/sv_demo_writer.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_shared.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_math.cpp
+)
+
 if(UNIX)
   add_jk2mv_test(test_sys_spawn
     test_sys_spawn.cpp
