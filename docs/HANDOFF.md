@@ -53,10 +53,10 @@ Ce fichier note l'état de la branche `claude/explore-codebase-A8IMd` au moment 
 - **Revue adversariale phases 2-3 :**
   - capture, outils démo, video_mp4 et post-traitement : constats corrigés et poussés ;
   - restent `testscene` et « correctifs de la revue précédente » : leurs conclusions n'étaient pas arrivées.
-- **Piste serveur phase 4 :** les branches suivantes n'existaient que dans le conteneur cloud.
-  - `sv3-snapring` : terminé, non vérifié, anneau de snapshots `sv_snapshotEntityBudget`.
-  - `sv2-huffman`, `bm7-serverstats`, `sv13-usercmd`, `sv7-world` : en cours.
-  - S'ils n'ont pas été poussés, il faut les refaire. Les fiches détaillées sont dans docs/roadmap-opportunities.md (SV-2, SV-3, BM-7, SV-13, SV-7).
+- **Piste serveur phase 4 :** branches poussées sur GitHub, non fusionnées.
+  - `sv3-snapring` : terminée, tests unitaires et smoke OK, mais pas encore relue. Elle ajoute l'anneau de snapshots `sv_snapshotEntityBudget` (74 Mo par défaut à 32 slots, contre 18,5 Mo avant) et se fusionne sans conflit.
+  - `sv2-huffman` : WIP interrompu, non compilé ni testé (Huffman par tables, avec le test de comparaison).
+  - BM-7, SV-13 et SV-7 n'ont pas été commencés. Les fiches détaillées sont dans docs/roadmap-opportunities.md.
 - **VQ-7 `r_renderScale`, conçu mais pas écrit :**
   - Dans tr_postfx.cpp, garder la taille de la fenêtre (`pfx.windowWidth/Height`) et appliquer l'échelle à `glConfig.vidWidth/Height` après chaque `WIN_UpdateGLConfig` (fonction `R_ApplyRenderScale`, appelée dans `RE_UpdateGLConfig` et dans `R_InitPostFX`).
   - Ajouter une cible `final` à la taille de rendu. La passe gamma y dessine (au lieu de FB 0) et la lecture de pixels (captures, vidéo) y lit.
