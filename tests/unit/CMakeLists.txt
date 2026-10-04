@@ -207,11 +207,25 @@ add_jk2mv_test(test_sv_demo_writer
   ${CMAKE_SOURCE_DIR}/src/qcommon/q_math.cpp
 )
 
-if(UNIX)
-  add_jk2mv_test(test_sys_spawn
+# Process spawning for video_mp4 (links the real engine source)
+add_jk2mv_test(test_sys_spawn
+  test_sys_spawn.cpp
+  ${CMAKE_SOURCE_DIR}/src/sys/sys_spawn.cpp
+)
+
+if(WIN32)
+  # the program the Windows tests start, which reports what it got
+  add_executable(test_sys_spawn_helper test_sys_spawn_helper.cpp)
+  target_link_libraries(test_sys_spawn_helper PRIVATE shell32)
+  add_dependencies(test_sys_spawn test_sys_spawn_helper)
+
+  # the same tests without the handle list, as on Windows XP
+  add_jk2mv_test(test_sys_spawn_winxp
     test_sys_spawn.cpp
     ${CMAKE_SOURCE_DIR}/src/sys/sys_spawn.cpp
   )
+  target_compile_definitions(test_sys_spawn_winxp PRIVATE SYS_SPAWN_NO_HANDLE_LIST)
+  add_dependencies(test_sys_spawn_winxp test_sys_spawn_helper)
 endif()
 
 # ==============================================================================

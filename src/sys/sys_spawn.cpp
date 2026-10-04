@@ -47,31 +47,126 @@ static void AppendArgument( std::string &cmd, const char *arg ) {
 	cmd += '"';
 }
 
+/*
+Without a list of the handles to inherit, CreateProcess gives the program every
+inheritable handle of the game: its UDP socket (Winsock sockets are inheritable),
+the files the C runtime opened (pk3s, logs) and some of the drivers'. Windows
+Vista added that list. Its functions are loaded at run time, so that the Windows
+XP build still starts, and declared here, as its SDK may not have them; on XP
+the program still inherits everything inheritable.
+*/
+#define SPAWN_EXTENDED_STARTUPINFO_PRESENT		0x00080000
+#define SPAWN_PROC_THREAD_ATTRIBUTE_HANDLE_LIST	0x00020002
+
+typedef struct {
+	STARTUPINFOA	StartupInfo;
+	void			*lpAttributeList;
+} spawnStartupInfoEx_t;
+
+typedef BOOL ( WINAPI *initializeProcThreadAttributeList_t )( void *list, DWORD count, DWORD flags, SIZE_T *size );
+typedef BOOL ( WINAPI *updateProcThreadAttribute_t )( void *list, DWORD flags, DWORD_PTR attribute, void *value,
+	SIZE_T size, void *previousValue, SIZE_T *returnSize );
+typedef VOID ( WINAPI *deleteProcThreadAttributeList_t )( void *list );
+
+typedef struct {
+	deleteProcThreadAttributeList_t	deleteList;
+	void							*attributes;	// NULL: every inheritable handle is inherited
+} inheritList_t;
+
+// The program will inherit only these handles, which must stay open until
+// FreeInheritList. Leaves list->attributes NULL on Windows XP, or if the list
+// can't be made.
+static void InheritOnly( inheritList_t *list, HANDLE *handles, DWORD count ) {
+	initializeProcThreadAttributeList_t	initList = NULL;
+	updateProcThreadAttribute_t			updateList = NULL;
+	SIZE_T								size = 0;
+
+	list->deleteList = NULL;
+	list->attributes = NULL;
+#ifndef SYS_SPAWN_NO_HANDLE_LIST	// set by test_sys_spawn_winxp, to test the Windows XP path
+	const HMODULE kernel32 = GetModuleHandleA( "kernel32.dll" );
+
+	if ( kernel32 ) {
+		initList = (initializeProcThreadAttributeList_t)GetProcAddress( kernel32, "InitializeProcThreadAttributeList" );
+		updateList = (updateProcThreadAttribute_t)GetProcAddress( kernel32, "UpdateProcThreadAttribute" );
+		list->deleteList = (deleteProcThreadAttributeList_t)GetProcAddress( kernel32, "DeleteProcThreadAttributeList" );
+	}
+#endif
+	if ( !initList || !updateList || !list->deleteList || !count ) {
+		return;
+	}
+
+	// the first call only gives the size
+	initList( NULL, 1, 0, &size );
+	void *attributes = size ? malloc( size ) : NULL;
+	if ( !attributes ) {
+		return;
+	}
+	if ( !initList( attributes, 1, 0, &size ) ) {
+		free( attributes );
+		return;
+	}
+	if ( !updateList( attributes, 0, SPAWN_PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles, count * sizeof( HANDLE ),
+		NULL, NULL ) ) {
+		list->deleteList( attributes );
+		free( attributes );
+		return;
+	}
+	list->attributes = attributes;
+}
+
+static void FreeInheritList( inheritList_t *list ) {
+	if ( list->attributes ) {
+		list->deleteList( list->attributes );
+		free( list->attributes );
+	}
+}
+
 static HANDLE Spawn( const char * const *argv, HANDLE input, const char *logPath ) {
-	std::string			cmd;
-	SECURITY_ATTRIBUTES	sa = { sizeof( sa ), NULL, TRUE };
-	STARTUPINFOA		si;
-	PROCESS_INFORMATION	pi;
-	HANDLE				nul = CreateFileA( "NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-							&sa, OPEN_EXISTING, 0, NULL );
-	HANDLE				log = logPath ? CreateFileA( logPath, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS,
-							FILE_ATTRIBUTE_NORMAL, NULL ) : INVALID_HANDLE_VALUE;
-	HANDLE				output = log != INVALID_HANDLE_VALUE ? log : nul;
+	std::string				cmd;
+	SECURITY_ATTRIBUTES		sa = { sizeof( sa ), NULL, TRUE };
+	spawnStartupInfoEx_t	si;
+	PROCESS_INFORMATION		pi;
+	HANDLE					nul = CreateFileA( "NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+								&sa, OPEN_EXISTING, 0, NULL );
+	HANDLE					log = logPath ? CreateFileA( logPath, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS,
+								FILE_ATTRIBUTE_NORMAL, NULL ) : INVALID_HANDLE_VALUE;
+	HANDLE					output = log != INVALID_HANDLE_VALUE ? log : nul;
+	HANDLE					inherited[2];
+	DWORD					numInherited = 0;
+	inheritList_t			inheritList;
+	DWORD					flags = CREATE_NO_WINDOW;
 
 	for ( int i = 0; argv[i]; i++ ) {
 		AppendArgument( cmd, argv[i] );
 	}
 
 	memset( &si, 0, sizeof( si ) );
-	si.cb = sizeof( si );
-	si.dwFlags = STARTF_USESTDHANDLES;
-	si.hStdInput = input ? input : nul;
-	si.hStdOutput = output;
-	si.hStdError = output;
+	si.StartupInfo.cb = sizeof( si.StartupInfo );
+	si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+	si.StartupInfo.hStdInput = input ? input : nul;
+	si.StartupInfo.hStdOutput = output;
+	si.StartupInfo.hStdError = output;
+
+	// the standard handles only, each listed once: CreateProcess refuses duplicates
+	if ( si.StartupInfo.hStdInput != INVALID_HANDLE_VALUE ) {
+		inherited[numInherited++] = si.StartupInfo.hStdInput;
+	}
+	if ( output != INVALID_HANDLE_VALUE && output != si.StartupInfo.hStdInput ) {
+		inherited[numInherited++] = output;
+	}
+	InheritOnly( &inheritList, inherited, numInherited );
+	if ( inheritList.attributes ) {
+		si.StartupInfo.cb = sizeof( si );
+		si.lpAttributeList = inheritList.attributes;
+		flags |= SPAWN_EXTENDED_STARTUPINFO_PRESENT;
+	}
 
 	std::string	writable( cmd );
-	const BOOL	ok = CreateProcessA( NULL, &writable[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi );
+	const BOOL	ok = CreateProcessA( NULL, &writable[0], NULL, NULL, numInherited > 0, flags, NULL, NULL,
+					&si.StartupInfo, &pi );
 
+	FreeInheritList( &inheritList );
 	if ( nul != INVALID_HANDLE_VALUE ) {
 		CloseHandle( nul );
 	}
