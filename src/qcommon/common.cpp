@@ -2312,7 +2312,8 @@ void Com_RunAndTimeServerPacket( netadr_t *evFrom, msg_t *buf ) {
 
 	SV_PacketEvent( *evFrom, buf );
 
-	if ( com_speeds->integer ) {
+	// t1 is 0 when the packet itself turned com_speeds on (rcon)
+	if ( com_speeds->integer && t1 ) {
 		t2 = Sys_Microseconds ();
 		if ( com_speeds->integer == 3 ) {
 			Com_Printf( "SV_PacketEvent time: %.3f\n", (t2 - t1) / 1000.0 );
@@ -2872,6 +2873,9 @@ void Com_Frame( void ) {
 	int64_t timeBeforeEvents = 0;
 	int64_t timeBeforeClient = 0;
 	int64_t timeAfter = 0;
+	// read once: a command run in the frame can turn com_speeds on halfway,
+	// and the earlier times would still be 0
+	const int speeds = com_speeds->integer;
 
 	if (setjmp(abortframe)) {
 		return;			// an ERR_DROP was thrown
@@ -2883,7 +2887,7 @@ void Com_Frame( void ) {
 	//
 	// main event loop
 	//
-	if ( com_speeds->integer ) {
+	if ( speeds ) {
 		timeBeforeFirstEvents = Sys_Microseconds ();
 	}
 
@@ -2950,10 +2954,11 @@ void Com_Frame( void ) {
 	//
 	// server side
 	//
-	if ( com_speeds->integer ) {
+	if ( speeds ) {
 		timeBeforeServer = Sys_Microseconds ();
 	}
 
+	time_game = 0;	// SV_Frame sets it only when a game frame runs
 	SV_Frame( msec );
 
 	// if "dedicated" has been modified, start up
@@ -2982,7 +2987,7 @@ void Com_Frame( void ) {
 		// run event loop a second time to get server to client packets
 		// without a frame of latency
 		//
-		if ( com_speeds->integer ) {
+		if ( speeds ) {
 			timeBeforeEvents = Sys_Microseconds ();
 		}
 		Com_EventLoop();
@@ -2992,17 +2997,17 @@ void Com_Frame( void ) {
 		//
 		// client side
 		//
-		if ( com_speeds->integer ) {
+		if ( speeds ) {
 			timeBeforeClient = Sys_Microseconds ();
 		}
 
 		CL_Frame( msec );
 
-		if ( com_speeds->integer ) {
+		if ( speeds ) {
 			timeAfter = Sys_Microseconds ();
 		}
 	} else {
-		if ( com_speeds->integer ) {
+		if ( speeds ) {
 			timeAfter = timeBeforeEvents = timeBeforeClient = Sys_Microseconds();
 		}
 	}
@@ -3010,7 +3015,7 @@ void Com_Frame( void ) {
 	//
 	// report timing information
 	//
-	if ( com_speeds->integer ) {
+	if ( speeds ) {
 		int64_t		all, sv, ev, cl;
 
 		all = timeAfter - timeBeforeServer;
@@ -3304,16 +3309,14 @@ static void PrintMatches( const char *s ) {
 ===============
 PrintArgMatches
 
+Command arguments (Field_CompleteList)
 ===============
 */
-#if 0
-// This is here for if ever commands with other argument completion
 static void PrintArgMatches( const char *s ) {
-	if ( !Q_stricmpn( s, shortestMatch, strlen( shortestMatch ) ) ) {
-		Com_Printf( S_COLOR_WHITE"  %s\n", s );
+	if ( !Q_stricmpn( s, shortestMatch, (int)strlen( shortestMatch ) ) ) {
+		Com_Printf_Ext( qtrue, S_COLOR_WHITE "  %s\n", s );
 	}
 }
-#endif
 
 #ifndef DEDICATED
 /*
@@ -3523,7 +3526,7 @@ void Field_CompleteList( const char * const *list, int count )
 
 	if ( !Field_Complete() ) {
 		for ( int i = 0; i < count; i++ )
-			PrintMatches( list[i] );
+			PrintArgMatches( list[i] );
 	}
 }
 

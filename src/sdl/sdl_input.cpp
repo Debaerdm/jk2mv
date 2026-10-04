@@ -13,6 +13,7 @@ static qboolean mouseActive = qfalse;
 
 static cvar_t *in_mouse             = NULL;
 static cvar_t *in_nograb;
+static cvar_t *r_fullscreenLast;	// the fullscreen mode Alt+Enter goes back to
 
 static cvar_t *in_joystick			= NULL;
 static cvar_t *in_joystickThreshold = NULL;
@@ -477,6 +478,13 @@ void IN_Init( void *windowData )
 	in_mouse = Cvar_Get( "in_mouse", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
 	in_nograb = Cvar_Get( "in_nograb", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
 
+	// kept across sessions, and following r_fullscreen changes from the
+	// menu or the console, which all go through a restart
+	r_fullscreenLast = Cvar_Get( "r_fullscreenLast", "1", CVAR_ARCHIVE | CVAR_GLOBAL );
+	if ( Cvar_VariableIntegerValue( "r_fullscreen" ) ) {
+		Cvar_Set( "r_fullscreenLast", Cvar_VariableString( "r_fullscreen" ) );
+	}
+
 	SDL_StartTextInput( );
 
 	mouseAvailable = (qboolean)( in_mouse->value != 0 );
@@ -760,15 +768,17 @@ static void IN_ProcessEvents( int eventTime )
 
 				if (e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT) &&
 					!(e.key.keysym.mod & KMOD_CTRL)) {
-					// Alt+Enter toggles between windowed and the last fullscreen mode
-					static int lastFullscreen = 1;
-					const int fullscreen = Cvar_VariableIntegerValue("r_fullscreen");
+					// Alt+Enter toggles between windowed and the last fullscreen
+					// mode; holding the keys doesn't queue more restarts
+					if (!e.key.repeat) {
+						const int fullscreen = Cvar_VariableIntegerValue("r_fullscreen");
 
-					if (fullscreen) {
-						lastFullscreen = fullscreen;
-						Cvar_Set("r_fullscreen", "0");
-					} else {
-						Cvar_Set("r_fullscreen", va("%i", lastFullscreen));
+						if (fullscreen) {
+							Cvar_Set("r_fullscreenLast", va("%i", fullscreen));
+							Cvar_Set("r_fullscreen", "0");
+						} else {
+							Cvar_Set("r_fullscreen", r_fullscreenLast->integer == 2 ? "2" : "1");
+						}
 					}
 					break;
 				}

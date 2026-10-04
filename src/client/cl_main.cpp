@@ -1326,6 +1326,8 @@ doesn't know what graphics to reload
 */
 void CL_Vid_Restart_f( void ) {
 
+	// key releases are lost while the window is recreated (Alt of Alt+Enter)
+	Key_ClearStates();
 	// Settings may have changed so stop recording now
 	CL_CloseAVI( );
 	// don't let them loop during the restart
@@ -3027,7 +3029,6 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("clientinfo", CL_Clientinfo_f);
 	Cmd_AddCommand ("snd_restart", CL_Snd_Restart_f);
 	Cmd_AddCommand ("vid_restart", CL_Vid_Restart_f);
-	CL_InitPresets();
 	CL_InitDemoTools();
 	CL_InitBenchmark();
 	CL_InitTestScene();
@@ -3118,7 +3119,6 @@ void CL_Shutdown( void ) {
 	Cmd_RemoveCommand ("clientinfo");
 	Cmd_RemoveCommand ("snd_restart");
 	Cmd_RemoveCommand ("vid_restart");
-	CL_ShutdownPresets();
 	CL_ShutdownDemoTools();
 	CL_ShutdownBenchmark();
 	CL_ShutdownTestScene();

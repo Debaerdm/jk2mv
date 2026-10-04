@@ -181,9 +181,9 @@ Client-Side
 :Default: "0"
 :Description:
    | 1: show the frame rate, the 1% low frame rate and the frame time in
-   the top right corner
+     the top right corner
    | 2: also draw a frame time graph (green under 16.7 ms, yellow under
-   33.3 ms, red above)
+     33.3 ms, red above)
 
 ..
 
@@ -343,9 +343,9 @@ Client-Side
 :Default: "320" / "240"
 :Description:
    Resolution of the glow buffer. Requires vid_restart.
-   | 0: automatic, about a quarter of the screen resolution, with the blur
-   radius scaled so glows look the same size but stay sharp at high
-   resolutions.
+
+   | 0: automatic, about a quarter of the screen resolution, with more blur
+     passes at high resolutions so glows look the same size but stay sharp.
 
 ..
 
@@ -425,6 +425,7 @@ Client-Side
    With ``r_fbo``, bright parts of the 3D view glow softly into their
    surroundings; with ``r_hdr`` the glow keeps their color. Requires
    vid_restart.
+
    | 2: debugging, blooms the whole frame including the HUD, at threshold 0.
 
 ..
@@ -749,7 +750,7 @@ Server-Side
    | 0: Disable flood protection.
    | 1: Original flood protection - 1 client command per second.
    | 2+: Relaxed flood protection - Allow sv_floodProtect commands
-   at once (burst), after this 1 command per second (rate).
+     at once (burst), after this 1 command per second (rate).
 
 ..
 
@@ -887,11 +888,14 @@ Other Changes
 * ``r_speeds 8`` prints the draw calls, texture binds and state changes of
   each frame.
 * New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
-  of visual cvars in one go and restarts the renderer if needed; ``preset
-  classic`` resets all of them to their defaults. ``preset`` alone lists them.
+  of visual cvars in one go and restarts the renderer if needed. Every preset
+  sets the whole group (what it doesn't change goes back to the default), so
+  ``preset classic`` is the original look. It works in autoexec.cfg too.
+  ``preset`` alone lists them.
 * ``r_fullscreen 2`` is a borderless fullscreen window at the desktop
   resolution, without a display mode change. Alt+Enter toggles between
-  windowed and the last fullscreen mode.
+  windowed and the last fullscreen mode, remembered across sessions in
+  ``r_fullscreenLast``.
 * ``r_finish 0`` now also applies to menu and loading frames.
 * cl_avidemo replaced by cl_aviFrameRate
 * cl_conspeed renamed to con_speed

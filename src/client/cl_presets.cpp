@@ -10,30 +10,33 @@ typedef struct {
 typedef struct preset_s {
 	const char				*name;
 	const char				*description;
-	const struct preset_s	*base;		// applied first
+	const struct preset_s	*base;		// its values apply where this one has none
 	const presetCvar_t		*cvars;		// NULL terminated, NULL for classic
 } preset_t;
 
-// Every cvar a preset may change: "preset classic" resets exactly these.
+// Every cvar a preset may change. Presets are absolute: each one sets all of
+// these, the ones it doesn't list back to their engine default, so switching
+// presets never keeps leftovers of the previous one. The defaults here are
+// only used when the preset runs before the cvar is registered (autoexec.cfg).
 // Never touched: com_maxfps (tied to jump physics), snaps, rate, cl_timeNudge.
-static const char * const presetCvarNames[] = {
-	"r_picmip",
-	"r_textureMode",
-	"r_ext_texture_filter_anisotropic",
-	"r_ext_multisample",
-	"r_ext_alphaToCoverage",
-	"r_DynamicGlow",
-	"r_DynamicGlowWidth",
-	"r_DynamicGlowHeight",
-	"r_subdivisions",
-	"r_lodCurveError",
-	"r_fbo",
-	"r_hdr",
-	"r_bloom",
-	"cl_autolodscale",
-	"r_swapInterval",
-	"cl_aviFrameRate",
-	"cl_aviMotionJpegQuality",
+static const presetCvar_t presetDefaults[] = {
+	{ "r_picmip", "1" },
+	{ "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST" },
+	{ "r_ext_texture_filter_anisotropic", "2" },
+	{ "r_ext_multisample", "0" },
+	{ "r_ext_alphaToCoverage", "0" },
+	{ "r_DynamicGlow", "0" },
+	{ "r_DynamicGlowWidth", "320" },
+	{ "r_DynamicGlowHeight", "240" },
+	{ "r_subdivisions", "4" },
+	{ "r_lodCurveError", "250" },
+	{ "r_fbo", "0" },
+	{ "r_hdr", "0" },
+	{ "r_bloom", "0" },
+	{ "cl_autolodscale", "1" },
+	{ "r_swapInterval", "0" },
+	{ "cl_aviFrameRate", "30" },
+	{ "cl_aviMotionJpegQuality", "90" },
 };
 
 static const presetCvar_t presetEnhancedCvars[] = {
@@ -79,10 +82,10 @@ static const presetCvar_t presetMovieCvars[] = {
 static const preset_t presetEnhanced = { "enhanced", "anisotropic 16x, MSAA 4x, glow, sharper and smoother surfaces", NULL, presetEnhancedCvars };
 
 static const preset_t presets[] = {
-	{ "classic", "the original look (resets every preset cvar)", NULL, NULL },
+	{ "classic", "the original look (every preset cvar at its default)", NULL, NULL },
 	presetEnhanced,
 	{ "ultra", "enhanced with MSAA 8x, HDR, bloom and full model detail (CPU heavy in big fights)", &presetEnhanced, presetUltraCvars },
-	{ "competitive", "no glow, no vsync", NULL, presetCompetitiveCvars },
+	{ "competitive", "the original look without glow and vsync", NULL, presetCompetitiveCvars },
 	{ "movie", "enhanced with HDR, bloom, 60 fps and high quality video capture", &presetEnhanced, presetMovieCvars },
 };
 
@@ -93,7 +96,9 @@ static const char * const presetNames[] = { "classic", "enhanced", "ultra", "com
 CL_PresetSet
 
 Sets a cvar for a preset and returns qtrue if it needs a vid_restart.
-Protected cvars (cheat, read only, init) are left alone.
+Protected cvars (cheat, read only, init) are left alone. A cvar that isn't
+registered yet (preset in autoexec.cfg) is created with the value, which
+the registration keeps.
 ==================
 */
 static qboolean CL_PresetSet( const char *name, const char *value ) {
@@ -101,6 +106,10 @@ static qboolean CL_PresetSet( const char *name, const char *value ) {
 	const char	*current;
 
 	if ( !cv ) {
+		// user created, so the registration still takes the engine default
+		// as the reset value (Cvar_Set would make the preset value the default)
+		Com_Printf( "  %s: %s\n", name, value );
+		Cvar_Get( name, value, CVAR_USER_CREATED );
 		return qfalse;
 	}
 	if ( cv->flags & ( CVAR_CHEAT | CVAR_ROM | CVAR_INIT ) ) {
@@ -119,16 +128,16 @@ static qboolean CL_PresetSet( const char *name, const char *value ) {
 	return (qboolean)( ( cv->flags & CVAR_LATCH ) != 0 );
 }
 
-static qboolean CL_PresetApply( const preset_t *preset ) {
-	qboolean	restart = qfalse;
-
-	if ( preset->base ) {
-		restart = (qboolean)( CL_PresetApply( preset->base ) | restart );
+// the preset's own value, else its base's, else NULL for the default
+static const char *CL_PresetValue( const preset_t *preset, const char *name ) {
+	for ( ; preset; preset = preset->base ) {
+		for ( const presetCvar_t *pc = preset->cvars; pc && pc->name; pc++ ) {
+			if ( !Q_stricmp( pc->name, name ) ) {
+				return pc->value;
+			}
+		}
 	}
-	for ( const presetCvar_t *pc = preset->cvars; pc && pc->name; pc++ ) {
-		restart = (qboolean)( CL_PresetSet( pc->name, pc->value ) | restart );
-	}
-	return restart;
+	return NULL;
 }
 
 /*
@@ -158,17 +167,16 @@ static void CL_Preset_f( void ) {
 	}
 
 	Com_Printf( "preset %s:\n", preset->name );
-	if ( !preset->cvars ) {
-		// classic: back to the engine defaults of everything a preset touches
-		for ( size_t i = 0; i < ARRAY_LEN( presetCvarNames ); i++ ) {
-			cvar_t *cv = Cvar_FindVar( presetCvarNames[i] );
+	for ( size_t i = 0; i < ARRAY_LEN( presetDefaults ); i++ ) {
+		const char *value = CL_PresetValue( preset, presetDefaults[i].name );
 
-			if ( cv && cv->resetString ) {
-				restart = (qboolean)( CL_PresetSet( presetCvarNames[i], cv->resetString ) | restart );
-			}
+		if ( !value ) {
+			// the registered default when there is one
+			const cvar_t *cv = Cvar_FindVar( presetDefaults[i].name );
+
+			value = cv && cv->resetString && !( cv->flags & CVAR_USER_CREATED ) ? cv->resetString : presetDefaults[i].value;
 		}
-	} else {
-		restart = CL_PresetApply( preset );
+		restart = (qboolean)( CL_PresetSet( presetDefaults[i].name, value ) | restart );
 	}
 
 	if ( restart ) {
@@ -183,11 +191,8 @@ static void CL_CompletePresetName( char *args, int argNum ) {
 	}
 }
 
+// from CL_InitKeyCommands, before autoexec.cfg runs, and never removed
 void CL_InitPresets( void ) {
 	Cmd_AddCommand( "preset", CL_Preset_f );
 	Cmd_SetCommandCompletionFunc( "preset", CL_CompletePresetName );
-}
-
-void CL_ShutdownPresets( void ) {
-	Cmd_RemoveCommand( "preset" );
 }

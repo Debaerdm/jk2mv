@@ -1815,6 +1815,8 @@ void CL_InitKeyCommands( void ) {
 	Cmd_SetCommandCompletionFunc( "unbind", Key_CompleteUnbind );
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
 	Cmd_AddCommand ("bindlist",Key_Bindlist_f);
+	// usable from autoexec.cfg
+	CL_InitPresets();
 }
 
 /*
@@ -1894,14 +1896,7 @@ void CL_KeyEvent (int key, qboolean down, int time) {
 		}
 	}
 
-	if ( key == A_ENTER && kg.keys[A_ALT].down ) {
-		if (!down) {
-			return;
-		}
-
-		Cvar_SetValue( "r_fullscreen", !Cvar_VariableIntegerValue( "r_fullscreen" ) );
-		return;
-	}
+	// Alt+Enter is handled by the SDL input code (sdl_input.cpp)
 
 	// console key is hardcoded, so the user can never unbind it
 	if (key == A_CONSOLE) {

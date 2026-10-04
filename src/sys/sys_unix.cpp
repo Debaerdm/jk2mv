@@ -23,6 +23,7 @@
 
 #ifdef MACOS_X
 #include <mach-o/dyld.h>
+#include <mach/mach_time.h>
 #endif
 
 #include "../qcommon/q_shared.h"
@@ -83,10 +84,21 @@ int Sys_Milliseconds (bool baseTime)
 
 int64_t Sys_Microseconds( void )
 {
+#ifdef MACOS_X
+	// clock_gettime only exists since macOS 10.12
+	static mach_timebase_info_data_t timebase;
+
+	if ( !timebase.denom ) {
+		mach_timebase_info( &timebase );
+	}
+	// ticks to nanoseconds first: Apple silicon ticks are 125/3 ns
+	return (int64_t)( (uint64_t)mach_absolute_time() * timebase.numer / timebase.denom / 1000 );
+#else
 	struct timespec ts;
 
 	clock_gettime( CLOCK_MONOTONIC, &ts );
 	return (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+#endif
 }
 
 int Sys_Milliseconds2( void )

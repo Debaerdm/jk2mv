@@ -420,7 +420,6 @@ extern	cvar_t	*cl_demoHideHud;
 extern	cvar_t	*cl_perfOverlay;
 
 void CL_InitPresets( void );
-void CL_ShutdownPresets( void );
 qboolean CL_DemoHideHud( void );
 
 // cl_bench.cpp

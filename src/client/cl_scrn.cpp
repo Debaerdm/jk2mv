@@ -408,14 +408,15 @@ cl_perfOverlay 1 shows the frame rate, the 1% low and the frame time,
 #define PERF_SAMPLES	512		// power of two
 
 static int		perfFrameUsec[PERF_SAMPLES];
-static int		perfFrameCount;
+static unsigned	perfFrameCount;
 
 static void SCR_RecordFrameTime( void ) {
 	static int64_t	lastFrame;
 	const int64_t	now = Sys_Microseconds();
 
 	if ( lastFrame ) {
-		perfFrameUsec[perfFrameCount & ( PERF_SAMPLES - 1 )] = (int)( now - lastFrame );
+		// clamped at 10 s, so a long stall (debugger, suspend) can't overflow
+		perfFrameUsec[perfFrameCount & ( PERF_SAMPLES - 1 )] = (int)MIN( now - lastFrame, (int64_t)10000000 );
 		perfFrameCount++;
 	}
 	lastFrame = now;
@@ -432,7 +433,7 @@ static void SCR_DrawPerfOverlay( void ) {
 	int64_t	sum = 0;
 	int		n, used = 0;
 
-	n = MIN( perfFrameCount, PERF_SAMPLES );
+	n = (int)MIN( perfFrameCount, (unsigned)PERF_SAMPLES );
 	if ( n < 2 ) {
 		return;
 	}
