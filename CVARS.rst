@@ -387,6 +387,18 @@ Client-Side
 
 ..
 
+:Name: r_maxFrameLatency
+:Values: "0" - "3"
+:Default: "0"
+:Description:
+   How many frames the CPU may prepare ahead of the GPU. Drivers usually
+   queue up to 3, which adds input lag. 1 waits each frame until the GPU is
+   done (lowest lag, can cost frame rate), 2 lets one frame overlap.
+   | 0: left to the driver.
+   Needs OpenGL 3.2 or ARB_sync.
+
+..
+
 :Name: r_gpuTimers
 :Values: "0", "1"
 :Default: "0"

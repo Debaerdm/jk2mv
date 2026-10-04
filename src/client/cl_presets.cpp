@@ -36,6 +36,7 @@ static const presetCvar_t presetDefaults[] = {
 	{ "r_bloom", "0" },
 	{ "cl_autolodscale", "1" },
 	{ "r_swapInterval", "0" },
+	{ "r_maxFrameLatency", "0" },
 	{ "cl_aviFrameRate", "30" },
 	{ "cl_aviMotionJpegQuality", "90" },
 };
@@ -69,6 +70,7 @@ static const presetCvar_t presetUltraCvars[] = {
 static const presetCvar_t presetCompetitiveCvars[] = {
 	{ "r_DynamicGlow", "0" },
 	{ "r_swapInterval", "0" },
+	{ "r_maxFrameLatency", "1" },					// no frames queued ahead of the GPU
 	{ NULL, NULL }
 };
 
@@ -87,7 +89,7 @@ static const preset_t presets[] = {
 	{ "classic", "the original look (every preset cvar at its default)", NULL, NULL },
 	presetEnhanced,
 	{ "ultra", "enhanced with MSAA 8x, HDR, bloom and full model detail (CPU heavy in big fights)", &presetEnhanced, presetUltraCvars },
-	{ "competitive", "the original look without glow and vsync", NULL, presetCompetitiveCvars },
+	{ "competitive", "the original look without glow and vsync, lowest input lag", NULL, presetCompetitiveCvars },
 	{ "movie", "enhanced with HDR, bloom, 60 fps and high quality video capture", &presetEnhanced, presetMovieCvars },
 };
 

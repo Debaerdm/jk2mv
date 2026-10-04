@@ -1503,6 +1503,8 @@ void		R_GPUTimerFrameEnd( void );
 void		R_GPUTimerBegin( gpuSection_t section );
 void		R_GPUTimerEnd( gpuSection_t section );
 int			RE_GetGPUTimes( int *glowUsec, int *postUsec );
+extern cvar_t	*r_maxFrameLatency;
+void		R_LimitFrameLatency( void );
 
 // tr_shade.cpp: per-pixel dynamic lights (r_dlightMode 1)
 extern cvar_t	*r_dlightMode;

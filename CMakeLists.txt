@@ -44,6 +44,7 @@ option(BuildMVDED "Whether to create targets for the dedicated server (jk2mvded)
 option(BuildMVSDK "Whether to build and integrate the mvsdk modules" ON)
 option(BuildTests "Whether to build the test suite (requires Google Test)" OFF)
 option(SmokeTests "Whether to register the engine smoke tests with ctest (Linux, needs Python 3, Mesa and SDL offscreen)" OFF)
+option(UseLTO "Link time optimization for release builds (CMake 3.9+)" OFF)
 
 set(SystemProcessor "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Option to override CMAKE_SYSTEM_PROCESSOR")
 
@@ -262,6 +263,12 @@ elseif ((${CMAKE_C_COMPILER_ID} STREQUAL GNU) OR (${CMAKE_C_COMPILER_ID} MATCHES
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g1 -fno-omit-frame-pointer")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g1 -fno-omit-frame-pointer")
 
+	# No fused multiply-add contraction (GCC's default in gnu++11 mode is
+	# fast): it changes float results between builds and architectures, and
+	# the server runs Ghoul2 math (saber collision) that must match everywhere
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffp-contract=off")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffp-contract=off")
+
 	# Warnings
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wsign-compare -Wno-unknown-pragmas")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-write-strings")
@@ -294,6 +301,17 @@ elseif ((${CMAKE_C_COMPILER_ID} STREQUAL GNU) OR (${CMAKE_C_COMPILER_ID} MATCHES
 	endif()
 else()
 	message(FATAL_ERROR "Unsupported compiler")
+endif()
+
+if(UseLTO)
+	include(CheckIPOSupported)
+	check_ipo_supported(RESULT LTOSupported OUTPUT LTOError)
+	if(LTOSupported)
+		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+	else()
+		message(WARNING "UseLTO: link time optimization is not supported here: ${LTOError}")
+	endif()
 endif()
 
 if(LegacyHTTPDownloads)

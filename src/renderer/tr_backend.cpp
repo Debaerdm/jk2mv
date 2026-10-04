@@ -1364,6 +1364,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	R_GPUTimerFrameEnd();
     WIN_Present(&glWindow);
+	R_LimitFrameLatency();
 
 	return (const void *)(cmd + 1);
 }

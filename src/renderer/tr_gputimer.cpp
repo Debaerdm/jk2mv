@@ -1,4 +1,5 @@
-// tr_gputimer.cpp -- GPU time of the frame and of some passes (r_gpuTimers)
+// tr_gputimer.cpp -- GPU time of the frame and of some passes (r_gpuTimers),
+// and how far the CPU may run ahead of the GPU (r_maxFrameLatency)
 //
 // GL timestamps (ARB_timer_query) at the start and end of each frame and
 // around the dynamic glow and the post-process passes. Results are read four
@@ -8,6 +9,7 @@
 #include "tr_local.h"
 
 cvar_t	*r_gpuTimers;
+cvar_t	*r_maxFrameLatency;
 
 #define GPU_FRAMES		4		// frames in flight
 #define GPU_MAX_PAIRS	8		// timed occurrences of a section in a frame
@@ -17,6 +19,17 @@ static PFNGLDELETEQUERIESPROC			qglDeleteQueries;
 static PFNGLQUERYCOUNTERPROC			qglQueryCounter;
 static PFNGLGETQUERYOBJECTIVPROC		qglGetQueryObjectiv;
 static PFNGLGETQUERYOBJECTUI64VPROC		qglGetQueryObjectui64v;
+static PFNGLFENCESYNCPROC				qglFenceSync;
+static PFNGLCLIENTWAITSYNCPROC			qglClientWaitSync;
+static PFNGLDELETESYNCPROC				qglDeleteSync;
+
+#define MAX_FRAME_FENCES	4
+
+static struct {
+	qboolean	available;
+	GLsync		fences[MAX_FRAME_FENCES];
+	unsigned	frame;
+} latency;
 
 typedef struct {
 	GLuint		frame[2];
@@ -38,10 +51,19 @@ void R_InitGPUTimers( void ) {
 	int major = 1, minor = 0;
 
 	r_gpuTimers = ri.Cvar_Get( "r_gpuTimers", "0", CVAR_ARCHIVE | CVAR_GLOBAL );
+	r_maxFrameLatency = ri.Cvar_Get( "r_maxFrameLatency", "0", CVAR_ARCHIVE | CVAR_GLOBAL );
 	Com_Memset( &gpu, 0, sizeof( gpu ) );
+	Com_Memset( &latency, 0, sizeof( latency ) );
 	gpu.frameUsec = -1;
 
 	sscanf( glConfig.version_string, "%d.%d", &major, &minor );
+	if ( GL_CheckForExtension( "GL_ARB_sync" ) || major > 3 || ( major == 3 && minor >= 2 ) ) {
+		qglFenceSync = (PFNGLFENCESYNCPROC)WIN_GL_GetProcAddress( "glFenceSync" );
+		qglClientWaitSync = (PFNGLCLIENTWAITSYNCPROC)WIN_GL_GetProcAddress( "glClientWaitSync" );
+		qglDeleteSync = (PFNGLDELETESYNCPROC)WIN_GL_GetProcAddress( "glDeleteSync" );
+		latency.available = (qboolean)( qglFenceSync && qglClientWaitSync && qglDeleteSync );
+	}
+
 	if ( !GL_CheckForExtension( "GL_ARB_timer_query" ) && ( major < 3 || ( major == 3 && minor < 3 ) ) ) {
 		return;
 	}
@@ -62,6 +84,14 @@ void R_InitGPUTimers( void ) {
 }
 
 void R_ShutdownGPUTimers( void ) {
+	if ( latency.available ) {
+		for ( int i = 0; i < MAX_FRAME_FENCES; i++ ) {
+			if ( latency.fences[i] ) {
+				qglDeleteSync( latency.fences[i] );
+			}
+		}
+	}
+	Com_Memset( &latency, 0, sizeof( latency ) );
 	if ( gpu.available ) {
 		for ( int i = 0; i < GPU_FRAMES; i++ ) {
 			qglDeleteQueries( 2, gpu.frames[i].frame );
@@ -153,6 +183,42 @@ void R_GPUTimerEnd( gpuSection_t section ) {
 	qglQueryCounter( f->section[section][f->pairs[section] * 2 + 1], GL_TIMESTAMP );
 	f->open[section] = 0;
 	f->pairs[section]++;
+}
+
+/*
+==================
+R_LimitFrameLatency
+
+After the buffer swap. Drivers let the CPU queue several frames ahead of the
+GPU, which adds input lag; r_maxFrameLatency N waits until the GPU finished
+the frame swapped N - 1 frames ago (1: this one, no queue at all), with a
+fence (ARB_sync). 0 leaves it to the driver.
+==================
+*/
+void R_LimitFrameLatency( void ) {
+	const int frames = Com_Clampi( 0, MAX_FRAME_FENCES - 1, r_maxFrameLatency ? r_maxFrameLatency->integer : 0 );
+
+	if ( !latency.available ) {
+		return;
+	}
+	GLsync *slot = &latency.fences[latency.frame % MAX_FRAME_FENCES];
+	if ( *slot ) {
+		qglDeleteSync( *slot );		// MAX_FRAME_FENCES frames old
+		*slot = 0;
+	}
+	if ( !frames ) {
+		return;
+	}
+	*slot = qglFenceSync( GL_SYNC_GPU_COMMANDS_COMPLETE, 0 );
+
+	GLsync *wait = &latency.fences[( latency.frame - ( frames - 1 ) ) % MAX_FRAME_FENCES];
+	if ( *wait ) {
+		// at most a second, in case the driver never signals
+		qglClientWaitSync( *wait, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ull );
+		qglDeleteSync( *wait );
+		*wait = 0;
+	}
+	latency.frame++;
 }
 
 /*
