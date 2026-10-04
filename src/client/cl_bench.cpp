@@ -16,7 +16,9 @@
 #include <string>
 #include <vector>
 
-#define BENCH_START_TIMEOUT	600		// frames to wait for a run to start
+// for the previous run's demo to stop, or a run's demo to get going once
+// loaded; real time, as timedemo frames run uncapped
+#define BENCH_TIMEOUT_MSEC	10000
 
 static struct {
 	qboolean			active;
@@ -26,7 +28,7 @@ static struct {
 	int					warmup;
 	int					current;		// run being played, warm-up included
 	qboolean			pendingStart;
-	int					waitFrames;		// frames since the run was requested
+	int					waitStart;		// Sys_Milliseconds when the wait for a demo to stop or start began
 	qboolean			started;		// the run's demo is playing
 	char				timedemo[16];	// restored at the end
 	int64_t				lastFrameUsec;
@@ -218,6 +220,7 @@ static void CL_Benchmark_f( void ) {
 	bench.active = qtrue;
 	bench.current = 0;
 	bench.pendingStart = qtrue;
+	bench.waitStart = Sys_Milliseconds();
 	com_benchmarkActive = 1;
 	Cvar_Set( "timedemo", "1" );
 	Com_Printf( "benchmark: %s, %i runs after %i warm-up\n", bench.demo, bench.runs, bench.warmup );
@@ -238,7 +241,7 @@ void CL_BenchmarkFrame( void ) {
 	if ( bench.pendingStart ) {
 		if ( clc.demoplaying || cls.state > CA_DISCONNECTED ) {
 			// the previous run is still shutting down
-			if ( ++bench.waitFrames > BENCH_START_TIMEOUT ) {
+			if ( Sys_Milliseconds() - bench.waitStart > BENCH_TIMEOUT_MSEC ) {
 				Com_Printf( S_COLOR_RED "benchmark: the previous demo did not stop\n" );
 				CL_BenchStop();
 			}
@@ -246,14 +249,18 @@ void CL_BenchmarkFrame( void ) {
 		}
 		bench.pendingStart = qfalse;
 		bench.started = qfalse;
-		bench.waitFrames = 0;
 		bench.lastFrameUsec = 0;
 		bench.frames.clear();
 		bench.frames.reserve( 8192 );
 		bench.gpuFrames.clear();
 		bench.gpuFrames.reserve( 8192 );
-		// quoted: demo names can have spaces
-		Cbuf_AddText( va( "demo \"%s\"\n", bench.demo ) );
+		// Right away: queued, the demo command waited behind whatever came
+		// after benchmark in a script or on the command line (a wait, a
+		// quit). A demo that can't be opened drops out of the frame from
+		// here, and is reported on the next one. Quoted: names can have
+		// spaces.
+		Cbuf_ExecuteText( EXEC_NOW, va( "demo \"%s\"", bench.demo ) );
+		bench.waitStart = Sys_Milliseconds();
 		return;
 	}
 
@@ -266,10 +273,14 @@ void CL_BenchmarkFrame( void ) {
 			bench.gpuFrames.push_back( re.GetGPUTimes ? re.GetGPUTimes( NULL, NULL ) : -1 );
 		}
 		bench.lastFrameUsec = now;
-	} else if ( !bench.started && ++bench.waitFrames > BENCH_START_TIMEOUT ) {
-		Com_Printf( S_COLOR_RED "benchmark: demo %s did not start\n", bench.demo );
-		CL_BenchStop();
-	} else if ( bench.started && !clc.demoplaying ) {
+	} else if ( !bench.started ) {
+		// the demo command opens the demo and loads its map before it
+		// returns, so a demo that isn't playing never started
+		if ( !clc.demoplaying || Sys_Milliseconds() - bench.waitStart > BENCH_TIMEOUT_MSEC ) {
+			Com_Printf( S_COLOR_RED "benchmark: demo %s did not start\n", bench.demo );
+			CL_BenchStop();
+		}
+	} else if ( !clc.demoplaying ) {
 		Com_Printf( S_COLOR_RED "benchmark: run interrupted\n" );
 		CL_BenchStop();
 	}
@@ -314,7 +325,7 @@ qboolean CL_BenchmarkDemoCompleted( void ) {
 	bench.started = qfalse;
 	if ( bench.current < bench.warmup + bench.runs ) {
 		bench.pendingStart = qtrue;
-		bench.waitFrames = 0;
+		bench.waitStart = Sys_Milliseconds();
 		return qtrue;
 	}
 	CL_BenchFinish();

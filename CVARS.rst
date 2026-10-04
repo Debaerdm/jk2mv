@@ -987,7 +987,10 @@ Other Changes
   several times without the 1000 fps cap and prints the average fps, frame
   time percentiles and the 1% low per run and pooled; it writes every frame
   time to benchmarks/<demo>_<tag>.csv and the summary to a .txt file.
-  ``benchmark stop`` aborts it.
+  ``benchmark stop`` aborts it. The first run starts right away and the
+  commands after ``benchmark`` in a script keep running meanwhile (a
+  ``quit`` there cuts it short); to quit or go on once the results are
+  written, set ``nextdemo`` first, as in ``set nextdemo quit; benchmark mydemo``.
 * ``r_speeds 8`` prints the draw calls, texture binds and state changes of
   each frame.
 * New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
