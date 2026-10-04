@@ -25,25 +25,81 @@ void ResetUserinfo() {
     test_server_time = 5000;
 }
 
+#define BIG_INFO_STRING 8192   // src/qcommon/q_shared.h:305
+#define BIG_INFO_KEY    8192   // src/qcommon/q_shared.h:306
+#define BIG_INFO_VALUE  8192   // src/qcommon/q_shared.h:307
+
+static int Test_Q_stricmp(const char* s1, const char* s2) {
+    unsigned char c1, c2;
+    do {
+        c1 = (unsigned char)*s1++;
+        c2 = (unsigned char)*s2++;
+        if (c1 >= 'a' && c1 <= 'z') c1 -= ('a' - 'A');
+        if (c2 >= 'a' && c2 <= 'z') c2 -= ('a' - 'A');
+        if (c1 != c2) return c1 < c2 ? -1 : 1;
+    } while (c1);
+    return 0;
+}
+
+static void Test_Q_strncpyz(char* dest, const char* src, size_t destsize) {
+    if (!dest || !src || destsize < 1) return;
+    strncpy(dest, src, destsize - 1);
+    dest[destsize - 1] = '\0';
+}
+
+// Copy of Info_ValueForKey (src/qcommon/q_shared.cpp:1037-1081): parses
+// \key\value pairs, compares keys case-insensitively and alternates between
+// two static buffers so two consecutive results do not stomp on each other.
 const char* Info_ValueForKey(const char* s, const char* key) {
-    static char value[256];
-    // Simplified: just search for key
-    const char* ptr = strstr(s, key);
-    if (!ptr) return "";
-    
-    ptr += strlen(key) + 1; // Skip key and '\'
-    int i = 0;
-    while (*ptr && *ptr != '\\' && i < 255) {
-        value[i++] = *ptr++;
+    char pkey[BIG_INFO_KEY];
+    static char value[2][BIG_INFO_VALUE];
+    static int valueindex = 0;
+    char* o;
+
+    if (!s || !key) {
+        return "";
     }
-    value[i] = '\0';
-    return value;
+
+    if (strlen(s) >= BIG_INFO_STRING) {
+        return "";  // engine: Com_Error(ERR_DROP, "oversize infostring")
+    }
+
+    valueindex ^= 1;
+    if (*s == '\\')
+        s++;
+    while (1) {
+        o = pkey;
+        while (*s != '\\') {
+            if (!*s)
+                return "";
+            *o++ = *s++;
+        }
+        *o = 0;
+        s++;
+
+        o = value[valueindex];
+
+        while (*s != '\\' && *s) {
+            *o++ = *s++;
+        }
+        *o = 0;
+
+        if (!Test_Q_stricmp(key, pkey))
+            return value[valueindex];
+
+        if (!*s)
+            break;
+        s++;
+    }
+
+    return "";
 }
 
 bool SetUserinfo(int clientNum, const char* userinfo) {
     if (strlen(userinfo) >= MAX_INFO_STRING) return false;
     
-    strcpy(test_clients[clientNum].userinfo, userinfo);
+    // engine: Q_strncpyz(cl->userinfo, arg, sizeof(cl->userinfo)) (sv_client_userinfo.h:185)
+    Test_Q_strncpyz(test_clients[clientNum].userinfo, userinfo, sizeof(test_clients[clientNum].userinfo));
     return true;
 }
 
@@ -63,15 +119,15 @@ bool CheckUserinfoFlood(int clientNum) {
     return true;
 }
 
+// Simplified SV_UserinfoChanged (src/server/sv_client_userinfo.h:23-38):
+// each Info_ValueForKey result is consumed immediately, before the next lookup
+// can reuse its static buffer.
 void UpdateDerivedInfo(int clientNum) {
     client_t* cl = &test_clients[clientNum];
-    const char* name = Info_ValueForKey(cl->userinfo, "name");
-    const char* rate = Info_ValueForKey(cl->userinfo, "rate");
-    const char* snaps = Info_ValueForKey(cl->userinfo, "snaps");
-    
-    strncpy(cl->name, name, sizeof(cl->name) - 1);
-    cl->rate = atoi(rate);
-    cl->snaps = atoi(snaps);
+
+    Test_Q_strncpyz(cl->name, Info_ValueForKey(cl->userinfo, "name"), sizeof(cl->name));
+    cl->rate = atoi(Info_ValueForKey(cl->userinfo, "rate"));
+    cl->snaps = atoi(Info_ValueForKey(cl->userinfo, "snaps"));
 }
 
 // ============================================================================

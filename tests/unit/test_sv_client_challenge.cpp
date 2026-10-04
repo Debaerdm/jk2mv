@@ -5,9 +5,9 @@
 #include <cstring>
 #include <ctime>
 
-// Constants
-#define MAX_CHALLENGES 1024
-#define MAX_CHALLENGES_MULTI 16
+// Constants (match src/server/server.h:181,185)
+#define MAX_CHALLENGES 2048
+#define MAX_CHALLENGES_MULTI (MAX_CHALLENGES / 2)
 #define NA_IP 1
 #define NA_BOT 0
 
@@ -56,29 +56,40 @@ void ResetChallenges() {
     test_svs.time = 1000;
 }
 
-// Simplified SV_GetChallenge for testing
+// Simplified SV_GetChallenge for testing (slot-selection part of
+// src/server/sv_client_challenge.h:28-60). Returns the challenge slot the
+// engine writes to.
 int FindChallengeSlot(netadr_t from, int clientChallenge) {
+    int i;
     int oldest = 0;
     int oldestTime = 0x7fffffff;
     bool wasfound = false;
-    
-    for (int i = 0; i < MAX_CHALLENGES; i++) {
+    (void)clientChallenge;
+
+    for (i = 0; i < MAX_CHALLENGES; i++) {
         challenge_t* ch = &test_svs.challenges[i];
-        
+
         if (!ch->connected && NET_CompareAdr(from, ch->adr)) {
             wasfound = true;
-            if (wasfound && i >= MAX_CHALLENGES_MULTI) {
-                return i;
-            }
         }
-        
+
+        // Once this address already holds a challenge, stop scanning past
+        // MAX_CHALLENGES_MULTI; a fresh slot is still allocated (jk2mv allows
+        // several pending challenges per address).
+        if (wasfound && i >= MAX_CHALLENGES_MULTI) {
+            i = MAX_CHALLENGES;
+            break;
+        }
+
         if (ch->time < oldestTime) {
             oldestTime = ch->time;
             oldest = i;
         }
     }
-    
-    return wasfound ? MAX_CHALLENGES : oldest;
+
+    // As in the engine, the loop always ends with i == MAX_CHALLENGES, so the
+    // oldest slot found is (re)initialised for this request.
+    return oldest;
 }
 
 void AssignChallenge(int slot, netadr_t from, int clientChallenge) {

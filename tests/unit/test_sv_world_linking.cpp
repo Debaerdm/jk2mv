@@ -102,10 +102,14 @@ struct cvar_t { int integer; };
 cvar_t mv_fixturretcrash_storage = {0};
 cvar_t* mv_fixturretcrash = &mv_fixturretcrash_storage;
 
-// Helper to get svEntity from gentity
+// Helper to get svEntity from gentity.
+// Mirrors SV_NumForGentity (src/server/sv_game_entities.h:12): the offset is
+// computed in BYTES and then divided by gentitySize. Typed pointer subtraction
+// would already yield an element index, and dividing that by gentitySize again
+// collapses every small index to 0.
 svEntity_t* SV_SvEntityForGentity(sharedEntity_t* gEnt) {
     if (!gEnt || !test_sv.gentities) return nullptr;
-    int index = (gEnt - test_sv.gentities) / test_sv.gentitySize;
+    int index = (int)(((unsigned char*)gEnt - (unsigned char*)test_sv.gentities) / test_sv.gentitySize);
     return &test_sv.svEntities[index];
 }
 
@@ -250,10 +254,40 @@ void SV_LinkEntity(sharedEntity_t* gEnt) {
 }
 
 // ============================================================================
+// Test fixture: isolates the global mock server/world state between tests.
+// test_sv and test_sv_worldSectors are globals; tests link svEntities into
+// stack-local worldSector_t / sharedEntity_t objects. Without a reset, the
+// next test inherits svEntity_t::worldSector pointers into a dead stack frame
+// and SV_LinkEntity -> SV_UnlinkEntity walks that dangling chain.
+// ============================================================================
+
+static void ResetWorldLinkingState() {
+    std::memset(test_sv.svEntities, 0, sizeof(test_sv.svEntities));
+    test_sv.gentities = nullptr;
+    test_sv.gentitySize = 0;
+    test_sv.state = 0;
+    test_sv.saberBlockCounter = 0;
+    test_sv.fixes = 0;
+    std::memset(test_sv_worldSectors, 0, sizeof(test_sv_worldSectors));
+    mv_fixturretcrash->integer = 0;
+}
+
+class SvWorldLinkingTest : public ::testing::Test {
+protected:
+    void SetUp() override { ResetWorldLinkingState(); }
+    void TearDown() override { ResetWorldLinkingState(); }
+};
+
+class SvWorldLinking_Unlink : public SvWorldLinkingTest {};
+class SvWorldLinking_Link : public SvWorldLinkingTest {};
+class SvWorldLinking_Integration : public SvWorldLinkingTest {};
+class SvWorldLinking_Stress : public SvWorldLinkingTest {};
+
+// ============================================================================
 // TEST SUITE: SV_UnlinkEntity - Basic Operations
 // ============================================================================
 
-TEST(SvWorldLinking_Unlink, UnlinksFromEmptySector) {
+TEST_F(SvWorldLinking_Unlink, UnlinksFromEmptySector) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -268,7 +302,7 @@ TEST(SvWorldLinking_Unlink, UnlinksFromEmptySector) {
     EXPECT_EQ(ent->worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksSingleEntityFromSector) {
+TEST_F(SvWorldLinking_Unlink, UnlinksSingleEntityFromSector) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -287,7 +321,7 @@ TEST(SvWorldLinking_Unlink, UnlinksSingleEntityFromSector) {
     EXPECT_EQ(ent->worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksFirstInChain) {
+TEST_F(SvWorldLinking_Unlink, UnlinksFirstInChain) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -305,7 +339,7 @@ TEST(SvWorldLinking_Unlink, UnlinksFirstInChain) {
     EXPECT_EQ(test_sv.svEntities[0].worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksMiddleInChain) {
+TEST_F(SvWorldLinking_Unlink, UnlinksMiddleInChain) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -326,7 +360,7 @@ TEST(SvWorldLinking_Unlink, UnlinksMiddleInChain) {
     EXPECT_EQ(test_sv.svEntities[1].worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, UnlinksLastInChain) {
+TEST_F(SvWorldLinking_Unlink, UnlinksLastInChain) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -351,7 +385,7 @@ TEST(SvWorldLinking_Unlink, UnlinksLastInChain) {
 // TEST SUITE: SV_UnlinkEntity - Edge Cases
 // ============================================================================
 
-TEST(SvWorldLinking_Unlink, DoesNothingWhenNotLinked) {
+TEST_F(SvWorldLinking_Unlink, DoesNothingWhenNotLinked) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -364,7 +398,7 @@ TEST(SvWorldLinking_Unlink, DoesNothingWhenNotLinked) {
     EXPECT_EQ(ent->worldSector, nullptr);
 }
 
-TEST(SvWorldLinking_Unlink, ClearsLinkedFlag) {
+TEST_F(SvWorldLinking_Unlink, ClearsLinkedFlag) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -381,7 +415,7 @@ TEST(SvWorldLinking_Unlink, ClearsLinkedFlag) {
 // TEST SUITE: SV_LinkEntity - Basic Linking
 // ============================================================================
 
-TEST(SvWorldLinking_Link, LinksToRootSector) {
+TEST_F(SvWorldLinking_Link, LinksToRootSector) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -395,7 +429,7 @@ TEST(SvWorldLinking_Link, LinksToRootSector) {
     EXPECT_EQ(test_sv.svEntities[0].worldSector, &test_sv_worldSectors[0]);
 }
 
-TEST(SvWorldLinking_Link, IncrementsLinkcount) {
+TEST_F(SvWorldLinking_Link, IncrementsLinkcount) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -407,7 +441,7 @@ TEST(SvWorldLinking_Link, IncrementsLinkcount) {
     EXPECT_EQ(gent.r.linkcount, initialCount + 1);
 }
 
-TEST(SvWorldLinking_Link, UnlinksBeforeRelinking) {
+TEST_F(SvWorldLinking_Link, UnlinksBeforeRelinking) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -427,7 +461,7 @@ TEST(SvWorldLinking_Link, UnlinksBeforeRelinking) {
 // TEST SUITE: SV_LinkEntity - Solid Encoding
 // ============================================================================
 
-TEST(SvWorldLinking_Link, BmodelSetsSolidBmodel) {
+TEST_F(SvWorldLinking_Link, BmodelSetsSolidBmodel) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -440,7 +474,7 @@ TEST(SvWorldLinking_Link, BmodelSetsSolidBmodel) {
     EXPECT_EQ(gent.s.solid, SOLID_BMODEL);
 }
 
-TEST(SvWorldLinking_Link, SolidEntityEncodesSize) {
+TEST_F(SvWorldLinking_Link, SolidEntityEncodesSize) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -461,7 +495,7 @@ TEST(SvWorldLinking_Link, SolidEntityEncodesSize) {
     EXPECT_EQ(gent.s.solid, expected);
 }
 
-TEST(SvWorldLinking_Link, ClampsSolidSizeToBounds) {
+TEST_F(SvWorldLinking_Link, ClampsSolidSizeToBounds) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -478,7 +512,7 @@ TEST(SvWorldLinking_Link, ClampsSolidSizeToBounds) {
     EXPECT_EQ(gent.s.solid, expected);
 }
 
-TEST(SvWorldLinking_Link, NonSolidSetsZero) {
+TEST_F(SvWorldLinking_Link, NonSolidSetsZero) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -496,7 +530,7 @@ TEST(SvWorldLinking_Link, NonSolidSetsZero) {
 // TEST SUITE: SV_LinkEntity - AbsBox Calculation
 // ============================================================================
 
-TEST(SvWorldLinking_Link, CalculatesAbsBoxFromOrigin) {
+TEST_F(SvWorldLinking_Link, CalculatesAbsBoxFromOrigin) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -514,7 +548,7 @@ TEST(SvWorldLinking_Link, CalculatesAbsBoxFromOrigin) {
     EXPECT_FLOAT_EQ(gent.r.absmax[0], 111.0f); // 100 + 10 + 1 (epsilon)
 }
 
-TEST(SvWorldLinking_Link, ExpandsAbsBoxWithEpsilon) {
+TEST_F(SvWorldLinking_Link, ExpandsAbsBoxWithEpsilon) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -530,7 +564,7 @@ TEST(SvWorldLinking_Link, ExpandsAbsBoxWithEpsilon) {
     EXPECT_FLOAT_EQ(gent.r.absmax[0], 6.0f);  // 5 + 1
 }
 
-TEST(SvWorldLinking_Link, BmodelRotatedUsesRadius) {
+TEST_F(SvWorldLinking_Link, BmodelRotatedUsesRadius) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -558,7 +592,7 @@ TEST(SvWorldLinking_Link, BmodelRotatedUsesRadius) {
 // TEST SUITE: SV_LinkEntity - PVS Clusters
 // ============================================================================
 
-TEST(SvWorldLinking_Link, InitializesClusters) {
+TEST_F(SvWorldLinking_Link, InitializesClusters) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -570,7 +604,7 @@ TEST(SvWorldLinking_Link, InitializesClusters) {
     EXPECT_LE(test_sv.svEntities[0].numClusters, MAX_ENT_CLUSTERS);
 }
 
-TEST(SvWorldLinking_Link, InitializesAreas) {
+TEST_F(SvWorldLinking_Link, InitializesAreas) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -585,7 +619,7 @@ TEST(SvWorldLinking_Link, InitializesAreas) {
 // TEST SUITE: SV_LinkEntity - Saber Block Crash Fix
 // ============================================================================
 
-TEST(SvWorldLinking_Link, SaberBlockFixDisabled) {
+TEST_F(SvWorldLinking_Link, SaberBlockFixDisabled) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -601,7 +635,7 @@ TEST(SvWorldLinking_Link, SaberBlockFixDisabled) {
     EXPECT_TRUE(gent.r.linked);
 }
 
-TEST(SvWorldLinking_Link, SaberBlockFixIncrementsCounter) {
+TEST_F(SvWorldLinking_Link, SaberBlockFixIncrementsCounter) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -616,7 +650,7 @@ TEST(SvWorldLinking_Link, SaberBlockFixIncrementsCounter) {
     EXPECT_EQ(test_sv.saberBlockCounter, 51);
 }
 
-TEST(SvWorldLinking_Link, SaberBlockFixClearsEntityOver100) {
+TEST_F(SvWorldLinking_Link, SaberBlockFixClearsEntityOver100) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -637,7 +671,7 @@ TEST(SvWorldLinking_Link, SaberBlockFixClearsEntityOver100) {
 // TEST SUITE: Integration Tests
 // ============================================================================
 
-TEST(SvWorldLinking_Integration, LinkUnlinkCycle) {
+TEST_F(SvWorldLinking_Integration, LinkUnlinkCycle) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -654,7 +688,7 @@ TEST(SvWorldLinking_Integration, LinkUnlinkCycle) {
     EXPECT_TRUE(gent.r.linked);
 }
 
-TEST(SvWorldLinking_Integration, MultipleEntitiesInSameSector) {
+TEST_F(SvWorldLinking_Integration, MultipleEntitiesInSameSector) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -673,7 +707,7 @@ TEST(SvWorldLinking_Integration, MultipleEntitiesInSameSector) {
     EXPECT_EQ(count, 3);
 }
 
-TEST(SvWorldLinking_Integration, UnlinkMiddleEntity) {
+TEST_F(SvWorldLinking_Integration, UnlinkMiddleEntity) {
     sharedEntity_t gents[3] = {};
     test_sv.gentities = gents;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -698,7 +732,7 @@ TEST(SvWorldLinking_Integration, UnlinkMiddleEntity) {
 // TEST SUITE: Stress Tests
 // ============================================================================
 
-TEST(SvWorldLinking_Stress, LinkUnlink100Times) {
+TEST_F(SvWorldLinking_Stress, LinkUnlink100Times) {
     sharedEntity_t gent = {};
     test_sv.gentities = &gent;
     test_sv.gentitySize = sizeof(sharedEntity_t);
@@ -712,7 +746,7 @@ TEST(SvWorldLinking_Stress, LinkUnlink100Times) {
     }
 }
 
-TEST(SvWorldLinking_Stress, ManyEntitiesChain) {
+TEST_F(SvWorldLinking_Stress, ManyEntitiesChain) {
     const int COUNT = 50;
     sharedEntity_t gents[COUNT] = {};
     test_sv.gentities = gents;

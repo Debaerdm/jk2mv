@@ -14,6 +14,9 @@ struct entityState_t {
     int eType;
     vec3_t pos;
     int solid;
+    // Mirrors entityShared_t::linked (src/game/g_public.h:36): qfalse if the
+    // entity is not in any good cluster, i.e. the slot is not linked into the world.
+    int linked;
 };
 
 struct svEntity_t {
@@ -59,6 +62,11 @@ void MarkEntityInSnapshot(int entityNum) {
 int CountVisibleEntities(vec3_t viewpoint, float maxDistance) {
     int count = 0;
     for (int i = 0; i < 1024; i++) {
+        // never send entities that aren't linked in
+        // (src/server/sv_snapshot_entities.h:95-98, SV_AddEntitiesVisibleFromPoint)
+        if (!test_entities[i].linked) {
+            continue;
+        }
         if (IsEntityVisible(i, viewpoint, maxDistance)) {
             count++;
         }
@@ -209,6 +217,7 @@ TEST(SvSnapshotEntities_Count, SingleEntity) {
     ResetEntities();
     vec3_t viewpoint = {0, 0, 0};
     test_entities[0].pos = {50, 0, 0};
+    test_entities[0].linked = 1;
     
     int count = CountVisibleEntities(viewpoint, 100.0f);
     
@@ -221,6 +230,9 @@ TEST(SvSnapshotEntities_Count, MultipleVisible) {
     test_entities[0].pos = {10, 0, 0};
     test_entities[1].pos = {20, 0, 0};
     test_entities[2].pos = {30, 0, 0};
+    test_entities[0].linked = 1;
+    test_entities[1].linked = 1;
+    test_entities[2].linked = 1;
     
     int count = CountVisibleEntities(viewpoint, 100.0f);
     
@@ -233,6 +245,9 @@ TEST(SvSnapshotEntities_Count, MixedVisibility) {
     test_entities[0].pos = {10, 0, 0};  // Visible
     test_entities[1].pos = {200, 0, 0}; // Not visible
     test_entities[2].pos = {30, 0, 0};  // Visible
+    test_entities[0].linked = 1;
+    test_entities[1].linked = 1;
+    test_entities[2].linked = 1;
     
     int count = CountVisibleEntities(viewpoint, 100.0f);
     
@@ -299,6 +314,7 @@ TEST(SvSnapshotEntities_Perf, ManyEntities) {
     
     for (int i = 0; i < 100; i++) {
         test_entities[i].pos = {(float)i, 0, 0};
+        test_entities[i].linked = 1;
     }
     
     int count = CountVisibleEntities(viewpoint, 1000.0f);

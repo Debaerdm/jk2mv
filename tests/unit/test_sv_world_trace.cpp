@@ -54,6 +54,11 @@ namespace MockCM {
     clipHandle_t CM_TempBoxModel(const float* mins, const float* maxs, bool capsule) {
         return capsule ? 500 : 400;
     }
+
+    // Fraction reported by the mocked CM_TransformedBoxTrace. The real
+    // CM_TransformedBoxTrace overwrites the whole result (*results = trace,
+    // src/qcommon/cm_trace.cpp:1451), so a hit can only be simulated here.
+    float transformedTraceFraction = 1.0f;
     
     void CM_BoxTrace(trace_t* trace, const float* start, const float* end,
                      const float* mins, const float* maxs, clipHandle_t model,
@@ -68,7 +73,7 @@ namespace MockCM {
                                 const float* mins, const float* maxs, clipHandle_t model,
                                 int contentmask, const float* origin, const float* angles,
                                 bool capsule) {
-        trace->fraction = 1.0f;
+        trace->fraction = transformedTraceFraction;
         trace->entityNum = ENTITYNUM_NONE;
         trace->allsolid = false;
         trace->startsolid = false;
@@ -103,6 +108,7 @@ int SV_AreaEntities(const float* mins, const float* maxs, int* list, int maxcoun
 
 // Helper to clear mock data
 void ResetMockEntities() {
+    MockCM::transformedTraceFraction = 1.0f;
     std::memset(test_gentities, 0, sizeof(test_gentities));
     for (int i = 0; i < MAX_GENTITIES; i++) {
         test_gentities[i].s.number = i;
@@ -286,15 +292,20 @@ TEST(SvWorldTrace_ClipToEntity, PerformsClipWhenContentsMatch) {
 TEST(SvWorldTrace_ClipToEntity, SetsEntityNumOnHit) {
     ResetMockEntities();
     trace_t trace;
-    trace.fraction = 0.5f; // Simulate hit
     float start[3] = {0, 0, 0};
     float end[3] = {100, 0, 0};
-    
+
     test_gentities[5].r.contents = CONTENTS_SOLID;
     test_gentities[5].s.number = 5;
-    
+
+    // Simulate a hit in the collision model. Pre-setting trace.fraction would
+    // be useless: SV_ClipToEntity memsets the trace (sv_world_trace.h:57) and
+    // CM_TransformedBoxTrace overwrites it (cm_trace.cpp:1451).
+    MockCM::transformedTraceFraction = 0.5f;
+
     SV_ClipToEntity(&trace, start, nullptr, nullptr, end, 5, CONTENTS_SOLID, false);
-    
+
+    EXPECT_FLOAT_EQ(trace.fraction, 0.5f);
     EXPECT_EQ(trace.entityNum, 5);
 }
 

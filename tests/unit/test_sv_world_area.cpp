@@ -324,10 +324,19 @@ TEST(SvWorldArea_AABB, TouchingEdge) {
     float mins[3] = {10, 0, 0};  // Touching at X=10
     float maxs[3] = {20, 10, 10};
     int list[10];
-    
+
     int count = SV_AreaEntities(mins, maxs, list, 10);
-    
-    EXPECT_EQ(count, 0);  // Touching but not overlapping
+
+    // The engine rejects only with strict comparisons
+    // (absmin > maxs || absmax < mins, src/server/sv_world_area.h:42-47),
+    // so boxes that merely touch (absmax[0] == mins[0] == 10) DO intersect.
+    EXPECT_EQ(count, 1);
+    EXPECT_EQ(list[0], 0);
+
+    // Any real gap along X must exclude the entity.
+    float gapMins[3] = {10.5f, 0, 0};
+    count = SV_AreaEntities(gapMins, maxs, list, 10);
+    EXPECT_EQ(count, 0);
 }
 
 TEST(SvWorldArea_AABB, ContainsEntity) {

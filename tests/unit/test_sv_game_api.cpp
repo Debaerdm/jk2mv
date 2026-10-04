@@ -21,7 +21,12 @@ struct vm_t {
 };
 
 vm_t* test_gvm = nullptr;
-int test_vm_calls[16];
+// Call log for the mock VM_Call. The real VM_Call (src/qcommon/vm.cpp:1019-1084)
+// has no limit on the number of calls, so the log must be large enough for the
+// longest test sequence (ManyCalls: 100 calls) and must never be written past
+// its end (a 16-entry log previously overflowed into adjacent globals).
+#define TEST_MAX_VM_CALLS 256
+int test_vm_calls[TEST_MAX_VM_CALLS];
 int test_vm_call_count = 0;
 
 void ResetGameAPI() {
@@ -51,7 +56,12 @@ int VM_Call(vm_t* vm, int command, int arg0 = 0, int arg1 = 0, int arg2 = 0) {
     if (!vm || !vm->loaded) return -1;
     
     vm->callLevel++;
-    test_vm_calls[test_vm_call_count++] = command;
+    // Record the command, but never write past the end of the log; the count
+    // still reflects every call made.
+    if (test_vm_call_count < TEST_MAX_VM_CALLS) {
+        test_vm_calls[test_vm_call_count] = command;
+    }
+    test_vm_call_count++;
     
     int result = 0;
     switch (command) {
