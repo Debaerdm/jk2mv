@@ -46,6 +46,7 @@ cvar_t	*cl_aviFrameRate;
 cvar_t	*cl_aviMotionJpeg;
 cvar_t	*cl_aviMotionJpegQuality;
 cvar_t	*cl_aviMotionBlur;
+cvar_t	*cl_fovAspectFix;
 cvar_t	*cl_mp4Crf;
 cvar_t	*cl_mp4Preset;
 cvar_t	*cl_forceavidemo;
@@ -2965,6 +2966,7 @@ void CL_Init( void ) {
 	cl_aviMotionJpeg = Cvar_Get ("cl_aviMotionJpeg", "1", CVAR_ARCHIVE);
 	cl_aviMotionJpegQuality = Cvar_Get("cl_aviMotionJpegQuality", "90", CVAR_ARCHIVE);
 	cl_aviMotionBlur = Cvar_Get("cl_aviMotionBlur", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
+	cl_fovAspectFix = Cvar_Get("cl_fovAspectFix", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
 	cl_mp4Crf = Cvar_Get("cl_mp4Crf", "18", CVAR_ARCHIVE | CVAR_GLOBAL);
 	cl_mp4Preset = Cvar_Get("cl_mp4Preset", "medium", CVAR_ARCHIVE | CVAR_GLOBAL);
 	cl_forceavidemo = Cvar_Get ("cl_forceavidemo", "0", 0);

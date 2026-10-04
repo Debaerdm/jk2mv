@@ -37,6 +37,7 @@ static const presetCvar_t presetDefaults[] = {
 	{ "cl_autolodscale", "1" },
 	{ "r_swapInterval", "0" },
 	{ "r_maxFrameLatency", "0" },
+	{ "cl_fovAspectFix", "0" },
 	{ "cl_aviFrameRate", "30" },
 	{ "cl_aviMotionJpegQuality", "90" },
 	{ "cl_aviMotionBlur", "0" },
@@ -54,6 +55,7 @@ static const presetCvar_t presetEnhancedCvars[] = {
 	{ "r_subdivisions", "2" },						// smoother curved surfaces
 	{ "r_lodCurveError", "1000" },					// keep them detailed farther away
 	{ "r_dlightMode", "1" },						// round, smooth dynamic lights
+	{ "cl_fovAspectFix", "1" },						// wide screens see more, not less
 	{ NULL, NULL }
 };
 
@@ -85,7 +87,7 @@ static const presetCvar_t presetMovieCvars[] = {
 	{ NULL, NULL }
 };
 
-static const preset_t presetEnhanced = { "enhanced", "anisotropic 16x, MSAA 4x, glow, per-pixel dynamic lights, sharper and smoother surfaces", NULL, presetEnhancedCvars };
+static const preset_t presetEnhanced = { "enhanced", "anisotropic 16x, MSAA 4x, glow, per-pixel dynamic lights, widescreen fov, sharper and smoother surfaces", NULL, presetEnhancedCvars };
 
 static const preset_t presets[] = {
 	{ "classic", "the original look (every preset cvar at its default)", NULL, NULL },

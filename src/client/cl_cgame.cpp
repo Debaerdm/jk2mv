@@ -671,6 +671,41 @@ qboolean CL_DemoHideHud( void ) {
 
 /*
 ====================
+CL_FovAspectFix
+
+cl_fovAspectFix 1: the base cgame keeps fov_x on any screen, so wide screens
+lose view at the top and bottom ("Vert-"). This takes fov_x as meant for a
+4:3 screen and widens the scene to the real aspect, keeping the 4:3
+vertical view ("Hor+"), the way MVSDK's cg_fovAspectAdjust does. Only world
+scenes wider than 4:3, never when the server fixes the fov (DF_FIXED_FOV)
+or when the mod already corrects it.
+====================
+*/
+#define DF_FIXED_FOV	16
+
+qboolean CL_FovAspectFix( const refdef_t *fd, refdef_t *out ) {
+	if ( !cl_fovAspectFix->integer || ( fd->rdflags & RDF_NOWORLDMODEL ) || fd->width * 3 <= fd->height * 4 ||
+		fd->fov_x <= 0.0f || fd->fov_x >= 180.0f ) {
+		return qfalse;
+	}
+	if ( Cvar_VariableIntegerValue( "cg_fovAspectAdjust" ) ) {
+		return qfalse;
+	}
+	const char *info = cl.gameState.stringData + cl.gameState.stringOffsets[CS_SERVERINFO];
+	if ( atoi( Info_ValueForKey( info, "dmflags" ) ) & DF_FIXED_FOV ) {
+		return qfalse;
+	}
+
+	const float x = fd->height * ( 4.0f / 3.0f ) / tanf( DEG2RAD( fd->fov_x * 0.5f ) );
+
+	*out = *fd;
+	out->fov_x = RAD2DEG( 2.0f * atan2f( (float)fd->width, x ) );
+	out->fov_y = RAD2DEG( 2.0f * atan2f( (float)fd->height, x ) );
+	return qtrue;
+}
+
+/*
+====================
 CL_CgameSystemCalls
 
 The cgame module is making a system call
@@ -878,11 +913,14 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 		return 0;
 	case CG_R_RENDERSCENE: {
 		const refdef_t	*fd = VMAV(1, const refdef_t);
-		refdef_t		camView;
+		refdef_t		wide, camView;
 
 		// scenes without the world are HUD models
 		if ( CL_DemoHideHud() && ( fd->rdflags & RDF_NOWORLDMODEL ) ) {
 			return 0;
+		}
+		if ( CL_FovAspectFix( fd, &wide ) ) {
+			fd = &wide;
 		}
 		re.RenderScene( CL_DemoCamView( fd, &camView ) ? &camView : fd );
 		return 0;

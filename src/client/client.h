@@ -421,6 +421,8 @@ extern	cvar_t	*cl_perfOverlay;
 
 void CL_InitPresets( void );
 qboolean CL_DemoHideHud( void );
+qboolean CL_FovAspectFix( const refdef_t *fd, refdef_t *out );
+extern cvar_t *cl_fovAspectFix;
 void CL_DemoToolsReset( void );
 
 // cl_bench.cpp

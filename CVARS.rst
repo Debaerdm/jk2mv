@@ -176,6 +176,19 @@ Client-Side
 
 ..
 
+:Name: cl_fovAspectFix
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   Widescreen field of view. Mods based on the original code keep the
+   horizontal fov on any screen, so 16:9 and 21:9 screens see less at the
+   top and bottom than 4:3. With 1, ``cg_fov`` counts as a 4:3 value and
+   wide screens see the same height plus more on the sides ("Hor+"), zoom
+   scopes included. Off when the server fixes the fov (dmflags 16) or when
+   the mod corrects it itself (``cg_fovAspectAdjust``).
+
+..
+
 :Name: cl_perfOverlay
 :Values: "0", "1", "2"
 :Default: "0"
