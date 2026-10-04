@@ -15,6 +15,11 @@
 // 4. Lifecycle           - Init, cvars, frame, AI interface
 // ============================================================================
 
+// Used by the debug module before sv_bot_lifecycle.h defines bot_enable;
+// botlib_export is defined in sv_game.cpp
+extern botlib_export_t	*botlib_export;
+extern int				bot_enable;
+
 #include "sv_bot_client.h"
 #include "sv_bot_debug.h"
 #include "sv_bot_imports.h"

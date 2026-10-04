@@ -15,12 +15,12 @@ cvar_t		*cl_graphshift;
 
 static qboolean SCR_IsColorCode(const char *s)
 {
-	return Q_IsColorString(s) || (MV_USE102COLOR && Q_IsColorString_1_02(s));
+	return (qboolean)(Q_IsColorString(s) || (MV_USE102COLOR && Q_IsColorString_1_02(s)));
 }
 
 static qboolean SCR_ShouldSkipCharDraw(int ch, float y, float minY)
 {
-	return ch == ' ' || y < minY;
+	return (qboolean)(ch == ' ' || y < minY);
 }
 
 static void SCR_SetStringColorFromCode(vec4_t color, const float *setColor, const char *s)
@@ -430,6 +430,11 @@ static qboolean SCR_ShouldSkipBackend(void)
 	return (qboolean)(com_minimized->integer && !CL_VideoRecording());
 }
 
+static qboolean SCR_ShouldDrawDebugGraph(void)
+{
+	return (qboolean)(cl_debuggraph->integer || cl_timegraph->integer || cl_debugMove->integer);
+}
+
 /*
 ==================
 SCR_DrawScreenField
@@ -520,11 +525,6 @@ static void SCR_SwapScreenBuffers(void)
 	} else {
 		re.SwapBuffers( NULL, NULL );
 	}
-}
-
-static qboolean SCR_ShouldDrawDebugGraph(void)
-{
-	return cl_debuggraph->integer || cl_timegraph->integer || cl_debugMove->integer;
 }
 
 /*
