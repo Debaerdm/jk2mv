@@ -6,7 +6,8 @@ llvmpipe in CI), opens the console, takes a screenshot, does a vid_restart
 and takes another one. This covers renderer start-up, extension detection,
 the bundled shaders and fonts, the menu module, the post-process path and
 screenshot output. It can't enter a map: cgame needs the retail player
-models.
+models. Then 'preset ultra' and 'preset classic' must only touch
+registered cvars, and classic must undo exactly what ultra changed.
 
 usage: client_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
@@ -38,6 +39,24 @@ def read_tga(path):
     return width, height, bpp, pixels
 
 
+def preset_lines(log, name):
+    """What 'preset <name>' printed: {cvar: (old, new)} of its changes, and
+    its other lines (a cvar it didn't find registered: a typo in the preset
+    tables), or None without the preset."""
+    if 'preset %s:\n' % name not in log:
+        return None
+    changes, others = {}, []
+    for line in log.split('preset %s:\n' % name, 1)[1].splitlines():
+        if not line.startswith('  '):
+            break
+        change = re.match(r'  (\S+): (.*) -> (.*)$', line)
+        if change:
+            changes[change.group(1)] = change.group(2, 3)
+        else:
+            others.append(line.strip())
+    return changes, others
+
+
 def exit_error(rc):
     """Description of a bad exit code, or None."""
     if rc == 0:
@@ -61,7 +80,9 @@ def main():
            '+set', 'r_allowsoftwaregl', '1', '+set', 'r_fullscreen', '0', '+set', 'r_mode', '3',
            '+set', 's_initsound', '0', '+set', 'com_introplayed', '1',
            '+wait', '60', '+toggleconsole', '+wait', '30', '+screenshot_tga', SHOTS[0], '+wait', '5',
-           '+vid_restart', '+wait', '30', '+screenshot_tga', SHOTS[1], '+wait', '5', '+quit']
+           '+vid_restart', '+wait', '30', '+screenshot_tga', SHOTS[1], '+wait', '5',
+           # the vid_restart each one queues comes after the quit
+           '+preset', 'ultra', '+preset', 'classic', '+wait', '5', '+quit']
     try:
         proc = subprocess.run(cmd, cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               timeout=180)
@@ -101,11 +122,30 @@ def main():
         if len(colors) < 3:
             errors.append('%s looks blank (%d distinct colors sampled)' % (name, len(colors)))
 
+    # from the defaults, ultra turns on the latched post-process cvars and
+    # classic sets back exactly what ultra changed
+    ultra, classic = preset_lines(log, 'ultra'), preset_lines(log, 'classic')
+    if not ultra or not classic:
+        errors.append('preset ultra or preset classic did not run')
+    else:
+        for preset, (_, others) in (('ultra', ultra), ('classic', classic)):
+            if others:
+                errors.append('preset %s: %s (unknown or protected cvar)' % (preset, '; '.join(others)))
+        for cvar in ('r_fbo', 'r_hdr', 'r_bloom'):
+            if ultra[0].get(cvar) != ('0', '1'):
+                errors.append('preset ultra: %s %s, expected 0 -> 1' % (cvar, ultra[0].get(cvar)))
+        undo = {cvar: (new, old) for cvar, (old, new) in ultra[0].items()}
+        if classic[0] != undo:
+            errors.append('preset classic did not undo ultra: %s' % sorted(set(classic[0].items()) ^ set(undo.items())))
+        if log.count('restarting the renderer to apply the preset') != 2:
+            errors.append('the presets did not ask for a renderer restart')
+        print('preset ultra changed %d cvars, preset classic %d' % (len(ultra[0]), len(classic[0])))
+
     if errors:
         print('\n'.join(log.splitlines()[-60:]))
         print('client smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
-    print('client smoke test passed: renderer up, console drawn, vid_restart, screenshots written')
+    print('client smoke test passed: renderer up, console drawn, vid_restart, screenshots written, presets')
 
 
 if __name__ == '__main__':
