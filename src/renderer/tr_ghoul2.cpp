@@ -2156,11 +2156,144 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 #ifndef DEDICATED
 /*
 ==============
+G2_SkinVertexes
+
+Deform the vertexes of a mesh surface by the lerped bones of bonePtr, one
+vec4_t per vertex in xyz and normal. No renderer state: the FE-16
+reference tests and benchmarks call it on their own buffers.
+
+This is the portable loop: it sums the weighted, transformed vertex per
+bone and leaves xyz[3] and normal[3] untouched.
+==============
+*/
+void G2_SkinVertexes( const mdxmSurface_t *surface, const mdxaBone_v &bonePtr, vec4_t *xyz, vec4_t *normal ) {
+	int				 j, k;
+
+	const int *piBoneRefs = (const int *) ((const byte *)surface + surface->ofsBoneReferences);
+	const int numVerts = surface->numVerts;
+	const mdxmVertex_t 	*v = (const mdxmVertex_t *) ((const byte *)surface + surface->ofsVerts);
+
+	for ( j = 0; j < numVerts; j++, v++ )
+	{
+		const int iNumWeights = G2_GetVertWeights( v );
+//		const mdxmWeight_t	*w = v->weights;
+		VectorClear( xyz[j]);
+		VectorClear( normal[j]);
+
+		float fTotalWeight = 0.0f;
+		for ( k = 0 ; k < iNumWeights ; k++ )
+		{
+			int		iBoneIndex	= G2_GetVertBoneIndex( v, k );
+			float	fBoneWeight	= G2_GetVertBoneWeight( v, k, fTotalWeight, iNumWeights );
+
+			const mdxaBone_t &bone = bonePtr[piBoneRefs[iBoneIndex]].second;
+
+			xyz[j][0] += fBoneWeight * ( DotProduct( bone.matrix[0], v->vertCoords ) + bone.matrix[0][3] );
+			xyz[j][1] += fBoneWeight * ( DotProduct( bone.matrix[1], v->vertCoords ) + bone.matrix[1][3] );
+			xyz[j][2] += fBoneWeight * ( DotProduct( bone.matrix[2], v->vertCoords ) + bone.matrix[2][3] );
+
+			normal[j][0] += fBoneWeight * DotProduct( bone.matrix[0], v->normal );
+			normal[j][1] += fBoneWeight * DotProduct( bone.matrix[1], v->normal );
+			normal[j][2] += fBoneWeight * DotProduct( bone.matrix[2], v->normal );
+		}
+	}
+}
+
+#if id386 || idx64
+/*
+==============
+G2_SkinVertexesSSE2
+
+Same job as G2_SkinVertexes, the version RB_SurfaceGhoul uses on x86: it
+sums the weighted bone matrices first, then transforms the vertex, and
+stores 16-byte aligned vec4_t with w = 0. The sums are associated
+differently, so the results differ from the portable loop in the last bits.
+==============
+*/
+void G2_SkinVertexesSSE2( const mdxmSurface_t *surface, const mdxaBone_v &bonePtr, vec4_t *xyz, vec4_t *normal ) {
+	int				 j, k;
+
+	const int *piBoneRefs = (const int *) ((const byte *)surface + surface->ofsBoneReferences);
+	const int numVerts = surface->numVerts;
+	const mdxmVertex_t 	*v = (const mdxmVertex_t *) ((const byte *)surface + surface->ofsVerts);
+
+	// SSE2 version
+    __m128 bones[32][4];
+
+	// precache referenced bones
+	assert( surface->numBoneReferences <= 32 );
+    for ( j = 0; j < surface->numBoneReferences; j++ )
+    {
+		const mdxaBone_t &bone = bonePtr[piBoneRefs[j]].second;
+
+		bones[j][0] = _mm_loadu_ps( bone.matrix[0] );
+		bones[j][1] = _mm_loadu_ps( bone.matrix[1] );
+		bones[j][2] = _mm_loadu_ps( bone.matrix[2] );
+		bones[j][3] = _mm_setzero_ps();
+
+		// use transposed bone matrix for faster calculations
+		_MM_TRANSPOSE4_PS( bones[j][0], bones[j][1], bones[j][2], bones[j][3] );
+    }
+
+	for ( j = 0; j < numVerts; j++, v++ )
+	{
+		const int iNumWeights = G2_GetVertWeights( v );
+
+		__m128 matrix[4] = {
+			_mm_setzero_ps(),
+			_mm_setzero_ps(),
+			_mm_setzero_ps(),
+			_mm_setzero_ps()
+		};
+
+		// calculate weighted bone matrix
+		float fTotalWeight = 0.0f;
+		for ( k = 0 ; k < iNumWeights ; k++ )
+		{
+			int		iBoneIndex	= G2_GetVertBoneIndex( v, k );
+			float	fBoneWeight	= G2_GetVertBoneWeight( v, k, fTotalWeight, iNumWeights );
+			__m128	weight = _mm_set_ps1( fBoneWeight );
+
+			matrix[0] = _mm_add_ps( matrix[0], _mm_mul_ps( weight, bones[iBoneIndex][0] ) );
+			matrix[1] = _mm_add_ps( matrix[1], _mm_mul_ps( weight, bones[iBoneIndex][1] ) );
+			matrix[2] = _mm_add_ps( matrix[2], _mm_mul_ps( weight, bones[iBoneIndex][2] ) );
+			matrix[3] = _mm_add_ps( matrix[3], _mm_mul_ps( weight, bones[iBoneIndex][3] ) );
+		}
+
+		{
+			__m128 xyzw[4] = {
+				_mm_mul_ps( matrix[0], _mm_set_ps1( v->vertCoords[0] ) ),
+				_mm_mul_ps( matrix[1], _mm_set_ps1( v->vertCoords[1] ) ),
+				_mm_mul_ps( matrix[2], _mm_set_ps1( v->vertCoords[2] ) ),
+				matrix[3] // matrix[3] * 1 - translation
+			};
+
+			__m128 result = _mm_add_ps( _mm_add_ps( xyzw[0], xyzw[1] ), _mm_add_ps( xyzw[2], xyzw[3] ) );
+			_mm_store_ps( xyz[j], result ); // [3] = 0
+		}
+
+		{
+			__m128 norm[3] = {
+				_mm_mul_ps( matrix[0], _mm_set_ps1( v->normal[0] ) ),
+				_mm_mul_ps( matrix[1], _mm_set_ps1( v->normal[1] ) ),
+				_mm_mul_ps( matrix[2], _mm_set_ps1( v->normal[2] ) ),
+				// no translation
+			};
+
+			__m128 result = _mm_add_ps( _mm_add_ps( norm[0], norm[1] ), norm[2] );
+			_mm_store_ps( normal[j], result );
+		}
+	}
+}
+#endif // id386 || idx64
+
+/*
+==============
 RB_SurfaceGhoul
 ==============
 */
 void RB_SurfaceGhoul( CRenderableSurface *surf ) {
-	int				 j, k;
+	int				 j;
 
 	// grab the pointer to the surface info within the loaded mesh file
 	mdxmSurface_t	*surface = (mdxmSurface_t *)surf->surfaceData;
@@ -2202,106 +2335,14 @@ void RB_SurfaceGhoul( CRenderableSurface *surf ) {
 
 	// whip through and actually transform each vertex
 
-	const int *piBoneRefs = (int*) ((byte*)surface + surface->ofsBoneReferences);
 	const int numVerts = surface->numVerts;
 	const mdxmVertex_t 	*v = (mdxmVertex_t *) ((byte *)surface + surface->ofsVerts);
 	const mdxmVertexTexCoord_t *pTexCoords = (const mdxmVertexTexCoord_t *) &v[numVerts];
 
-	int baseVert = tess.numVertexes;
-
 #if id386 || idx64
-	// SSE2 version
-    __m128 bones[32][4];
-
-	// precache referenced bones
-	assert( surface->numBoneReferences <= 32 );
-    for ( j = 0; j < surface->numBoneReferences; j++ )
-    {
-		const mdxaBone_t &bone = bonePtr[piBoneRefs[j]].second;
-
-		bones[j][0] = _mm_loadu_ps( bone.matrix[0] );
-		bones[j][1] = _mm_loadu_ps( bone.matrix[1] );
-		bones[j][2] = _mm_loadu_ps( bone.matrix[2] );
-		bones[j][3] = _mm_setzero_ps();
-
-		// use transposed bone matrix for faster calculations
-		_MM_TRANSPOSE4_PS( bones[j][0], bones[j][1], bones[j][2], bones[j][3] );
-    }
-
-	for ( j = 0; j < numVerts; j++, baseVert++, v++ )
-	{
-		const int iNumWeights = G2_GetVertWeights( v );
-
-		__m128 matrix[4] = {
-			_mm_setzero_ps(),
-			_mm_setzero_ps(),
-			_mm_setzero_ps(),
-			_mm_setzero_ps()
-		};
-
-		// calculate weighted bone matrix
-		float fTotalWeight = 0.0f;
-		for ( k = 0 ; k < iNumWeights ; k++ )
-		{
-			int		iBoneIndex	= G2_GetVertBoneIndex( v, k );
-			float	fBoneWeight	= G2_GetVertBoneWeight( v, k, fTotalWeight, iNumWeights );
-			__m128	weight = _mm_set_ps1( fBoneWeight );
-
-			matrix[0] = _mm_add_ps( matrix[0], _mm_mul_ps( weight, bones[iBoneIndex][0] ) );
-			matrix[1] = _mm_add_ps( matrix[1], _mm_mul_ps( weight, bones[iBoneIndex][1] ) );
-			matrix[2] = _mm_add_ps( matrix[2], _mm_mul_ps( weight, bones[iBoneIndex][2] ) );
-			matrix[3] = _mm_add_ps( matrix[3], _mm_mul_ps( weight, bones[iBoneIndex][3] ) );
-		}
-
-		{
-			__m128 xyz[4] = {
-				_mm_mul_ps( matrix[0], _mm_set_ps1( v->vertCoords[0] ) ),
-				_mm_mul_ps( matrix[1], _mm_set_ps1( v->vertCoords[1] ) ),
-				_mm_mul_ps( matrix[2], _mm_set_ps1( v->vertCoords[2] ) ),
-				matrix[3] // matrix[3] * 1 - translation
-			};
-
-			__m128 result = _mm_add_ps( _mm_add_ps( xyz[0], xyz[1] ), _mm_add_ps( xyz[2], xyz[3] ) );
-			_mm_store_ps( tess.xyz[baseVert], result ); // [3] = 0
-		}
-
-		{
-			__m128 norm[3] = {
-				_mm_mul_ps( matrix[0], _mm_set_ps1( v->normal[0] ) ),
-				_mm_mul_ps( matrix[1], _mm_set_ps1( v->normal[1] ) ),
-				_mm_mul_ps( matrix[2], _mm_set_ps1( v->normal[2] ) ),
-				// no translation
-			};
-
-			__m128 result = _mm_add_ps( _mm_add_ps( norm[0], norm[1] ), norm[2] );
-			_mm_store_ps( tess.normal[baseVert], result );
-		}
-	}
+	G2_SkinVertexesSSE2( surface, bonePtr, &tess.xyz[baseVertex], &tess.normal[baseVertex] );
 #else // id386 || idx64
-	for ( j = 0; j < numVerts; j++, baseVert++, v++ )
-	{
-		const int iNumWeights = G2_GetVertWeights( v );
-//		const mdxmWeight_t	*w = v->weights;
-		VectorClear( tess.xyz[baseVert]);
-		VectorClear( tess.normal[baseVert]);
-
-		float fTotalWeight = 0.0f;
-		for ( k = 0 ; k < iNumWeights ; k++ )
-		{
-			int		iBoneIndex	= G2_GetVertBoneIndex( v, k );
-			float	fBoneWeight	= G2_GetVertBoneWeight( v, k, fTotalWeight, iNumWeights );
-
-			mdxaBone_t &bone = bonePtr[piBoneRefs[iBoneIndex]].second;
-
-			tess.xyz[baseVert][0] += fBoneWeight * ( DotProduct( bone.matrix[0], v->vertCoords ) + bone.matrix[0][3] );
-			tess.xyz[baseVert][1] += fBoneWeight * ( DotProduct( bone.matrix[1], v->vertCoords ) + bone.matrix[1][3] );
-			tess.xyz[baseVert][2] += fBoneWeight * ( DotProduct( bone.matrix[2], v->vertCoords ) + bone.matrix[2][3] );
-
-			tess.normal[baseVert][0] += fBoneWeight * DotProduct( bone.matrix[0], v->normal );
-			tess.normal[baseVert][1] += fBoneWeight * DotProduct( bone.matrix[1], v->normal );
-			tess.normal[baseVert][2] += fBoneWeight * DotProduct( bone.matrix[2], v->normal );
-		}
-	}
+	G2_SkinVertexes( surface, bonePtr, &tess.xyz[baseVertex], &tess.normal[baseVertex] );
 #endif // id386 || idx64
 
 	// assumes mdxmVertexTexCoord_t consists only of vec2_t

@@ -163,3 +163,10 @@ extern qboolean gG2_GBMNoReconstruct;
 extern qboolean gG2_GBMUseSPMethod;
 // From tr_ghoul2.cpp
 void		G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const qhandle_t *modelList, bool checkForNewOrigin, const vec3_t angles, const vec3_t position, const vec3_t scale, bool modelSet);
+#ifdef MDX_FORMAT_H	// the mesh types, from tr_local.h
+// vertex skinning of RB_SurfaceGhoul (client only), see tr_ghoul2.cpp
+void		G2_SkinVertexes( const mdxmSurface_t *surface, const mdxaBone_v &bonePtr, vec4_t *xyz, vec4_t *normal );
+#if id386 || idx64
+void		G2_SkinVertexesSSE2( const mdxmSurface_t *surface, const mdxaBone_v &bonePtr, vec4_t *xyz, vec4_t *normal );
+#endif
+#endif
