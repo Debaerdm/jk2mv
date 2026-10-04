@@ -31,6 +31,10 @@ int SV_BotAllocateClient(void) {
 	cl->netchan.remoteAddress.type = NA_BOT;
 	cl->rate = 16384;
 
+	// the slot may have held a player before
+	Com_Memset( &cl->usercmdBucket, 0, sizeof( cl->usercmdBucket ) );
+	Com_Memset( &cl->usercmdStats, 0, sizeof( cl->usercmdStats ) );
+
 	return i;
 }
 

@@ -95,6 +95,114 @@ static void SV_Status_f( void )
 }
 
 /*
+================
+SV_ClientStats_f
+
+Packets, usercmds and game module time per client over the last second.
+A command of its own, as tools parse the output of status.
+================
+*/
+static void SV_ClientStats_f( void )
+{
+	int				i, j, k;
+	int				rate;
+	client_t		*cl;
+	char			spaces[32];
+	char			displayName[MAX_NAME_LENGTH];
+	usercmdCounts_t	all;
+
+	// make sure server is running
+	if ( !com_sv_running->integer )
+	{
+		Com_Printf( "Server is not running.\n" );
+		return;
+	}
+
+	if ( Cmd_Argc() > 1 )
+	{
+		if ( Q_stricmp( Cmd_Argv(1), "reset" ) )
+		{
+			Com_Printf( "Usage: clientstats [reset]\n" );
+			return;
+		}
+
+		for ( i = 0, cl = svs.clients ; i < sv_maxclients->integer ; i++, cl++ )
+		{
+			Com_Memset( &cl->usercmdStats.peak, 0, sizeof( cl->usercmdStats.peak ) );
+			cl->usercmdStats.totalDropped = 0;
+		}
+		Com_Printf( "Cleared the highest values and dropped usercmds of every client.\n" );
+		return;
+	}
+
+	rate = SV_UsercmdRateCap( sv_maxUsercmdRate->integer );
+	if ( rate )
+	{
+		Com_Printf( "sv_maxUsercmdRate: %i usercmds per second, %i in a row\n", rate, SV_UsercmdBurst( rate ) );
+	}
+	else
+	{
+		Com_Printf( "sv_maxUsercmdRate: off\n" );
+	}
+
+	Com_Memset( &all, 0, sizeof( all ) );
+
+	Com_Printf ("num name            pkt/s cmd/s drop/s think/s maxcmd/s maxthink/s  dropped\n");
+	Com_Printf ("--- --------------- ----- ----- ------ ------- -------- ---------- --------\n");
+	for (i=0,cl=svs.clients ; i < sv_maxclients->integer ; i++,cl++)
+	{
+		const usercmdStats_t	*stats = &cl->usercmdStats;
+		int						dropped;
+
+		if ( cl->state < CS_CONNECTED )
+		{
+			continue;
+		}
+
+		// pad and cut the name to 15 visible characters, like status
+		k = Q_PrintStrlen(cl->name, MV_USE102COLOR);
+		if ( k < 0 ) k = 0; // Should never happen
+		for( j = 0; j < (15 - k); j++ ) spaces[j] = ' ';
+		spaces[j] = 0;
+		Q_PrintStrCopy( displayName, cl->name, sizeof(displayName), 0, 15, MV_USE102COLOR );
+
+		if ( stats->totalDropped <= 0 )
+		{
+			dropped = 0;
+		}
+		else if ( stats->totalDropped > 0x7fffffff )
+		{
+			dropped = 0x7fffffff;
+		}
+		else
+		{
+			dropped = (int)stats->totalDropped;
+		}
+
+		Com_Printf ("%3i %s^7%s %5i %5i %6i %7i %8i %10i %8i\n",
+			i,
+			displayName,
+			spaces,
+			stats->last.packets,
+			stats->last.cmds,
+			stats->last.dropped,
+			stats->last.thinkUsec,
+			stats->peak.cmds,
+			stats->peak.thinkUsec,
+			dropped
+			);
+
+		all.packets += stats->last.packets;
+		all.cmds += stats->last.cmds;
+		all.dropped += stats->last.dropped;
+		all.thinkUsec += stats->last.thinkUsec;
+	}
+	Com_Printf ("    all             %5i %5i %6i %7i\n", all.packets, all.cmds, all.dropped, all.thinkUsec);
+	Com_Printf ("think: microseconds in GAME_CLIENT_THINK (bots move in the game frame)\n");
+	Com_Printf ("max: highest per second, dropped: total, both since connecting\n");
+}
+
+/*
 ===========
 SV_Serverinfo_f
 

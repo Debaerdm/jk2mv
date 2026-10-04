@@ -12,6 +12,8 @@ Also called by bot code
 ==================
 */
 void SV_ClientThink (int client, const usercmd_t *cmd) {
+	int64_t	startTime;
+
 	if (client < 0 || sv_maxclients->integer <= client) {
 		Com_DPrintf( S_COLOR_YELLOW "SV_ClientThink: bad clientNum %i\n", client );
 		return;
@@ -42,7 +44,13 @@ void SV_ClientThink (int client, const usercmd_t *cmd) {
 		cl->lastUserInfoChange = svs.time + INFO_CHANGE_MIN_INTERVAL;
 	}
 
+	startTime = Sys_Microseconds();
+
 	VM_Call( gvm, GAME_CLIENT_THINK, client );
+
+	// for clientstats
+	svs.clients[client].usercmdStats.current.cmds++;
+	svs.clients[client].usercmdStats.current.thinkUsec += (int)( Sys_Microseconds() - startTime );
 }
 
 /*
@@ -55,6 +63,9 @@ in dropped packets can be recovered.
 
 On very fast clients, there may be multiple usercmd packed into
 each of the backup packets.
+
+With sv_maxUsercmdRate, only the usercmds the client may run now
+are run, the newest ones (see SV_UsercmdSchedule).
 ==================
 */
 static void SV_UserMove( client_t *cl, msg_t *msg, qboolean delta ) {
@@ -63,6 +74,10 @@ static void SV_UserMove( client_t *cl, msg_t *msg, qboolean delta ) {
 	usercmd_t	nullcmd;
 	usercmd_t	cmds[MAX_PACKET_USERCMDS];
 	usercmd_t	*cmd, *oldcmd;
+	int			rate;
+	int			serverTimes[MAX_PACKET_USERCMDS];
+	int			run[MAX_PACKET_USERCMDS];
+	int			numRun, dropped;
 
 	if ( delta ) {
 		cl->deltaMessage = cl->messageAcknowledge;
@@ -113,14 +128,36 @@ static void SV_UserMove( client_t *cl, msg_t *msg, qboolean delta ) {
 		return;
 	}
 
-	for ( i =  0 ; i < cmdCount ; i++ ) {
-		if ( cmds[i].serverTime > cmds[cmdCount-1].serverTime ) {
-			continue;
+	rate = SV_UsercmdRateCap( sv_maxUsercmdRate->integer );
+
+	// never cap the local player of a listen server
+	if ( cl->netchan.remoteAddress.type == NA_LOOPBACK ) {
+		rate = 0;
+	}
+
+	if ( !rate ) {
+		for ( i =  0 ; i < cmdCount ; i++ ) {
+			if ( cmds[i].serverTime > cmds[cmdCount-1].serverTime ) {
+				continue;
+			}
+			if ( cmds[i].serverTime <= cl->lastUsercmd.serverTime ) {
+				continue;
+			}
+			SV_ClientThink (cl - svs.clients, &cmds[ i ]);
 		}
-		if ( cmds[i].serverTime <= cl->lastUsercmd.serverTime ) {
-			continue;
-		}
-		SV_ClientThink (cl - svs.clients, &cmds[ i ]);
+		return;
+	}
+
+	for ( i = 0 ; i < cmdCount ; i++ ) {
+		serverTimes[i] = cmds[i].serverTime;
+	}
+
+	numRun = SV_UsercmdSchedule( &cl->usercmdBucket, rate, Sys_Milliseconds(),
+		serverTimes, cmdCount, cl->lastUsercmd.serverTime, run, &dropped );
+	cl->usercmdStats.current.dropped += dropped;
+
+	for ( i = 0 ; i < numRun ; i++ ) {
+		SV_ClientThink( cl - svs.clients, &cmds[ run[i] ] );
 	}
 }
 
@@ -134,6 +171,9 @@ Parse a client packet
 void SV_ExecuteClientMessage( client_t *cl, msg_t *msg ) {
 	int			c;
 	int			serverId;
+
+	// for clientstats
+	cl->usercmdStats.current.packets++;
 
 	MSG_Bitstream(msg);
 
@@ -226,6 +266,39 @@ void SV_ClientUpdateSnaps( client_t *client )
 		client->nextSnapshotTime = -1;
 		client->snapshotMsec = snapsMsec;
 	}
+}
+
+/*
+==================
+SV_UpdateUsercmdStats
+
+Called every server frame: closes the second of usercmd counts that
+clientstats shows
+==================
+*/
+void SV_UpdateUsercmdStats( void ) {
+	int			now = Sys_Milliseconds();
+	int			elapsed = (int)( (unsigned)now - (unsigned)svs.usercmdStatsTime );
+	int			i;
+	client_t	*cl;
+
+	if ( elapsed < 0 ) {
+		// the clock went back, count this second again
+		svs.usercmdStatsTime = now;
+		return;
+	}
+
+	if ( elapsed < 1000 ) {
+		return;
+	}
+
+	for ( i = 0, cl = svs.clients ; i < sv_maxclients->integer ; i++, cl++ ) {
+		if ( cl->state != CS_FREE ) {
+			SV_UsercmdStatsRoll( &cl->usercmdStats, elapsed );
+		}
+	}
+
+	svs.usercmdStatsTime = now;
 }
 
 #endif // SV_CLIENT_USERCMD_H

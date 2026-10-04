@@ -15,6 +15,7 @@
 
 #include "sv_snapshot_ring.h"
 #include "sv_stats.h"
+#include "sv_usercmd_rate.h"
 
 //=============================================================================
 
@@ -174,6 +175,9 @@ typedef struct client_s {
 
 	int				lastUserInfoChange; //if > svs.time && count > x, deny change -rww
 	int				lastUserInfoCount; //allow a certain number of changes within a certain time period -rww
+
+	usercmdBucket_t	usercmdBucket;		// for sv_maxUsercmdRate
+	usercmdStats_t	usercmdStats;		// for clientstats
 } client_t;
 
 //=============================================================================
@@ -217,6 +221,8 @@ typedef struct {
 	int			nextHeartbeatTime;
 	challenge_t	challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
 	netadr_t	redirectAddress;			// for rcon return messages
+
+	int			usercmdStatsTime;			// Sys_Milliseconds() when the clientstats second began
 
 	struct {
 		bool enabled;
@@ -265,6 +271,7 @@ extern	cvar_t	*sv_enforceSnaps;
 extern	cvar_t	*sv_minRate;
 extern	cvar_t	*sv_maxRate;
 extern	cvar_t	*sv_maxOOBRate;
+extern	cvar_t	*sv_maxUsercmdRate;
 extern	cvar_t	*sv_minPing;
 extern	cvar_t	*sv_maxPing;
 extern	cvar_t	*sv_gametype;
@@ -356,6 +363,7 @@ void SV_DropClient( client_t *drop, const char *reason );
 
 void SV_ExecuteClientCommand( client_t *cl, const char *s, qboolean clientOK );
 void SV_ClientThink (int client, const usercmd_t *cmd);
+void SV_UpdateUsercmdStats( void );
 
 void SV_WriteDownloadToClient( client_t *cl , msg_t *msg );
 void SV_CloseDownload( client_t *cl );

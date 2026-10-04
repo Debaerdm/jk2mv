@@ -90,6 +90,7 @@ if (BuildMVMP OR BuildMVDED)
 
 	set(MVMPDEDServerFiles
 		"server/server.h"
+		"server/sv_usercmd_rate.h"
 
 		"server/sv_bot.cpp"
 		"server/sv_ccmds.cpp"
@@ -101,6 +102,7 @@ if (BuildMVMP OR BuildMVDED)
 		"server/sv_snapshot.cpp"
 		"server/sv_stats.cpp"
 		"server/sv_stats.h"
+		"server/sv_usercmd_rate.cpp"
 		"server/sv_world.cpp"
 	)
 	source_group("server" FILES ${MVMPDEDServerFiles})

@@ -880,6 +880,28 @@ Server-Side
 
 ..
 
+:Name: sv_maxUsercmdRate
+:Valid: "0", Integer >= 500
+:Default: "0"
+:Description:
+   Maximum number of usercmds (the movement commands a client sends, one per
+   frame) the server runs per second for each client. Each one runs the
+   player's movement in the game module, and a client can send up to 1000 a
+   second, or many more with forged times, taking as much CPU as many
+   players. A client may go over the limit for half a second (network jitter,
+   hitches) before it applies. Above it, the server runs the newest usercmds
+   of each packet and drops the older ones: the player moves over the dropped
+   time in one step, so it stays in sync and loses no time, but the inputs of
+   the dropped usercmds are lost and its movement, whose physics depend on the
+   frame rate, runs at the capped rate. Values from 1 to 499 count as 500,
+   which leaves room above players at 125 to 333 fps. Bots and the local
+   player of a listen server are never capped. ``clientstats`` shows the
+   usercmds each client sends and the ones dropped.
+
+   | 0: no limit
+
+..
+
 :Name: sv_minRate
 :Valid: Integer >= 1000
 :Default: "1000"
@@ -1075,5 +1097,12 @@ Other Changes
   windowed and the last fullscreen mode, remembered across sessions in
   ``r_fullscreenLast``.
 * ``r_finish 0`` now also applies to menu and loading frames.
+* ``clientstats [reset]`` (server) lists, for each client over the last
+  second, the packets and usercmds received, the usercmds dropped by
+  ``sv_maxUsercmdRate`` and the microseconds the game module spent running
+  them (``GAME_CLIENT_THINK``), with the highest values and the usercmds
+  dropped since the client connected, which ``reset`` clears. Bots move in
+  the game frame, so they show little time there. The output of ``status``
+  does not change.
 * cl_avidemo replaced by cl_aviFrameRate
 * cl_conspeed renamed to con_speed

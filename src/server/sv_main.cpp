@@ -41,6 +41,7 @@ cvar_t	*sv_enforceSnaps;
 cvar_t	*sv_minRate;
 cvar_t	*sv_maxRate;
 cvar_t	*sv_maxOOBRate;
+cvar_t	*sv_maxUsercmdRate;
 cvar_t	*sv_minPing;
 cvar_t	*sv_maxPing;
 cvar_t	*sv_gametype;

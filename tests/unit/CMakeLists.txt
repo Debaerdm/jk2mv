@@ -69,6 +69,12 @@ add_jk2mv_test(test_sv_client_userinfo
   test_sv_client_userinfo.cpp
 )
 
+# usercmd accounting and sv_maxUsercmdRate (links the real engine source)
+add_jk2mv_test(test_sv_usercmd_rate
+  test_sv_usercmd_rate.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/sv_usercmd_rate.cpp
+)
+
 # ==============================================================================
 # Phase 4: Snapshot System (5 test files)
 # ==============================================================================

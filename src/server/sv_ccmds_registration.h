@@ -32,6 +32,7 @@ void SV_AddOperatorCommands( void ) {
 	Cmd_AddCommand ("clientkick", SV_KickNum_f);
 	Cmd_AddCommand ("status", SV_Status_f);
 	Cmd_AddCommand ("serverstats", SV_ServerStats_f);
+	Cmd_AddCommand ("clientstats", SV_ClientStats_f);
 	Cmd_AddCommand ("serverinfo", SV_Serverinfo_f);
 	Cmd_AddCommand ("systeminfo", SV_Systeminfo_f);
 	Cmd_AddCommand ("dumpuser", SV_DumpUser_f);

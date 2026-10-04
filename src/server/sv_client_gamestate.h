@@ -114,6 +114,8 @@ void SV_ClientEnterWorld( client_t *client, usercmd_t *cmd ) {
 	client->deltaMessage = -1;
 	client->nextSnapshotTime = svs.time;
 	client->lastUsercmd = *cmd;
+	// usercmd times start over with a new gamestate
+	client->usercmdBucket.seenTime = cmd->serverTime;
 
 	VM_Call( gvm, GAME_CLIENT_BEGIN, client - svs.clients );
 }
