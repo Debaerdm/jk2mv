@@ -103,6 +103,10 @@ static void CL_TestScene_f( void ) {
 
 	// the renderer loads one world per registration: start from a fresh one
 	CL_FlushMemory( qfalse );
+	// RE_LoadWorldMap takes the map file CM_LoadMap keeps for it, whatever
+	// map it is asked for. Game loads run CM_LoadMap of the same map just
+	// before, but an aborted local map load leaves another map's behind.
+	CM_DeleteCachedMap( qtrue );
 	re.LoadWorld( name );
 	testScene.active = qtrue;
 	testScene.startTime = cls.realtime;
