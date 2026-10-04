@@ -11,6 +11,7 @@
 extern console_t con;
 
 #define MAX_CAM_KEYS	256
+#define CAM_BACKOFF		40.0f		// how far the free camera backs off the recorded eye
 
 cvar_t	*cl_demoTimeline;
 cvar_t	*cl_freecamSpeed;
@@ -24,6 +25,8 @@ static struct {
 
 	// camera
 	qboolean	freecam;
+	qboolean	freecamPending;		// the free camera starts from the next game view
+	qboolean	detached;			// the free camera left the recorded eye
 	qboolean	playing;			// following the camera path
 	vec3_t		origin;
 	vec3_t		angles;
@@ -58,7 +61,7 @@ void CL_DemoToolsReset( void ) {
 	if ( dt.photo ) {
 		Cvar_Set( "cl_demoHideHud", va( "%i", dt.photoHideHud ) );
 	}
-	dt.freecam = dt.playing = dt.photo = qfalse;
+	dt.freecam = dt.freecamPending = dt.detached = dt.playing = dt.photo = qfalse;
 	dt.startServerTime = 0;
 	dt.haveView = qfalse;
 	dt.lastFrameUsec = 0;
@@ -73,8 +76,10 @@ static qboolean CL_DemoToolsCheck( void ) {
 	return qtrue;
 }
 
-static qboolean CL_DemoCamActive( void ) {
-	return (qboolean)( clc.demoplaying && ( dt.freecam || ( dt.playing && dt.numKeys > 0 ) ) );
+// the demo camera shows its own view: a camera path, or a free camera that
+// left the recorded eye (until then it shows the game's own view)
+static qboolean CL_DemoCamOwnView( void ) {
+	return (qboolean)( clc.demoplaying && ( ( dt.playing && dt.numKeys > 0 ) || ( dt.freecam && dt.detached ) ) );
 }
 
 static float CL_Timescale( void ) {
@@ -156,29 +161,54 @@ FREE CAMERA AND CAMERA PATHS
 ===============================================================================
 */
 
-static void CL_DemoCamStartFromView( void ) {
-	if ( dt.haveView ) {
-		VectorCopy( dt.viewOrigin, dt.origin );
-		VectorCopy( dt.viewAngles, dt.angles );
-	}
-	dt.fov = 0.0f;
+/*
+==================
+CL_DemoCamStart
+
+Turns the free camera on. It starts at the recorded eye with the next game
+view, and shows that view as it is (view weapon, no body) until it leaves
+it: see CL_DemoCamDetach.
+==================
+*/
+static void CL_DemoCamStart( void ) {
+	dt.freecam = qtrue;
+	dt.freecamPending = qtrue;
+	dt.detached = qfalse;
+	dt.playing = qfalse;
 	dt.lastFrameUsec = 0;
-	// level, whatever bob or damage roll the recorded view had
-	dt.angles[ROLL] = 0.0f;
-	// mouse look continues from the camera angles
-	VectorCopy( dt.angles, cl.viewangles );
+}
+
+/*
+==================
+CL_DemoCamDetach
+
+The free camera leaves the recorded eye, because it moved or turned or the
+recorded player did: from now on the scene shows the recorder's body and not
+the view weapon. The camera backs off behind the eye first, short of any wall,
+so it doesn't see the head from inside.
+==================
+*/
+static void CL_DemoCamDetach( void ) {
+	vec3_t	forward, end;
+	trace_t	tr;
+
+	dt.detached = qtrue;
+	AngleVectors( dt.angles, forward, NULL, NULL );
+	VectorMA( dt.origin, -CAM_BACKOFF, forward, end );
+	CM_BoxTrace( &tr, dt.origin, end, vec3_origin, vec3_origin, 0, CONTENTS_SOLID, qfalse );
+	// a few units off the wall, past the near clip plane
+	VectorMA( dt.origin, -MAX( 0.0f, CAM_BACKOFF * tr.fraction - 4.0f ), forward, dt.origin );
 }
 
 static void CL_DemoFreecam_f( void ) {
 	if ( !CL_DemoToolsCheck() ) {
 		return;
 	}
-	dt.freecam = (qboolean)!dt.freecam;
-	if ( dt.freecam ) {
-		dt.playing = qfalse;
-		CL_DemoCamStartFromView();
+	if ( !dt.freecam ) {
+		CL_DemoCamStart();
 		Com_Printf( "free camera on: move with the movement keys and the mouse\n" );
 	} else {
+		dt.freecam = qfalse;
 		Com_Printf( "free camera off\n" );
 	}
 }
@@ -192,7 +222,7 @@ static void CL_CamAdd_f( void ) {
 	}
 
 	key.time = cl.serverTime;
-	if ( CL_DemoCamActive() ) {
+	if ( CL_DemoCamOwnView() ) {
 		VectorCopy( dt.origin, key.origin );
 		VectorCopy( dt.angles, key.angles );
 		key.fov = dt.fov > 0.0f ? dt.fov : dt.viewFov;
@@ -417,9 +447,7 @@ static void CL_PhotoMode_f( void ) {
 			CL_SetTimescale( 0.0f );
 		}
 		if ( !dt.freecam ) {
-			dt.freecam = qtrue;
-			dt.playing = qfalse;
-			CL_DemoCamStartFromView();
+			CL_DemoCamStart();
 		}
 		Com_Printf( "photo mode: frame your shot, then screenshot_png. photomode again to leave.\n" );
 	} else {
@@ -480,13 +508,19 @@ void CL_DemoToolsFrame( void ) {
 				CL_SetTimescale( scale );
 			}
 		}
-	} else if ( dt.freecam ) {
+	} else if ( dt.freecam && !dt.freecamPending ) {
 		const usercmd_t	*cmd = &cl.cmds[cl.cmdNumber & CMD_MASK];
 		vec3_t			forward, right;
 		const float		speed = cl_freecamSpeed->value * seconds;
 
 		// no looking past straight up or down: the controls would invert
 		cl.viewangles[PITCH] = Com_Clamp( -89.0f, 89.0f, AngleNormalize180( cl.viewangles[PITCH] ) );
+		if ( !dt.detached && ( cmd->forwardmove || cmd->rightmove || cmd->upmove ||
+			fabsf( AngleDelta( cl.viewangles[PITCH], dt.angles[PITCH] ) ) > 0.01f ||
+			fabsf( AngleDelta( cl.viewangles[YAW], dt.angles[YAW] ) ) > 0.01f ) ) {
+			VectorCopy( cl.viewangles, dt.angles );
+			CL_DemoCamDetach();
+		}
 		VectorCopy( cl.viewangles, dt.angles );
 		AngleVectors( dt.angles, forward, right, NULL );
 		VectorMA( dt.origin, speed * cmd->forwardmove / 127.0f, forward, dt.origin );
@@ -497,10 +531,42 @@ void CL_DemoToolsFrame( void ) {
 
 /*
 ==================
+CL_DemoFreecamFollowView
+
+With the game's view of a scene: places a starting free camera there, or
+detaches it once the recorded player moved or turned away from it.
+==================
+*/
+static void CL_DemoFreecamFollowView( void ) {
+	vec3_t angles;
+
+	// the free camera's angles: level, and no looking past straight up or down
+	angles[PITCH] = Com_Clamp( -89.0f, 89.0f, AngleNormalize180( dt.viewAngles[PITCH] ) );
+	angles[YAW] = dt.viewAngles[YAW];
+	angles[ROLL] = 0.0f;
+
+	if ( dt.freecamPending ) {
+		dt.freecamPending = qfalse;
+		VectorCopy( dt.viewOrigin, dt.origin );
+		VectorCopy( angles, dt.angles );
+		dt.fov = 0.0f;
+		// mouse look continues from the camera angles
+		VectorCopy( angles, cl.viewangles );
+	} else if ( Distance( dt.viewOrigin, dt.origin ) > 0.5f ||
+		fabsf( AngleDelta( angles[PITCH], dt.angles[PITCH] ) ) > 0.1f ||
+		fabsf( AngleDelta( angles[YAW], dt.angles[YAW] ) ) > 0.1f ) {
+		// the camera stays: the game's view would put the view weapon away
+		// from it and keep the body that walks off hidden
+		CL_DemoCamDetach();
+	}
+}
+
+/*
+==================
 CL_DemoCamView
 
 Called for every scene cgame renders. Remembers the game's view and, while the
-demo camera is active, returns the scene seen from the camera instead.
+demo camera shows its own view, returns the scene seen from the camera instead.
 ==================
 */
 qboolean CL_DemoCamView( const refdef_t *fd, refdef_t *out ) {
@@ -508,15 +574,22 @@ qboolean CL_DemoCamView( const refdef_t *fd, refdef_t *out ) {
 	const qboolean mainView = (qboolean)( !( fd->rdflags & RDF_NOWORLDMODEL ) &&
 		fd->width * fd->height * 2 >= cls.glconfig.winWidth * cls.glconfig.winHeight );
 
-	if ( !clc.demoplaying || !mainView || !CL_DemoCamActive() ) {
-		if ( clc.demoplaying && mainView ) {
-			VectorCopy( fd->vieworg, dt.viewOrigin );
-			vectoangles( fd->viewaxis[0], dt.viewAngles );
-			// roll from the left vector
-			dt.viewAngles[ROLL] = RAD2DEG( atan2f( fd->viewaxis[1][2], fd->viewaxis[2][2] ) );
-			dt.viewFov = fd->fov_x;
-			dt.haveView = qtrue;
+	if ( clc.demoplaying && mainView ) {
+		// also under the camera: it is where the free camera starts
+		VectorCopy( fd->vieworg, dt.viewOrigin );
+		vectoangles( fd->viewaxis[0], dt.viewAngles );
+		// roll from the left vector
+		dt.viewAngles[ROLL] = RAD2DEG( atan2f( fd->viewaxis[1][2], fd->viewaxis[2][2] ) );
+		dt.viewFov = fd->fov_x;
+		dt.haveView = qtrue;
+
+		if ( dt.freecam && !dt.detached ) {
+			CL_DemoFreecamFollowView();
 		}
+	}
+
+	if ( !clc.demoplaying || !mainView || !CL_DemoCamOwnView() ) {
+		// the game's own view, a free camera's first one included
 		if ( fd->rdflags & RDF_FREECAM ) {
 			// reserved for the engine
 			*out = *fd;
@@ -542,9 +615,9 @@ qboolean CL_DemoCamView( const refdef_t *fd, refdef_t *out ) {
 	return qtrue;
 }
 
-// camera position for sound and effects while the demo camera is active
+// camera position for sound and effects while the demo camera shows its own view
 qboolean CL_DemoCamOrigin( vec3_t origin, vec3_t axis[3] ) {
-	if ( !CL_DemoCamActive() ) {
+	if ( !CL_DemoCamOwnView() ) {
 		return qfalse;
 	}
 	VectorCopy( dt.origin, origin );

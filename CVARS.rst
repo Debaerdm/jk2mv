@@ -947,8 +947,10 @@ Other Changes
     ``demo_step [ms]`` (advance a paused demo). Slow motion now plays at the
     requested speed instead of getting stuck at 1 ms of game time per frame.
   - ``demo_freecam``: fly freely through the demo with the movement keys and
-    the mouse; sound and effects follow the camera, and the recorder's own
-    body is visible. The recorder's own sounds stay at full volume.
+    the mouse; sound and effects follow the camera. It starts as the game's
+    own view; once it moves or turns, or the recorded player does, it backs
+    off a little behind the recorder's head and shows the recorder's own
+    body. The recorder's own sounds stay at full volume.
   - Camera paths: ``cam_add`` records a key (position, angles, fov, speed)
     at the current demo time, ``cam_play`` follows the smooth path through the
     keys, with smooth turns (speed keys make slow motion ramps), ``cam_del [index]``,
