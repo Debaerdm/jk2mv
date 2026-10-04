@@ -429,7 +429,7 @@ static int SCR_PerfSample( int age ) {
 static void SCR_DrawPerfOverlay( void ) {
 	static const vec4_t	graphColors[3] = { { 0.2f, 0.9f, 0.2f, 0.8f }, { 0.95f, 0.8f, 0.1f, 0.8f }, { 0.95f, 0.2f, 0.2f, 0.8f } };
 	int		samples[PERF_SAMPLES];
-	char	text[64];
+	char	text[128];
 	int64_t	sum = 0;
 	int		n, used = 0;
 
@@ -455,6 +455,16 @@ static void SCR_DrawPerfOverlay( void ) {
 
 	Com_sprintf( text, sizeof( text ), "%4.0f fps  1%% low %4.0f  %6.2f ms",
 		used * 1000000.0 / sum, 1000000.0 / p99, sum / 1000.0 / used );
+
+	// r_gpuTimers: GPU time of the frame, and of the glow and post passes
+	int glowUsec = 0, postUsec = 0;
+	const int gpuUsec = re.GetGPUTimes ? re.GetGPUTimes( &glowUsec, &postUsec ) : -1;
+	if ( gpuUsec >= 0 ) {
+		Q_strcat( text, sizeof( text ), va( "  GPU %5.2f", gpuUsec / 1000.0 ) );
+		if ( glowUsec || postUsec ) {
+			Q_strcat( text, sizeof( text ), va( " (glow %.2f post %.2f)", glowUsec / 1000.0, postUsec / 1000.0 ) );
+		}
+	}
 
 	const int	textWidth = (int)strlen( text ) * con.charWidth;
 	const int	textX = cls.glconfig.vidWidth - textWidth - con.charWidth;

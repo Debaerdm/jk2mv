@@ -1401,6 +1401,7 @@ void R_Init( void ) {
 	R_InitFonts();
 	R_InitDlightPrograms();
 	R_InitPostFX();
+	R_InitGPUTimers();
 #endif
 	R_ModelInit();
 #ifndef DEDICATED
@@ -1444,6 +1445,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 #ifndef DEDICATED
 	R_ShutdownPostFX();
 	R_ShutdownDlightPrograms();
+	R_ShutdownGPUTimers();
 
 	// whatever r_DynamicGlow is now: the glow images always exist and the
 	// cvar may have changed since the programs were made
@@ -1657,6 +1659,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 
 	re.CaptureFrameRaw = RE_CaptureFrameRaw;
 	re.CaptureFrameJPEG = RE_CaptureFrameJPEG;
+	re.GetGPUTimes = RE_GetGPUTimes;
 #endif //!DEDICATED
 	return &re;
 }

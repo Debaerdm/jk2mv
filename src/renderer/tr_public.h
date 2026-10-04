@@ -124,6 +124,10 @@ typedef struct {
 
 	int (*CaptureFrameRaw)( byte *buffer, int bufSize, int padding );
 	int (*CaptureFrameJPEG)( byte *buffer, int bufSize, int quality );
+
+	// r_gpuTimers: GPU microseconds of a recent frame and of its glow and
+	// post-process passes, -1 when off
+	int (*GetGPUTimes)( int *glowUsec, int *postUsec );
 } refexport_t;
 
 //

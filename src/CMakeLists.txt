@@ -434,6 +434,7 @@ if (BuildMVMP)
 		"renderer/tr_curve.cpp"
 		"renderer/tr_flares.cpp"
 		"renderer/tr_font.cpp"
+		"renderer/tr_gputimer.cpp"
 		"renderer/tr_light.cpp"
 		"renderer/tr_marks.cpp"
 		"renderer/tr_noise.cpp"

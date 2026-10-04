@@ -136,6 +136,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 - **VQ-5 et VQ-6 sont livrés :** `r_fbo`, `r_hdr`, `r_bloom`, `r_exposure` (src/renderer/tr_postfx.cpp), dans les presets `ultra` et `movie`.
 - **`r_fbo 1` :** il supprime la copie plein écran de la passe gamma. Le glow garde encore ses copies, qui restent à porter sur des FBO.
 - **RB-9 est livré :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie.
+- **BM-6 (phase 2) est livré :** `r_gpuTimers 1` mesure le temps GPU de la frame, du glow et des passes post. Le résultat s'affiche dans `cl_perfOverlay` et entre dans les percentiles de `benchmark`. C'est l'outil pour vérifier les critères 2 et 3 sur une vraie carte.
 - **FE-9 est livré :** `r_dlightPriority 1` (par défaut). Au-delà de 32 lumières, chaque scène garde les 32 qui comptent le plus, au lieu des 32 premières ajoutées. `testscene ... dlights` crée ce cas et `smoke_render` le vérifie.
 - **VQ-2b est livré :** avec `r_fbo 1`, l'étalonnage passe dans une table 3D appliquée à la fin de la vue 3D, avant le HUD. La passe gamma garde la table classique.
 - **Tonemapping :** c'est une épaule exponentielle au-dessus de 0,8 × blanc, appliquée à la fin de la vue 3D, avant le HUD. Je l'ai préférée à ACES pour que l'image d'origine reste intacte sous le genou.

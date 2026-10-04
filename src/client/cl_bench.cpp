@@ -7,7 +7,9 @@
 // 1000 fps cap, records the time of every frame and prints, per run and
 // pooled over the measured runs, the average fps, frame time percentiles and
 // the 1% low. benchmarks/<demo>_<tag>.csv gets every frame time and
-// benchmarks/<demo>_<tag>.txt the summary with the system details.
+// benchmarks/<demo>_<tag>.txt the summary with the system details. With
+// r_gpuTimers 1 the GPU time of the frames is recorded too (read a few frames
+// late, so it lines up with the frame times only approximately).
 
 #include "client.h"
 #include <algorithm>
@@ -29,7 +31,9 @@ static struct {
 	char				timedemo[16];	// restored at the end
 	int64_t				lastFrameUsec;
 	std::vector<int>	frames;			// current run, microseconds
+	std::vector<int>	gpuFrames;		// GPU time of the current run's frames, -1 if unknown
 	std::vector<int>	pooled;			// measured runs
+	std::vector<int>	gpuPooled;
 	std::vector<int>	runOf;			// run of each pooled frame, for the CSV
 	std::vector<double>	runFps;
 	std::vector<std::string> runLines;
@@ -103,6 +107,21 @@ static void CL_BenchFinish( void ) {
 		st.frames, st.p50, st.p90, st.p99, st.p999, st.max, st.low1, st.low01 );
 	bench.runLines.push_back( line );
 
+	std::vector<int> gpu;
+	for ( size_t i = 0; i < bench.gpuPooled.size(); i++ ) {
+		if ( bench.gpuPooled[i] >= 0 ) {
+			gpu.push_back( bench.gpuPooled[i] );
+		}
+	}
+	if ( !gpu.empty() ) {
+		benchStats_t gst;
+
+		CL_BenchStats( gpu, &gst );
+		Com_sprintf( line, sizeof( line ), "GPU time (r_gpuTimers): p50 %.2f p90 %.2f p99 %.2f max %.2f ms",
+			gst.p50, gst.p90, gst.p99, gst.max );
+		bench.runLines.push_back( line );
+	}
+
 	Com_Printf( "\n" S_COLOR_YELLOW "benchmark results\n" );
 	for ( size_t i = 0; i < bench.runLines.size(); i++ ) {
 		Com_Printf( "%s\n", bench.runLines[i].c_str() );
@@ -118,12 +137,12 @@ static void CL_BenchFinish( void ) {
 
 	f = FS_FOpenFileWrite( va( "%s.csv", base ) );
 	if ( f ) {
-		FS_Printf( f, "run,frame,usec\n" );
+		FS_Printf( f, "run,frame,usec,gpu_usec\n" );
 		for ( size_t i = 0, frame = 0; i < bench.pooled.size(); i++, frame++ ) {
 			if ( i > 0 && bench.runOf[i] != bench.runOf[i - 1] ) {
 				frame = 0;
 			}
-			FS_Printf( f, "%i,%i,%i\n", bench.runOf[i], (int)frame, bench.pooled[i] );
+			FS_Printf( f, "%i,%i,%i,%i\n", bench.runOf[i], (int)frame, bench.pooled[i], bench.gpuPooled[i] );
 		}
 		FS_FCloseFile( f );
 	}
@@ -139,7 +158,7 @@ static void CL_BenchFinish( void ) {
 		static const char * const cvars[] = {
 			"version", "r_picmip", "r_textureMode", "r_ext_texture_filter_anisotropic", "r_ext_multisample",
 			"r_DynamicGlow", "r_DynamicGlowWidth", "r_DynamicGlowHeight", "r_gammamethod", "r_swapInterval",
-			"com_maxfps", "cl_autolodscale",
+			"com_maxfps", "cl_autolodscale", "r_fbo", "r_hdr", "r_bloom", "r_dlightMode", "r_gpuTimers",
 		};
 		for ( size_t i = 0; i < ARRAY_LEN( cvars ); i++ ) {
 			FS_Printf( f, "%s: %s\n", cvars[i], Cvar_VariableString( cvars[i] ) );
@@ -154,7 +173,9 @@ static void CL_BenchStop( void ) {
 	bench.active = qfalse;
 	com_benchmarkActive = 0;
 	bench.frames.clear();
+	bench.gpuFrames.clear();
 	bench.pooled.clear();
+	bench.gpuPooled.clear();
 	bench.runOf.clear();
 	bench.runFps.clear();
 	bench.runLines.clear();
@@ -213,6 +234,8 @@ void CL_BenchmarkFrame( void ) {
 		bench.lastFrameUsec = 0;
 		bench.frames.clear();
 		bench.frames.reserve( 8192 );
+		bench.gpuFrames.clear();
+		bench.gpuFrames.reserve( 8192 );
 		Cbuf_AddText( va( "demo %s\n", bench.demo ) );
 		return;
 	}
@@ -223,6 +246,7 @@ void CL_BenchmarkFrame( void ) {
 		bench.started = qtrue;
 		if ( bench.lastFrameUsec ) {
 			bench.frames.push_back( (int)( now - bench.lastFrameUsec ) );
+			bench.gpuFrames.push_back( re.GetGPUTimes ? re.GetGPUTimes( NULL, NULL ) : -1 );
 		}
 		bench.lastFrameUsec = now;
 	} else if ( !bench.started && ++bench.waitFrames > BENCH_START_TIMEOUT ) {
@@ -256,6 +280,7 @@ void CL_BenchmarkDemoCompleted( void ) {
 		bench.runFps.push_back( st.avgFps );
 		for ( size_t i = 0; i < bench.frames.size(); i++ ) {
 			bench.pooled.push_back( bench.frames[i] );
+			bench.gpuPooled.push_back( bench.gpuFrames[i] );
 			bench.runOf.push_back( run );
 		}
 		Com_sprintf( line, sizeof( line ), "run %i: %i frames, %.2f s, %.1f fps, p50 %.2f ms, p99 %.2f ms, 1%% low %.1f fps",

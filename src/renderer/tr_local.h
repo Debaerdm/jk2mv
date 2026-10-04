@@ -1489,6 +1489,21 @@ extern cvar_t	*r_bloomIntensity;
 extern cvar_t	*r_bloomThreshold;
 extern cvar_t	*r_exposure;
 
+// tr_gputimer.cpp: GPU timestamps (r_gpuTimers)
+typedef enum {
+	GPU_GLOW,		// dynamic glow
+	GPU_POST,		// gamma pass and r_fbo effects
+	GPU_SECTIONS
+} gpuSection_t;
+extern cvar_t	*r_gpuTimers;
+void		R_InitGPUTimers( void );
+void		R_ShutdownGPUTimers( void );
+void		R_GPUTimerFrameBegin( void );
+void		R_GPUTimerFrameEnd( void );
+void		R_GPUTimerBegin( gpuSection_t section );
+void		R_GPUTimerEnd( gpuSection_t section );
+int			RE_GetGPUTimes( int *glowUsec, int *postUsec );
+
 // tr_shade.cpp: per-pixel dynamic lights (r_dlightMode 1)
 extern cvar_t	*r_dlightMode;
 void		R_InitDlightPrograms( void );

@@ -387,6 +387,18 @@ Client-Side
 
 ..
 
+:Name: r_gpuTimers
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   Measure the GPU time of each frame, and of the dynamic glow and the
+   post-process passes (gamma, ``r_fbo`` effects), with GL timestamps read a
+   few frames later so nothing waits for the GPU. ``cl_perfOverlay`` shows
+   them and ``benchmark`` adds GPU time percentiles and a gpu_usec column.
+   Needs OpenGL 3.3 or ARB_timer_query.
+
+..
+
 :Name: r_dlightPriority
 :Values: "0", "1"
 :Default: "1"

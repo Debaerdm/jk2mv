@@ -1070,6 +1070,8 @@ const void	*RB_DrawSurfs( const void *data ) {
 
 	if ( !(backEnd.refdef.rdflags & RDF_NOWORLDMODEL) && g_bDynamicGlowSupported && r_DynamicGlow->integer )
 	{
+		R_GPUTimerBegin( GPU_GLOW );
+
 		// Copy the normal scene to texture.
 		qglDisable( GL_TEXTURE_2D );
 		qglEnable( GL_TEXTURE_RECTANGLE_ARB );
@@ -1128,12 +1130,16 @@ const void	*RB_DrawSurfs( const void *data ) {
 
 		// Draw the glow additively over the screen.
 		RB_DrawGlowOverlay();
+
+		R_GPUTimerEnd( GPU_GLOW );
 	}
 
 	// r_bloom, r_hdr: on the main view, after the glow so it blooms too
 	if ( !( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) && !backEnd.viewParms.isPortal ) {
+		R_GPUTimerBegin( GPU_POST );
 		R_PostFXEndView( backEnd.viewParms.viewportX, backEnd.viewParms.viewportY,
 			backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+		R_GPUTimerEnd( GPU_POST );
 		SetViewportAndScissor();
 	}
 
@@ -1151,6 +1157,8 @@ const void	*RB_DrawBuffer( const void *data ) {
 	const drawBufferCommand_t	*cmd;
 
 	cmd = (const drawBufferCommand_t *)data;
+
+	R_GPUTimerFrameBegin();
 
 	// r_fbo: draw into the offscreen target instead of the back buffer
 	if ( !R_PostFXBindScene( (GLenum)cmd->buffer ) ) {
@@ -1326,6 +1334,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	GLimp_LogComment( "***************** RB_SwapBuffers *****************\n\n\n" );
 
+	R_GPUTimerFrameEnd();
     WIN_Present(&glWindow);
 
 	return (const void *)(cmd + 1);
@@ -1369,6 +1378,7 @@ const void *RB_GammaCorrection( const void *data )
 	}
 
 	RB_SetGL2D();
+	R_GPUTimerBegin( GPU_POST );
 
 	// r_fbo: the frame is already in a texture, R_PostFXPresent binds it
 	const GLuint offscreenProgram = R_PostFXPresent();
@@ -1442,6 +1452,7 @@ const void *RB_GammaCorrection( const void *data )
 		qglScissor(0, 0, glConfig.vidWidth, glConfig.vidHeight);
 	}
 
+	R_GPUTimerEnd( GPU_POST );
 	return (const void *)(cmd + 1);
 }
 
