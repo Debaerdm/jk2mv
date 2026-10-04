@@ -748,8 +748,10 @@ void R_AddWorldSurfaces (void) {
 	// clear out the visible min/max
 	ClearBounds( tr.viewParms.visBounds[0], tr.viewParms.visBounds[1] );
 
-	// perform frustum culling and add all the potentially visible surfaces
-	if ( tr.refdef.num_dlights > MAX_DLIGHTS ) {
+	// perform frustum culling and add all the potentially visible surfaces.
+	// MAX_DLIGHTS lights need the full mask: 1U << 32 is undefined and gives
+	// 0 on x86, which switched off all world dynamic lighting
+	if ( tr.refdef.num_dlights >= MAX_DLIGHTS ) {
 		tr.refdef.num_dlights = MAX_DLIGHTS;
 		dlightBits = -1;
 	} else {

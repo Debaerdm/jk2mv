@@ -430,11 +430,11 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 	{
 		afd.audio = qfalse;
 	}
-	else if( Q_stricmp( Cvar_VariableString( "s_backend" ), "OpenAL" ) )
+	else if( !Cvar_VariableIntegerValue( "s_UseOpenAL" ) )
 	{
 		if( afd.a.bits != 16 || afd.a.channels != 2 )
 		{
-			Com_Printf( S_COLOR_YELLOW "WARNING: Audio format of %d bit/%d channels not supported",
+			Com_Printf( S_COLOR_YELLOW "WARNING: Audio format of %d bit/%d channels not supported\n",
 				afd.a.bits, afd.a.channels );
 			afd.audio = qfalse;
 		}
