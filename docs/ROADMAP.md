@@ -145,6 +145,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 - **Phase 4, piste client :**
   - FE-17 : `-ffp-contract=off` explicite pour GCC et Clang, plus l'option CMake `UseLTO`.
   - RB-11a : `r_maxFrameLatency` (fences ARB_sync), à 1 dans le preset `competitive`.
+  - FE-16 : tests de référence Ghoul2 au bit près (`test_ghoul2`) et micro-benchmarks (`bench_ghoul2`), voir la règle sous le tableau de la phase 4.
 - **Phase 4, piste serveur :**
   - SV-3 : `sv_snapshotEntityBudget` (128 par défaut, 64 = l'ancien anneau) dimensionne l'anneau d'entités des snapshots, arrondi à une puissance de deux et indexé par un masque. Avec 31 bots à `sv_fps 40`, l'ancien anneau ne gardait par moments que 0,6 s de snapshots, contre 1,4 s avec 128 : toute la fenêtre de delta d'un client à 20 snapshots/s, pour 38,8 Mo à 32 slots au lieu de 19,4. Un serveur local a maintenant le même anneau qu'un dédié : avec 6 bots, un joueur distant à 100 ms n'y recevait que des snapshots complets.
   - SV-7 : (2) est livré, `SV_UnlinkEntity` sort l'entité de son secteur en O(1) sans changer l'ordre des listes. (1) est abandonné : arrêter la recherche d'entités de `SV_Trace` au point d'impact monde change des traces, car le jeu déplace les sabres sans les relier, et la variante exacte, qui juge chaque boîte sur sa position du moment, ne fait rien gagner de mesurable (0 à 0,4 % de la frame avec 31 bots). Le commentaire de `SV_Trace` dit pourquoi.
@@ -190,6 +191,15 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 | RB-4 → RB-3 | alléger les appels GL par batch ; agrandir `tess` **seulement si** `r_speeds 8` montre des flushes par débordement | S | T |
 | RB-5 | `r_vbo 1` : monde statique en VBO (GL 1.5 fixe, repli par batch, patches LOD restés sur CPU) | L | O |
 | RB-11a | `r_maxFrameLatency` via ARB_sync | S | O |
+
+**Règle pour FE-3, FE-4 et FE-5 : les tests de référence Ghoul2 (FE-16).**
+- `test_ghoul2` fait tourner le vrai code Ghoul2 (squelettes, attaches, collision, skinning, `RB_SurfaceGhoul`) par l'API des VM, sur des modèles GLA/GLM synthétiques et sur Kyle si l'assets0.pk3 retail est trouvé (`JK2MV_TEST_BASE`). Chaque résultat est haché au bit près et comparé à une valeur relevée sur le code d'origine.
+- Une optimisation ne change aucune valeur, sur x86-64 et sur ARM64. Si un test casse, `G2_DUMP_DIR=<dossier>` avant et après le changement, puis un diff des deux dossiers montre le premier nombre qui bouge.
+- FE-3 : les caches rendent exactement les mêmes os, y compris les matrices périmées des os qu'aucune surface n'utilise (surfaces coupées, `G2_SetRootSurface`), et le même lissage client d'une frame à l'autre.
+- FE-4 : les valeurs `skin/scalar` valent partout, `skin/sse2` sur x86 seulement. Une version NEON qui associe les sommes comme SSE2 doit retrouver les valeurs `skin/sse2` : l'ajouter au test à côté des deux noyaux existants. Les matrices d'os en SIMD gardent l'ordre des opérations scalaires.
+- FE-5 : le test appelle `RB_SurfaceGhoul` deux fois par surface et par frame (passe glow), ombres comprises, et compare chaque appel au noyau : le cache rend les mêmes bits à chaque passe et suit les os d'une frame à l'autre.
+- `bench_ghoul2` (ns par os et par vertex, meilleur de 7 passes) se lance avant et après, même build, machine au repos.
+- Seul un changement voulu met à jour une valeur, et son commit dit pourquoi (`G2_GOLDEN_PRINT=1` imprime la table).
 
 **Piste serveur.**
 

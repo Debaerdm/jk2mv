@@ -252,3 +252,45 @@ add_jk2mv_test(test_qcommon_huffman
   ${CMAKE_SOURCE_DIR}/src/qcommon/huffman.cpp
   ${CMAKE_SOURCE_DIR}/src/qcommon/msg.cpp
 )
+
+# ==============================================================================
+# Ghoul2 reference tests and micro-benchmarks (FE-16): the engine's skeleton,
+# bolt, collision and skinning code on synthetic GLA/GLM models, compiled with
+# the engine's definitions and language level, compared bit for bit
+# ==============================================================================
+
+add_library(ghoul2_harness STATIC
+  ghoul2_harness.cpp
+  ghoul2_harness.h
+  ghoul2_synth.cpp
+  ${CMAKE_SOURCE_DIR}/src/renderer/tr_ghoul2.cpp
+  ${CMAKE_SOURCE_DIR}/src/renderer/matcomp.c
+  ${CMAKE_SOURCE_DIR}/src/ghoul2/G2_API.cpp
+  ${CMAKE_SOURCE_DIR}/src/ghoul2/G2_bolts.cpp
+  ${CMAKE_SOURCE_DIR}/src/ghoul2/G2_bones.cpp
+  ${CMAKE_SOURCE_DIR}/src/ghoul2/G2_misc.cpp
+  ${CMAKE_SOURCE_DIR}/src/ghoul2/G2_surfaces.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_math.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_shared.cpp
+)
+mv_apply_common_target_definitions(ghoul2_harness)
+set_target_properties(ghoul2_harness PROPERTIES CXX_STANDARD 11)
+target_include_directories(ghoul2_harness
+  PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}
+  PRIVATE ${MINIZIP_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS}
+)
+target_link_libraries(ghoul2_harness PUBLIC ${MINIZIP_LIBRARIES} ${ZLIB_LIBRARIES})
+
+add_executable(test_ghoul2 test_ghoul2.cpp)
+mv_apply_common_target_definitions(test_ghoul2)
+target_link_libraries(test_ghoul2 PRIVATE ghoul2_harness GTest::gtest)
+gtest_discover_tests(test_ghoul2 DISCOVERY_MODE POST_BUILD)
+
+# The micro-benchmarks: run bench_ghoul2 by hand to time a change; ctest only
+# runs it briefly so that it keeps building and working (it never fails on
+# a time)
+add_executable(bench_ghoul2 bench_ghoul2.cpp)
+mv_apply_common_target_definitions(bench_ghoul2)
+set_target_properties(bench_ghoul2 PROPERTIES CXX_STANDARD 11)
+target_link_libraries(bench_ghoul2 PRIVATE ghoul2_harness)
+add_test(NAME bench_ghoul2_quick COMMAND bench_ghoul2 --quick)
