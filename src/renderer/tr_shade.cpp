@@ -722,7 +722,9 @@ static void PerPixelDlights( void ) {
 		}
 
 		// only the triangles that touch the light's box, and face it
-		// without r_dlightBacks
+		// without r_dlightBacks: per vertex work like the classic pass
+		// does, counted the same for r_speeds 4
+		backEnd.pc.c_dlightVertexes += tess.numVertexes;
 		for ( int i = 0; i < tess.numVertexes; i++ ) {
 			const float	*xyz = tess.xyz[i];
 			int			clip = 0;

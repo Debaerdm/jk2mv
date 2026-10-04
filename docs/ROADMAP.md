@@ -162,7 +162,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 2. Glow actif en 1440p : le temps GPU sur bench_duel est plus bas avec `r_fbo 1`.
 3. HDR + bloom coûtent au plus 1 ms GPU en 1440p sur une carte dédiée milieu de gamme, au plus 2,5 ms sur un iGPU.
 4. Sans extension, repli propre avec un avertissement dans `gfxinfo`. Testé sous llvmpipe en CI.
-5. `r_dlightMode 1` : `c_dlightVertexes` proche de 0, CPU backend −5 % ou mieux dans une grosse baston.
+5. `r_dlightMode 1` : CPU backend −5 % ou mieux dans une grosse baston. `r_speeds 4` compte les mêmes sommets dans les deux modes (le tri des triangles par sommet reste) : c'est le temps qui doit baisser, pas `c_dlightVertexes`.
 
 ### Phase 4 : les grosses bastons à pleine qualité (5-8 mois, deux pistes parallèles)
 **Objectif.** Garder `ultra` fluide à 32 joueurs et rendre le serveur mesurable et robuste, sans toucher aux constantes de protocole. La piste serveur peut démarrer dès la fin de la phase 0 si l'envie t'en prend.
