@@ -478,8 +478,8 @@ void IN_Init( void *windowData )
 	in_mouse = Cvar_Get( "in_mouse", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
 	in_nograb = Cvar_Get( "in_nograb", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
 
-	// kept across sessions, and following r_fullscreen changes from the
-	// menu or the console, which all go through a restart
+	// kept across sessions. WIN_Present follows the later changes of
+	// r_fullscreen, as some of them switch in place without a restart.
 	r_fullscreenLast = Cvar_Get( "r_fullscreenLast", "1", CVAR_ARCHIVE | CVAR_GLOBAL );
 	if ( Cvar_VariableIntegerValue( "r_fullscreen" ) ) {
 		Cvar_Set( "r_fullscreenLast", Cvar_VariableString( "r_fullscreen" ) );

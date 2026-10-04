@@ -349,6 +349,13 @@ void WIN_Present( window_t *window )
 			r_fullscreen->modified = qfalse;
 		}
 
+		// remember the mode for Alt+Enter (IN_ProcessEvents) here: switches
+		// between windowed and fullscreen are done in place below, without
+		// the restart whose IN_Init would note it
+		if ( r_fullscreen->integer ) {
+			Cvar_Set( "r_fullscreenLast", r_fullscreen->integer == 2 ? "2" : "1" );
+		}
+
 		// 0 windowed, 1 fullscreen, 2 desktop (borderless) fullscreen
 		current = SDL_GetWindowFlags( screen ) & SDL_WINDOW_FULLSCREEN_DESKTOP;
 		wanted = r_fullscreen->integer == 2 ? SDL_WINDOW_FULLSCREEN_DESKTOP :
