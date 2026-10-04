@@ -586,13 +586,25 @@ void Con_DrawInput (void) {
 		SCR_DrawSmallChar( 0, y, CON_SCROLL_L_CHAR );
 
 	int len = Q_PrintStrlen( kg.g_consoleField.buffer, MV_USE102COLOR );
-	int pos = Q_PrintStrLenTo( kg.g_consoleField.buffer, kg.g_consoleField.scroll, NULL, MV_USE102COLOR);
+	int pos = Q_PrintStrLenTo( kg.g_consoleField.buffer, kg.g_consoleField.scroll, nullptr, MV_USE102COLOR);
 	if ( pos + kg.g_consoleField.widthInChars < len )
 		SCR_DrawSmallChar( cls.glconfig.vidWidth - con.charWidth, y, CON_SCROLL_R_CHAR );
 }
 
 
 
+
+/*
+================
+Con_FontIndex
+
+Font used by asian languages, registered on first use
+================
+*/
+static int Con_FontIndex( void ) {
+	static int iFontIndex = re.RegisterFont("ocr_a");
+	return iFontIndex;
+}
 
 /*
 ================
@@ -643,7 +655,7 @@ void Con_DrawNotify (void)
 	currentColor = 7;
 	re.SetColor( g_color_table[currentColor] );
 
-	static int iFontIndex = re.RegisterFont("ocr_a");
+	const int iFontIndex = Con_FontIndex();
 	float fFontScale = 1.0f;
 	int iPixelHeightToAdvance = 0;
 	if (re.Language_IsAsian())
@@ -651,6 +663,11 @@ void Con_DrawNotify (void)
 		fFontScale = con.charWidth * 10.0f /
 			re.Font_StrLenPixels("aaaaaaaaaa", iFontIndex, 1.0f, cls.xadjust, cls.yadjust);
 		iPixelHeightToAdvance = 1.3 * re.Font_HeightPixels(iFontIndex, fFontScale, cls.xadjust, cls.yadjust);
+	}
+
+	if (!cl_conXOffset)
+	{
+		cl_conXOffset = Cvar_Get ("cl_conXOffset", "0", 0);
 	}
 
 	v = 0;
@@ -670,12 +687,6 @@ void Con_DrawNotify (void)
 
 		if (cl.snap.ps.pm_type != PM_INTERMISSION && cls.keyCatchers & (KEYCATCH_UI | KEYCATCH_CGAME) ) {
 			continue;
-		}
-
-
-		if (!cl_conXOffset)
-		{
-			cl_conXOffset = Cvar_Get ("cl_conXOffset", "0", 0);
 		}
 
 		// asian language needs to use the new font system to print glyphs...
@@ -706,10 +717,6 @@ void Con_DrawNotify (void)
 					currentColor = text[x].f.color;
 					re.SetColor( g_color_table[currentColor] );
 				}
-				if (!cl_conXOffset)
-				{
-					cl_conXOffset = Cvar_Get ("cl_conXOffset", "0", 0);
-				}
 				SCR_DrawSmallChar( (int)(cl_conXOffset->integer + (x+1)*con.charWidth), v, text[x].f.character );
 			}
 
@@ -717,7 +724,7 @@ void Con_DrawNotify (void)
 		}
 	}
 
-	re.SetColor( NULL );
+	re.SetColor( nullptr );
 
 	if (cls.keyCatchers & (KEYCATCH_UI | KEYCATCH_CGAME) ) {
 		return;
@@ -758,7 +765,6 @@ void Con_DrawSolidConsole( float frac ) {
 	int				rows;
 	int				row;
 	int				lines;
-//	qhandle_t		conShader;
 	char *vertext;
 
 	lines = (int) (cls.glconfig.vidHeight * frac);
@@ -821,7 +827,7 @@ void Con_DrawSolidConsole( float frac ) {
 	currentColor = 7;
 	re.SetColor( g_color_table[currentColor] );
 
-	static int iFontIndex = re.RegisterFont("ocr_a");
+	const int iFontIndex = Con_FontIndex();
 	float fFontScale = 1.0f;
 	int iPixelHeightToAdvance = con.charHeight;
 	if (re.Language_IsAsian())
@@ -876,7 +882,7 @@ void Con_DrawSolidConsole( float frac ) {
 		}
 	}
 
-	re.SetColor( NULL );
+	re.SetColor( nullptr );
 }
 
 

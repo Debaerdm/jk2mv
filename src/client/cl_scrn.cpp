@@ -76,7 +76,7 @@ void SCR_FillRect( float x, float y, float width, float height, const float *col
 
 	re.DrawStretchPic( x, y, width, height, 0, 0, 0, 0, cls.whiteShader, 1, 1 );
 
-	re.SetColor( NULL );
+	re.SetColor( nullptr );
 }
 
 
@@ -215,7 +215,7 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 		xx += size;
 		s++;
 	}
-	re.SetColor( NULL );
+	re.SetColor( nullptr );
 }
 
 
@@ -263,7 +263,7 @@ void SCR_DrawSmallStringExt( int x, int y, const char *string, const vec4_t setC
 		xx += con.charWidth;
 		s++;
 	}
-	re.SetColor( NULL );
+	re.SetColor( nullptr );
 }
 
 
@@ -315,12 +315,12 @@ void SCR_DrawDemoRecording( void ) {
 
 	if (cl_drawRecording->integer >= 2 && cls.recordingShader) {
 		static const float width = 60.0f, height = 15.0f;
-		re.SetColor(NULL);
+		re.SetColor(nullptr);
 		re.DrawStretchPic(0, cls.glconfig.vidHeight - height, width, height,
 			0, 0, 1, 1, cls.recordingShader, cls.xadjust, cls.yadjust);
 	} else if (cl_drawRecording->integer) {
 		pos = FS_FTell( clc.demofile );
-		sprintf( string, "RECORDING %s: %ik", clc.demoName, pos / 1024 );
+		Com_sprintf( string, sizeof( string ), "RECORDING %s: %ik", clc.demoName, pos / 1024 );
 		SCR_DrawStringExt( 320 - (int)strlen( string ) * 4, 20, 8, string, g_color_table[7], qtrue );
 	}
 }
@@ -375,7 +375,7 @@ void SCR_DrawDebugGraph (void)
 	re.SetColor( g_color_table[0] );
 	re.DrawStretchPic(x, y - cl_graphheight->integer, w, cl_graphheight->integer,
 		0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
-	re.SetColor( NULL );
+	re.SetColor( nullptr );
 
 	for (a=0 ; a<w ; a++)
 	{
@@ -523,7 +523,7 @@ static void SCR_SwapScreenBuffers(void)
 	if ( com_speeds->integer ) {
 		re.SwapBuffers( &time_frontend, &time_backend );
 	} else {
-		re.SwapBuffers( NULL, NULL );
+		re.SwapBuffers( nullptr, nullptr );
 	}
 }
 
@@ -589,7 +589,7 @@ void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 
 	num_lines = 0;
 	spaced = false;
-	for(s = start = str, last=NULL, num_chars = 0; !done ; s++)
+	for(s = start = str, last=nullptr, num_chars = 0; !done ; s++)
 	{
 		num_chars++;
 		if ((*s) == ' ')
@@ -633,7 +633,7 @@ void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 					last++;
 				}
 				start = last;
-				last = NULL;
+				last = nullptr;
 				num_chars = 0;
 				spaced = false;
 			}

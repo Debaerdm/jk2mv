@@ -10,6 +10,10 @@ private:
 	size_t	mSize;
 public:
 
+// the heap owns its buffer, so it can't be copied
+CMiniHeap(const CMiniHeap &) = delete;
+CMiniHeap &operator=(const CMiniHeap &) = delete;
+
 // reset the heap back to the start
 void ResetHeap()
 {
@@ -18,9 +22,8 @@ void ResetHeap()
 
 // initialise the heap
 CMiniHeap(size_t size)
+	: mHeap((char *)malloc(size)), mCurrentHeap(nullptr), mSize(size)
 {
-	mHeap = (char *)malloc(size);
-	mSize = size;
 	if (mHeap)
 	{
 		ResetHeap();
@@ -45,7 +48,7 @@ char *MiniHeapAlloc(size_t size)
 		mCurrentHeap += size;
 		return tempAddress;
 	}
-	return NULL;
+	return nullptr;
 }
 
 };

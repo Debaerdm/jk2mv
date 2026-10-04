@@ -2,6 +2,7 @@
 
 #include "../qcommon/q_shared.h"
 #include "qcommon.h"
+#include <algorithm>
 
 cvar_t		*cvar_vars;
 cvar_t		*cvar_cheats;
@@ -75,7 +76,7 @@ cvar_t *Cvar_FindVar( const char *var_name ) {
 		}
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 /*
@@ -258,7 +259,7 @@ cvar_t *Cvar_Get( const char *var_name, const char *var_value, int flags, qboole
 			const char *s;
 
 			s = var->latchedString;
-			var->latchedString = NULL;	// otherwise cvar_set2 would free it
+			var->latchedString = nullptr;	// otherwise cvar_set2 would free it
 			Cvar_Set2( var_name, s, qtrue );
 			Z_Free( (void *)s );
 		}
@@ -289,7 +290,7 @@ cvar_t *Cvar_Get( const char *var_name, const char *var_value, int flags, qboole
 	var->value = atof (var->string);
 	var->integer = atoi(var->string);
 #else
-	double strValue = strtod(var->string, NULL);
+	double strValue = strtod(var->string, nullptr);
 	var->value = strValue;
 	var->integer = strValue;
 #endif
@@ -335,7 +336,7 @@ cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force, qboo
 	var = Cvar_FindVar (var_name);
 	if (!var) {
 		if ( !value ) {
-			return NULL;
+			return nullptr;
 		}
 		// create it
 		if ( !force ) {
@@ -348,7 +349,7 @@ cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force, qboo
 	if ( isVmCall && var->flags & CVAR_VM_NOWRITE )
 	{
 		Com_DPrintf("Cvar_Set2: attempt to modify CVAR_VM_NOWRITE %s\n", var_name);
-		return NULL; // We can return NULL here, cause the VM never gets the return value
+		return nullptr; // We can return NULL here, cause the VM never gets the return value
 	}
 
 	// Dont display the update when its internal
@@ -366,7 +367,7 @@ cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force, qboo
 		if ( (var->flags & CVAR_LATCH) && var->latchedString ) {
 			Com_Printf("Cvar %s is no longer latched to \"%s\".\n", var->name, var->latchedString);
 			Z_Free ((void *)var->latchedString);
-			var->latchedString = NULL;
+			var->latchedString = nullptr;
 			var->modified = qtrue;
 			var->modificationCount++;
 		}
@@ -427,7 +428,7 @@ cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force, qboo
 		if (var->latchedString)
 		{
 			Z_Free ((void *)var->latchedString);
-			var->latchedString = NULL;
+			var->latchedString = nullptr;
 		}
 	}
 
@@ -444,7 +445,7 @@ cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force, qboo
 	var->value = atof (var->string);
 	var->integer = atoi (var->string);
 #else
-	double strValue = strtod(var->string, NULL);
+	double strValue = strtod(var->string, nullptr);
 	var->value = strValue;
 	var->integer = strValue;
 #endif
@@ -506,7 +507,7 @@ Cvar_Reset
 ============
 */
 void Cvar_Reset( const char *var_name, qboolean isVmCall ) {
-	Cvar_Set2( var_name, NULL, qfalse, isVmCall );
+	Cvar_Set2( var_name, nullptr, qfalse, isVmCall );
 }
 void Cvar_Reset( const char *var_name ) {
 	Cvar_Reset( var_name, qfalse );
@@ -531,7 +532,7 @@ void Cvar_SetCheatState( void ) {
 			if (var->latchedString)
 			{
 				Z_Free((void *)var->latchedString);
-				var->latchedString = NULL;
+				var->latchedString = nullptr;
 			}
 			if (strcmp(var->resetString,var->string)) {
 				Cvar_Set( var->name, var->resetString );
@@ -589,7 +590,7 @@ qboolean Cvar_Command( void ) {
 	if (!strcmp(value, "!")) //toggle
 	{
 		char buff[5];
-		sprintf(buff,"%i",!v->value);
+		Com_sprintf(buff, sizeof(buff), "%i", !v->value);
 		Cvar_Set2 (v->name, buff, qfalse);// toggle the value
 	}
 	else
@@ -827,11 +828,8 @@ with the archive flag set to qtrue.
 ============
 */
 
-static int QDECL Cvar_CvarCmp(const void *p1, const void *p2) {
-    const cvar_t * const *e1 = (const cvar_t * const *)p1;
-    const cvar_t * const *e2 = (const cvar_t * const *)p2;
-
-	return strcmp( (*e1)->name, (*e2)->name );
+static bool Cvar_NameLess( const cvar_t *a, const cvar_t *b ) {
+	return strcmp( a->name, b->name ) < 0;
 }
 
 void Cvar_WriteVariables( fileHandle_t f, qboolean locals ) {
@@ -851,7 +849,7 @@ void Cvar_WriteVariables( fileHandle_t f, qboolean locals ) {
 	if (!numSorted)
 		return;
 
-	qsort(sortedCvars, numSorted, sizeof(sortedCvars[0]), Cvar_CvarCmp);
+	std::sort(sortedCvars, sortedCvars + numSorted, Cvar_NameLess);
 
 	for (i = 0; i < numSorted ; ++i) {
 		var = sortedCvars[i];
@@ -879,7 +877,7 @@ void Cvar_List_f( void ) {
 	if ( Cmd_Argc() > 1 ) {
 		match = Cmd_Argv( 1 );
 	} else {
-		match = NULL;
+		match = nullptr;
 	}
 
 	cvar_t *sortedCvars[MAX_CVARS];
@@ -899,7 +897,7 @@ void Cvar_List_f( void ) {
 	if (!numSorted)
 		return;
 
-	qsort(sortedCvars, numSorted, sizeof(sortedCvars[0]), Cvar_CvarCmp);
+	std::sort(sortedCvars, sortedCvars + numSorted, Cvar_NameLess);
 
 	for (i = 0; i < numSorted; ++i)
 	{
@@ -992,10 +990,10 @@ void Cvar_Restart_f( void ) {
 			// from the list. The var stays in its hash chain, so hashNext
 			// must survive; a NULL name never matches in Cvar_FindVar and
 			// a NULL string makes Cvar_Update skip it
-			var->name = NULL;
-			var->string = NULL;
-			var->latchedString = NULL;
-			var->resetString = NULL;
+			var->name = nullptr;
+			var->string = nullptr;
+			var->latchedString = nullptr;
+			var->resetString = nullptr;
 			continue;
 		}
 
@@ -1104,7 +1102,7 @@ updates an interpreted modules' version of a cvar
 =====================
 */
 void	Cvar_Update( vmCvar_t *vmCvar ) {
-	cvar_t	*cv = NULL; // bk001129
+	cvar_t	*cv = nullptr; // bk001129
 	assert(vmCvar); // bk
 
 	if ( (unsigned)vmCvar->handle >= (unsigned)cvar_numIndexes ) {

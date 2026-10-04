@@ -2,6 +2,7 @@
 
 #include "../qcommon/q_shared.h"
 #include "qcommon.h"
+#include <algorithm>
 
 #define	MAX_CMD_BUFFER	16384
 #define	MAX_CMD_LINE	1024
@@ -420,7 +421,7 @@ void	Cmd_AddCommand( const char *cmd_name, xcommand_t function ) {
 	for ( cmd = cmd_functions ; cmd ; cmd=cmd->next ) {
 		if ( !strcmp( cmd_name, cmd->name ) ) {
 			// allow completion-only commands to be silently doubled
-			if ( function != NULL ) {
+			if ( function != nullptr ) {
 				Com_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
 			}
 			return;
@@ -431,7 +432,7 @@ void	Cmd_AddCommand( const char *cmd_name, xcommand_t function ) {
 	cmd = (struct cmd_function_s *)S_Malloc (sizeof(cmd_function_t));
 	cmd->name = CopyString( cmd_name );
 	cmd->function = function;
-	cmd->complete = NULL; // for auto-complete (copied from OpenJK)
+	cmd->complete = nullptr; // for auto-complete (copied from OpenJK)
 	cmd->next = cmd_functions;
 	cmd_functions = cmd;
 }
@@ -557,13 +558,6 @@ Cmd_List_f
 ============
 */
 
-static int QDECL Cmd_CommandCmp(const void *p1, const void *p2) {
-    const cmd_function_t * const *e1 = (const cmd_function_t * const *)p1;
-    const cmd_function_t * const *e2 = (const cmd_function_t * const *)p2;
-
-	return strcmp( (*e1)->name, (*e2)->name );
-}
-
 void Cmd_List_f (void)
 {
 	cmd_function_t	*cmd;
@@ -573,7 +567,7 @@ void Cmd_List_f (void)
 	if ( Cmd_Argc() > 1 ) {
 		match = Cmd_Argv( 1 );
 	} else {
-		match = NULL;
+		match = nullptr;
 	}
 
 	//sorting the cmdlist
@@ -588,8 +582,10 @@ void Cmd_List_f (void)
 		sortedCommands[numSorted++] = cmd;
 	}
 
-	if (numSorted)
-		qsort(sortedCommands, numSorted, sizeof(sortedCommands[0]), Cmd_CommandCmp);
+	std::sort(sortedCommands, sortedCommands + numSorted,
+		[](const cmd_function_t *a, const cmd_function_t *b) {
+			return strcmp(a->name, b->name) < 0;
+		});
 
 	for (i = 0 ; i < numSorted ; ++i) {
 		cmd = sortedCommands[i];
@@ -622,6 +618,12 @@ void Cmd_Init (void) {
 	Cmd_SetCommandCompletionFunc( "vstr", Cvar_CompleteCvarName );
 	Cmd_AddCommand ("echo",Cmd_Echo_f);
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
+}
+
+// chars are compared as unsigned so that extended ascii (eurofix) is not
+// treated as whitespace
+static inline bool Cmd_IsSpace( char c ) {
+	return (unsigned char)c <= ' ';
 }
 
 // for auto-complete (copied from OpenJK)
@@ -665,7 +667,7 @@ static void Cmd_TokenizeString2( const char *text_in, qboolean ignoreQuotes ) {
 
 		while ( 1 ) {
 			// skip whitespace
-			while ( *text && *(const unsigned char* /*eurofix*/)text <= ' ' ) {
+			while ( *text && Cmd_IsSpace( *text ) ) {
 				text++;
 			}
 			if ( !*text ) {
@@ -713,7 +715,7 @@ static void Cmd_TokenizeString2( const char *text_in, qboolean ignoreQuotes ) {
 		cmd_argc++;
 
 		// skip until whitespace, quote, or command
-		while ( *(const unsigned char* /*eurofix*/)text > ' ' ) {
+		while ( !Cmd_IsSpace( *text ) ) {
 			if ( !ignoreQuotes && text[0] == '"' ) {
 				break;
 			}
