@@ -2361,7 +2361,6 @@ void S_GetSoundtime(void)
 
 		return;
 	}
-	s_videoClock = qfalse;
 
 	s_soundtime = buffers*fullsamples + samplepos/dma.channels;
 
@@ -2374,10 +2373,31 @@ void S_GetSoundtime(void)
 	}
 #endif
 
+	const int videoEnd = s_paintedtime;
+
 	if ( dma.submission_chunk < 256 ) {
 		s_paintedtime = s_soundtime + s_mixPreStep->value * dma.speed;
 	} else {
 		s_paintedtime = s_soundtime + dma.submission_chunk;
+	}
+
+	if (s_videoClock) {
+		// Back on the device's clock after a recording. The video's clock
+		// moved as fast as the frames came, so the two can be seconds
+		// apart, and a sound still playing could start again in the future,
+		// mixed until then from before the start of its samples. The sounds
+		// carry on from where the video left them instead, and the music
+		// buffered on the video's clock is refilled from the stream.
+		const int	shift = s_paintedtime - videoEnd;
+		channel_t	*ch = s_channels;
+
+		for (int i = 0; i < MAX_CHANNELS; i++, ch++) {
+			if (ch->thesfx && ch->startSample != START_SAMPLE_IMMEDIATE) {
+				ch->startSample += shift;
+			}
+		}
+		s_rawend = 0;
+		s_videoClock = qfalse;
 	}
 }
 
