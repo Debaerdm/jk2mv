@@ -12,9 +12,12 @@ Main entry point for incoming packets
 =================
 */
 void SV_PacketEvent( netadr_t from, msg_t *msg ) {
+	static unsigned	droppedDisconnects;
+	static int		lastDroppedMsg;
 	int			i;
 	client_t	*cl;
 	int			qport;
+	int			now;
 
 	// check for connectionless packet (0xffffffff) first
 	if ( msg->cursize >= 4 && *(int *)msg->data == -1) {
@@ -64,7 +67,19 @@ void SV_PacketEvent( netadr_t from, msg_t *msg ) {
 	}
 
 	// if we received a sequenced packet from an address we don't reckognize,
-	// send an out of band disconnect packet to it
+	// send an out of band disconnect packet to it, 10 per second at most,
+	// or a flood of packets with a spoofed source would be reflected at it
+	now = Sys_Milliseconds();
+	if ( SVC_RateLimitDisconnect( from, now ) ) {
+		droppedDisconnects++;
+		if ( lastDroppedMsg + 1000 < now ) {
+			Com_DPrintf( "SV_PacketEvent: rate limit exceeded, dropped %u disconnect replies\n", droppedDisconnects );
+			droppedDisconnects = 0;
+			lastDroppedMsg = now;
+		}
+		return;
+	}
+
 	NET_OutOfBandPrint( NS_SERVER, from, "disconnect" );
 }
 

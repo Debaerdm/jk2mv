@@ -1104,5 +1104,9 @@ Other Changes
   dropped since the client connected, which ``reset`` clears. Bots move in
   the game frame, so they show little time there. The output of ``status``
   does not change.
+* The server answers packets from addresses it doesn't know with at most 10
+  ``disconnect`` messages per second per address, after 10 at once, instead
+  of one per packet, so it can no longer bounce a flood of packets with a
+  spoofed source at someone.
 * cl_avidemo replaced by cl_aviFrameRate
 * cl_conspeed renamed to con_speed
