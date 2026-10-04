@@ -957,7 +957,8 @@ Other Changes
     ``cam_clear``, ``cam_list``, ``cam_save <name>`` and ``cam_load <name>``
     (demos/<name>.cam).
   - ``photomode`` pauses the demo, frees the camera and hides the HUD; again
-    restores everything.
+    restores everything. During ``cam_play``, ``photomode`` and
+    ``demo_freecam`` start from the path's current view.
 
 * ``video_mp4 [name]`` records the demo being played to videos/<name>.mp4
   (H.264 with BT.709 colors, AAC sound from the software mixer) through

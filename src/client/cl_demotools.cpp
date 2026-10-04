@@ -165,17 +165,24 @@ FREE CAMERA AND CAMERA PATHS
 ==================
 CL_DemoCamStart
 
-Turns the free camera on. It starts at the recorded eye with the next game
+Turns the free camera on. During a camera path it takes over the path's
+current view. Otherwise it starts at the recorded eye with the next game
 view, and shows that view as it is (view weapon, no body) until it leaves
 it: see CL_DemoCamDetach.
 ==================
 */
 static void CL_DemoCamStart( void ) {
+	// dt.origin, dt.angles and dt.fov hold a playing path's view
+	dt.detached = (qboolean)( dt.playing && dt.numKeys > 0 );
+	dt.freecamPending = (qboolean)!dt.detached;
 	dt.freecam = qtrue;
-	dt.freecamPending = qtrue;
-	dt.detached = qfalse;
 	dt.playing = qfalse;
 	dt.lastFrameUsec = 0;
+	if ( dt.detached ) {
+		dt.angles[PITCH] = Com_Clamp( -89.0f, 89.0f, AngleNormalize180( dt.angles[PITCH] ) );
+		// mouse look continues from the camera angles
+		VectorCopy( dt.angles, cl.viewangles );
+	}
 }
 
 /*
@@ -447,6 +454,7 @@ static void CL_PhotoMode_f( void ) {
 			CL_SetTimescale( 0.0f );
 		}
 		if ( !dt.freecam ) {
+			// from the camera path's view when one plays
 			CL_DemoCamStart();
 		}
 		Com_Printf( "photo mode: frame your shot, then screenshot_png. photomode again to leave.\n" );
