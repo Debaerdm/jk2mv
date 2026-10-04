@@ -512,9 +512,14 @@ void Com_StartupVariable( const char *match ) {
 
 		s = Cmd_Argv(1);
 		if ( !match || !strcmp( s, match ) ) {
+			// only a cvar created here belongs to the user; one the engine
+			// already registered must stay safe from cvar_restart
+			const bool existed = Cvar_FindVar( s ) != nullptr;
 			Cvar_Set( s, Cmd_ArgsFrom(2) );
-			cv = Cvar_Get( s, "", 0 );
-			cv->flags |= CVAR_USER_CREATED;
+			if ( !existed ) {
+				cv = Cvar_Get( s, "", 0 );
+				cv->flags |= CVAR_USER_CREATED;
+			}
 //			com_consoleLines[i] = 0;
 		}
 	}

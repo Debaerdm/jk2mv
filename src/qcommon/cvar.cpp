@@ -232,12 +232,15 @@ cvar_t *Cvar_Get( const char *var_name, const char *var_value, int flags, qboole
 		}
 
 		// if the C code is now specifying a variable that the user already
-		// set a value for, take the new value as the reset value
-		if ( ( var->flags & CVAR_USER_CREATED ) && !( flags & CVAR_USER_CREATED )
-			&& var_value[0] ) {
+		// set a value for, take the new value as the reset value. The var
+		// stops being user created even with an empty default: the caller
+		// may keep a pointer to it, so cvar_restart must not free it
+		if ( ( var->flags & CVAR_USER_CREATED ) && !( flags & CVAR_USER_CREATED ) ) {
 			var->flags &= ~CVAR_USER_CREATED;
-			Z_Free( (void *)var->resetString );
-			var->resetString = CopyString( var_value );
+			if ( var_value[0] ) {
+				Z_Free( (void *)var->resetString );
+				var->resetString = CopyString( var_value );
+			}
 		}
 
 		var->flags |= flags;
@@ -986,14 +989,15 @@ void Cvar_Restart_f( void ) {
 			if ( var->resetString ) {
 				Z_Free( (void *)var->resetString );
 			}
-			// clear the freed strings, since we can't remove the index
-			// from the list. The var stays in its hash chain, so hashNext
-			// must survive; a NULL name never matches in Cvar_FindVar and
-			// a NULL string makes Cvar_Update skip it
+			// clear the var, since we can't remove the index from the list.
+			// It stays in its hash chain, so hashNext must survive; a NULL
+			// name never matches in Cvar_FindVar and makes Cvar_Update skip
+			// it. The strings point at the static empty string rather than
+			// NULL, for any cvar_t pointer still held elsewhere
 			var->name = nullptr;
-			var->string = nullptr;
+			var->string = CopyString( "" );
+			var->resetString = CopyString( "" );
 			var->latchedString = nullptr;
-			var->resetString = nullptr;
 			continue;
 		}
 
@@ -1116,7 +1120,7 @@ void	Cvar_Update( vmCvar_t *vmCvar ) {
 	if ( cv->modificationCount == vmCvar->modificationCount ) {
 		return;
 	}
-	if ( !cv->string ) {
+	if ( !cv->name ) {
 		return;		// variable might have been cleared by a cvar_restart
 	}
 	vmCvar->modificationCount = cv->modificationCount;
