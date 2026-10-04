@@ -10,6 +10,7 @@
 serverStatic_t	svs;				// persistant server info
 server_t		sv;					// local server
 vm_t			*gvm = NULL;				// game virtual machine
+svStats_t		svStats;			// server frame statistics
 
 // ============================================================================
 // CVAR DECLARATIONS
@@ -54,6 +55,7 @@ cvar_t	*sv_pingFix;
 cvar_t	*sv_autoWhitelist;
 cvar_t	*sv_dynamicSnapshots;
 cvar_t	*sv_snapshotEntityBudget;
+cvar_t	*sv_statsLog;
 
 // jk2mv's toggleable fixes
 cvar_t	*mv_fixnamecrash;
@@ -81,6 +83,8 @@ cvar_t	*mv_resetServerTime;
 // 5. Packets                - Packet event processing
 // 6. Clients                - Ping calc, timeouts, paused state
 // 7. Frame                  - Main server loop & hibernation
+//
+// plus Stats, the frame statistics the main loop gathers (serverstats).
 // ============================================================================
 
 #include "sv_main_messaging.h"
@@ -89,4 +93,5 @@ cvar_t	*mv_resetServerTime;
 #include "sv_main_connectionless.h"
 #include "sv_main_packets.h"
 #include "sv_main_clients.h"
+#include "sv_main_stats.h"
 #include "sv_main_frame.h"

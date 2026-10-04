@@ -99,6 +99,8 @@ if (BuildMVMP OR BuildMVDED)
 		"server/sv_main.cpp"
 		"server/sv_net_chan.cpp"
 		"server/sv_snapshot.cpp"
+		"server/sv_stats.cpp"
+		"server/sv_stats.h"
 		"server/sv_world.cpp"
 	)
 	source_group("server" FILES ${MVMPDEDServerFiles})

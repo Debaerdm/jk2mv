@@ -204,6 +204,13 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
   - L'arbre ne change plus après `MSG_initHuffman`, donc chaque octet a un code fixe de 2 à 11 bits. Une table de codes l'écrit d'un coup, une table de 2048 entrées le lit sur les 11 bits suivants. L'arbre ne sert plus qu'aux deux derniers octets d'un message.
   - La sortie reste identique bit à bit. test_qcommon_huffman compare avec l'ancien code, dans les deux sens et à tous les décalages. En jeu, le client et le serveur d'avant marchent avec les nouveaux, et les démos de l'un se décodent à l'identique dans l'autre.
   - Deltas de snapshot écrits 2,6 fois plus vite, lus 1,8 fois plus vite. Le `bloc` statique partagé a disparu, comme SV-8 le demandait.
+- **BM-7 est livré :** `serverstats [secondes]` et `sv_statsLog` (src/server/sv_stats.cpp, sv_main_stats.h).
+  - Pour chaque étape du frame serveur (paquets, pings, IA des bots, jeu, construction et envoi des snapshots, reste) et pour leur total : moyenne, médiane, p95, p99 et max sur les dernières secondes, 60 par défaut.
+  - S'y ajoutent la charge, les frames hors budget, les frames de rattrapage, les paquets reçus et les snapshots envoyés, dont les complets et ceux de repli.
+  - `sv_statsLog 1` écrit une ligne CSV par seconde dans svstats.csv, sous fs_homepath.
+  - Toujours actif, pour environ 3 µs par frame à 31 bots (70 lectures d'horloge).
+  - Mesure sur ffa_bespin avec 31 bots, sur une machine partagée. À `sv_fps 40`, sur 60 s : 7,1 ms par frame en moyenne, p99 à 9,8 ms (39 % du budget), aucune frame de rattrapage. À `sv_fps 20` : 7,5 à 7,9 ms en moyenne par fenêtre de 10 s.
+  - Le critère 4 n'est donc pas tenu : la moyenne seule dépasse 25 % du budget. L'IA des bots y prend 4,7 ms, le jeu 2,2 ms et la construction des snapshots 0,2 ms.
 
 **Critère de fin.**
 1. Les références Ghoul2 sont bit-exactes sur x86-64 et ARM64 après chaque PR.

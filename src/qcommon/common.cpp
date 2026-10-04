@@ -2302,22 +2302,22 @@ Com_RunAndTimeServerPacket
 =================
 */
 void Com_RunAndTimeServerPacket( netadr_t *evFrom, msg_t *buf ) {
-	int64_t	t1, t2;
+	const int		serverId = sv.serverId;
+	int64_t			t1, t2;
 
-	t1 = 0;
-
-	if ( com_speeds->integer ) {
-		t1 = Sys_Microseconds ();
-	}
+	t1 = Sys_Microseconds ();
 
 	SV_PacketEvent( *evFrom, buf );
 
-	// t1 is 0 when the packet itself turned com_speeds on (rcon)
-	if ( com_speeds->integer && t1 ) {
-		t2 = Sys_Microseconds ();
-		if ( com_speeds->integer == 3 ) {
-			Com_Printf( "SV_PacketEvent time: %.3f\n", (t2 - t1) / 1000.0 );
-		}
+	t2 = Sys_Microseconds ();
+
+	// for serverstats, unless the packet loaded a map or stopped the server (rcon)
+	if ( com_sv_running->integer && sv.serverId == serverId ) {
+		SV_StatsPacket( t2 - t1 );
+	}
+
+	if ( com_speeds->integer == 3 ) {
+		Com_Printf( "SV_PacketEvent time: %.3f\n", (t2 - t1) / 1000.0 );
 	}
 }
 

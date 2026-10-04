@@ -175,6 +175,12 @@ add_jk2mv_test(test_sv_snapshot_ring
   test_sv_snapshot_ring.cpp
 )
 
+# Server: frame statistics (links the real engine source)
+add_jk2mv_test(test_sv_stats
+  test_sv_stats.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/sv_stats.cpp
+)
+
 if(UNIX)
   add_jk2mv_test(test_sys_spawn
     test_sys_spawn.cpp

@@ -99,9 +99,13 @@ void SV_SendClientSnapshot( client_t *client ) {
 	byte		msg_buf[MAX_MSGLEN];
 	msg_t		msg;
 	msg_t		msgBak;
+	int64_t		buildStart;
+	int			encoding, entities;
 
-	// build the snapshot
+	// build the snapshot, timed for serverstats
+	buildStart = Sys_Microseconds();
 	SV_BuildClientSnapshot( client );
+	SV_StatsLap( SVSTAT_SNAPBUILD, buildStart );
 
 	// bots need to have their snapshots build, but
 	// the query them directly without needing to be sent
@@ -129,7 +133,8 @@ void SV_SendClientSnapshot( client_t *client ) {
 
 	// send over all the relevant entityState_t
 	// and the playerState_t
-	SV_WriteSnapshotToClient( client, &msg );
+	encoding = SV_WriteSnapshotToClient( client, &msg );
+	entities = client->frames[client->netchan.outgoingSequence & PACKET_MASK].num_entities;
 
 	if ( sv_dynamicSnapshots->integer && msg.overflowed && !msgBak.overflowed ) {
 		// The entity states were too much and the message overflowed. So send
@@ -151,6 +156,7 @@ void SV_SendClientSnapshot( client_t *client ) {
 		// Downloads usually don't happen in situations that are likely to have
 		// message overflows, but let's make sure and apply the same logic we
 		// used for the entity states.
+		SVStats_AddSnapshot( &svStats.pending, encoding, msgBak.cursize, entities );
 		SV_SendMessageToClient( &msgBak, client );
 		return;
 	}
@@ -159,6 +165,8 @@ void SV_SendClientSnapshot( client_t *client ) {
 	if ( msg.overflowed ) {
 		Com_Printf ("WARNING: msg overflowed for %s\n", client->name);
 		MSG_Clear (&msg);
+	} else {
+		SVStats_AddSnapshot( &svStats.pending, encoding, msg.cursize, entities );
 	}
 
 	SV_SendMessageToClient( &msg, client );

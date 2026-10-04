@@ -14,6 +14,7 @@
 #include "../api/mvapi.h"
 
 #include "sv_snapshot_ring.h"
+#include "sv_stats.h"
 
 //=============================================================================
 
@@ -223,11 +224,21 @@ typedef struct {
 	} hibernation;							// handle hibernation mode data
 } serverStatic_t;
 
+// server frame statistics, for serverstats and sv_statsLog (sv_main_stats.h)
+typedef struct {
+	svStatsHistory_t	history;
+	svStatsPending_t	pending;			// since the last recorded frame
+	fileHandle_t		logFile;			// sv_statsLog
+	uint32_t			logNextMsec;		// when the next line is due
+	uint32_t			logRecorded;		// history.recorded at the last line
+} svStats_t;
+
 //=============================================================================
 
 extern	serverStatic_t	svs;				// persistant server info across maps
 extern	server_t		sv;					// cleared each map
 extern	vm_t			*gvm;				// game virtual machine
+extern	svStats_t		svStats;			// kept until the server shuts down
 
 extern	cvar_t	*sv_fps;
 extern	cvar_t	*sv_timeout;
@@ -268,6 +279,7 @@ extern	cvar_t	*sv_pingFix;
 extern	cvar_t	*sv_autoWhitelist;
 extern	cvar_t	*sv_dynamicSnapshots;
 extern	cvar_t	*sv_snapshotEntityBudget;
+extern	cvar_t	*sv_statsLog;
 
 // toggleable fixes
 extern	cvar_t	*mv_fixnamecrash;
@@ -298,6 +310,11 @@ void SV_RemoveOperatorCommands (void);
 
 void SV_MasterHeartbeat (void);
 void SV_MasterShutdown (void);
+
+int64_t SV_StatsLap( int stage, int64_t since );
+void SV_StatsPacket( int64_t usec );
+void SV_StatsShutdown( void );
+void SV_ServerStats_f( void );
 
 qboolean MVAPI_GetConnectionlessPacket(mvaddr_t *addr, char *buf, int bufsize);
 qboolean MVAPI_SendConnectionlessPacket(const mvaddr_t *addr, const char *message);

@@ -54,7 +54,9 @@ happen before SV_Frame is called
 */
 void SV_Frame( int msec ) {
 	int		frameMsec;
-	int64_t	startTime;
+	int		gameFrames;
+	int64_t	lap, now, gameStart;
+	uint64_t	built;
 
 	// the menu kills the server with this cvar
 	if ( sv_killserver->integer ) {
@@ -71,6 +73,9 @@ void SV_Frame( int msec ) {
 	if ( SV_CheckPaused() ) {
 		return;
 	}
+
+	// every stage is timed for serverstats (sv_main_stats.h)
+	lap = Sys_Microseconds();
 
 	// if it isn't time for the next frame, do nothing
 	if ( sv_fps->integer < 1 ) {
@@ -99,7 +104,11 @@ void SV_Frame( int msec ) {
 		Com_Printf("Server restored from hibernation\n");
 	}
 
-	if (!com_dedicated->integer) SV_BotFrame( sv.time + sv.timeResidual );
+	if (!com_dedicated->integer) {
+		lap = SV_StatsLap( SVSTAT_OTHER, lap );
+		SV_BotFrame( sv.time + sv.timeResidual );
+		lap = SV_StatsLap( SVSTAT_BOTAI, lap );
+	}
 
 	// if time is about to hit the 32nd bit, kick all clients
 	// and clear sv.time, rather
@@ -133,16 +142,17 @@ void SV_Frame( int msec ) {
 		cvar_modifiedFlags &= ~CVAR_SYSTEMINFO;
 	}
 
-	if ( com_speeds->integer ) {
-		startTime = Sys_Microseconds ();
-	} else {
-		startTime = 0;	// quite a compiler warning
-	}
+	lap = SV_StatsLap( SVSTAT_OTHER, lap );
+	gameStart = lap;
 
 	// update ping based on the all received frames
 	SV_CalcPings();
+	lap = SV_StatsLap( SVSTAT_PINGS, lap );
 
-	if (com_dedicated->integer) SV_BotFrame( sv.time );
+	if (com_dedicated->integer) {
+		SV_BotFrame( sv.time );
+		lap = SV_StatsLap( SVSTAT_BOTAI, lap );
+	}
 
 	if (sv.saberBlockTime < sv.time) {
 		sv.saberBlockCounter = 0;
@@ -150,6 +160,7 @@ void SV_Frame( int msec ) {
 	}
 
 	// run the game simulation in chunks
+	gameFrames = 0;
 	while ( sv.timeResidual >= frameMsec ) {
 		sv.timeResidual -= frameMsec;
 		sv.time += frameMsec;
@@ -158,22 +169,37 @@ void SV_Frame( int msec ) {
 		// let everything in the world think and move
 		VM_Call( gvm, GAME_RUN_FRAME, sv.time );
 		MV_FixSaberStealing();
+		gameFrames++;
 	}
+	lap = SV_StatsLap( SVSTAT_GAME, lap );
 
 	if ( com_speeds->integer ) {
-		time_game = (int)( Sys_Microseconds () - startTime );
+		time_game = (int)( lap - gameStart );
 	}
 
 	// check timeouts
 	SV_CheckTimeouts();
+	lap = SV_StatsLap( SVSTAT_OTHER, lap );
 
 	// send messages back to the clients
+	built = svStats.pending.usec[SVSTAT_SNAPBUILD];
 	SV_SendClientMessages();
+	now = Sys_Microseconds();
+	// the snapshots were built in there, and that time has its own stage
+	built = svStats.pending.usec[SVSTAT_SNAPBUILD] - built;
+	if ( now - lap > (int64_t)built ) {
+		svStats.pending.usec[SVSTAT_SNAPSEND] += (uint64_t)( now - lap ) - built;
+	}
+	lap = now;
 
 	SV_CheckCvars();
 
 	// send a heartbeat to the master if needed
 	SV_MasterHeartbeat();
+	lap = SV_StatsLap( SVSTAT_OTHER, lap );
+
+	SV_StatsEndFrame( lap, gameFrames, frameMsec,
+		svs.hibernation.enabled && svs.hibernation.disableUntil <= svs.time ? SVSTAT_HIBERNATING : 0 );
 }
 
 #endif // SV_MAIN_FRAME_H

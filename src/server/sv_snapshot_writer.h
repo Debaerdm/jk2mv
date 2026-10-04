@@ -7,13 +7,16 @@
 /*
 ==================
 SV_WriteSnapshotToClient
+
+Returns how the snapshot was encoded (SVSTAT_SNAP_*), for serverstats
 ==================
 */
-static void SV_WriteSnapshotToClient( client_t *client, msg_t *msg ) {
+static int SV_WriteSnapshotToClient( client_t *client, msg_t *msg ) {
 	clientSnapshot_t	*frame, *oldframe;
 	int					lastframe;
 	int					i;
 	int					snapFlags;
+	int					encoding;
 
 	// this is the snapshot we are creating
 	frame = &client->frames[ client->netchan.outgoingSequence & PACKET_MASK ];
@@ -23,22 +26,26 @@ static void SV_WriteSnapshotToClient( client_t *client, msg_t *msg ) {
 		// client is asking for a retransmit
 		oldframe = NULL;
 		lastframe = 0;
+		encoding = SVSTAT_SNAP_FULL;
 	} else if ( client->netchan.outgoingSequence - client->deltaMessage
 		>= (PACKET_BACKUP - 3) ) {
 		// client hasn't gotten a good message through in a long time
 		Com_DPrintf ("%s: Delta request from out of date packet.\n", client->name);
 		oldframe = NULL;
 		lastframe = 0;
+		encoding = SVSTAT_SNAP_FALLBACK;
 	} else {
 		// we have a valid snapshot to delta from
 		oldframe = &client->frames[ client->deltaMessage & PACKET_MASK ];
 		lastframe = client->netchan.outgoingSequence - client->deltaMessage;
+		encoding = SVSTAT_SNAP_DELTA;
 
 		// the snapshot's entities may still have rolled off the buffer, though
 		if ( SV_SnapshotEntitiesRolledOff( oldframe->first_entity, svs.nextSnapshotEntities, svs.numSnapshotEntities ) ) {
 			Com_DPrintf ("%s: Delta request from out of date entities.\n", client->name);
 			oldframe = NULL;
 			lastframe = 0;
+			encoding = SVSTAT_SNAP_FALLBACK;
 		}
 	}
 
@@ -91,6 +98,8 @@ static void SV_WriteSnapshotToClient( client_t *client, msg_t *msg ) {
 			MSG_WriteByte (msg, svc_nop);
 		}
 	}
+
+	return encoding;
 }
 
 /*

@@ -906,6 +906,23 @@ Server-Side
 
 ..
 
+:Name: sv_statsLog
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   Appends a line per second to svstats.csv in fs_homepath, with the
+   statistics of the server frames of that second (see ``serverstats``): the
+   wall time it covers, sv_fps, humans and bots, the frames, game frames,
+   catch-up frames (several game frames at once because the server fell
+   behind), the frames that took longer than a game frame (1000 / sv_fps ms),
+   the packets received, the snapshots sent with their size in bytes and
+   their entities, the full ones (not delta compressed) and those of them sent
+   because the client's delta base was gone, then the average and the longest
+   time in microseconds of each stage. The first line of a new file names the
+   columns. The file grows by about 10 MB a day.
+
+..
+
 :Name: sv_dynamicSnapshots
 :Values: "0", "1"
 :Default: "1"
@@ -1030,6 +1047,18 @@ Other Changes
   written, set ``nextdemo`` first, as in ``set nextdemo quit; benchmark mydemo``.
 * ``r_speeds 8`` prints the draw calls, texture binds and state changes of
   each frame.
+* ``serverstats [seconds]`` shows what the server frames of the last seconds
+  cost (60 by default, as far back as the last 8192 frames go): for each
+  stage of a frame (packets received, pings, bot AI, game, building and
+  sending snapshots, the rest) and for their total, the average, median,
+  95th and 99th percentiles and maximum in milliseconds. Then the load (the
+  share of the time the server was busy), the frames that took longer than a
+  game frame (1000 / sv_fps ms), the catch-up frames (several game frames at
+  once because the server fell behind), the packets received, and the
+  snapshots sent with their size, their entities and how many were full
+  (not delta compressed), and of those, how many because the client's delta
+  base was gone. A frame is one that ran the game, with the packets handled
+  before it. ``sv_statsLog 1`` logs the same every second.
 * New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
   of visual cvars in one go and restarts the renderer if needed, right away:
   the commands after it in a script or bind run with the preset applied, and

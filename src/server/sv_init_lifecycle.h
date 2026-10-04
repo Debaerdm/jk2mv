@@ -110,6 +110,7 @@ void SV_Init (void) {
 	sv_autoWhitelist = Cvar_Get("sv_autoWhitelist", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
 	sv_dynamicSnapshots = Cvar_Get("sv_dynamicSnapshots", "1", CVAR_ARCHIVE);
 	sv_snapshotEntityBudget = Cvar_Get("sv_snapshotEntityBudget", XSTRING(SNAPSHOT_ENTITY_BUDGET_DEFAULT), CVAR_ARCHIVE | CVAR_LATCH);
+	sv_statsLog = Cvar_Get("sv_statsLog", "0", CVAR_TEMP);
 
 	SP_Register("str_server",SP_REGISTER_REQUIRED);
 
@@ -177,6 +178,7 @@ void SV_Shutdown( char *finalmsg )
 	SV_RemoveOperatorCommands();
 	SV_MasterShutdown();
 	SV_ShutdownGameProgs();
+	SV_StatsShutdown();
 
  	// de allocate the snapshot entities
 	if (svs.snapshotEntities)
