@@ -449,7 +449,8 @@ Client-Side
      along the vertical axis, which smears them on walls and shows the
      triangles of large surfaces.
    | 1: per-pixel dynamic lights: round, smooth spots of about the classic
-     size, shaded by the surface direction. Needs ARB vertex and fragment
+     size, shaded by the surface direction (both sides of two-sided
+     surfaces, like grass, face the light). Needs ARB vertex and fragment
      programs, otherwise the classic lights are used. ``r_dlightBacks 0``
      leaves the sides facing away from the light dark.
 

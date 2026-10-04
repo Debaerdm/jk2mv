@@ -585,7 +585,7 @@ static const char *dlightFP =
 	"!!ARBfp1.0\n"
 	"PARAM light = program.env[0];\n"		// object space origin, 1 / blob radius
 	"PARAM color = program.env[1];\n"
-	"PARAM facing = program.env[2];\n"		// scale and bias of the facing term
+	"PARAM facing = program.env[2];\n"		// scale and bias of the facing term, 1 if two-sided
 	"PARAM c = { 0.25, 4, 1, 0.0001 };\n"
 	"TEMP d, u2, a, w, n;\n"
 	"SUB d.xyz, light, fragment.texcoord[0];\n"
@@ -604,6 +604,8 @@ static const char *dlightFP =
 	"RSQ n.w, n.w;\n"
 	"MUL n.xyz, fragment.texcoord[1], n.w;\n"
 	"DP3 n.w, n, d;\n"
+	"ABS w.y, n.w;\n"						// a two-sided surface (grass, cull disable)
+	"LRP n.w, facing.z, w.y, n.w;\n"		// faces the light on either side
 	"MAD_SAT n.w, n.w, facing.x, facing.y;\n"
 	"MUL a.x, a.x, n.w;\n"
 	"MUL result.color.xyz, color, a.x;\n"
@@ -694,6 +696,10 @@ static void PerPixelDlights( void ) {
 	byte		clipBits[SHADER_MAX_VERTEXES];
 	glIndex_t	hitIndexes[SHADER_MAX_INDEXES];
 	const qboolean backs = (qboolean)!!r_dlightBacks->integer;
+	// either side of a cull disable surface may be the one seen (grass,
+	// fences) and its normal is only one of them: it faces the light both
+	// ways, as with the classic pass, which lights both sides
+	const qboolean twoSided = (qboolean)( tess.shader->cullType == CT_TWO_SIDED );
 
 	// the normals go in the texture coordinate array
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
@@ -706,9 +712,9 @@ static void PerPixelDlights( void ) {
 	// with r_dlightBacks the light wraps around like the classic one,
 	// without it the side facing away gets nothing
 	if ( backs ) {
-		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, 0.5f, 0.5f, 0.0f, 0.0f );
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, 0.5f, 0.5f, twoSided ? 1.0f : 0.0f, 0.0f );
 	} else {
-		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, 0.8f, 0.2f, 0.0f, 0.0f );
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, 0.8f, 0.2f, twoSided ? 1.0f : 0.0f, 0.0f );
 	}
 
 	for ( int l = 0; l < backEnd.refdef.num_dlights; l++ ) {
@@ -736,7 +742,7 @@ static void PerPixelDlights( void ) {
 					clip |= 2 << ( j * 2 );
 				}
 			}
-			if ( !backs && ( origin[0] - xyz[0] ) * tess.normal[i][0] + ( origin[1] - xyz[1] ) * tess.normal[i][1] +
+			if ( !backs && !twoSided && ( origin[0] - xyz[0] ) * tess.normal[i][0] + ( origin[1] - xyz[1] ) * tess.normal[i][1] +
 				( origin[2] - xyz[2] ) * tess.normal[i][2] < 0.0f ) {
 				clip = 63;
 			}
