@@ -2815,27 +2815,34 @@ static void R_BindGlowImages( void ) {
 	}
 	if (tr.sceneImage) {
 		// Create the scene image. - AReis
+		// It only holds copies of the 8-bit framebuffer (glow and gamma passes),
+		// which update it in place with glCopyTexSubImage2D
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage );
-		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16, glConfig.vidWidth, glConfig.vidHeight, 0, GL_RGB, GL_FLOAT, 0 );
+		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA8, glConfig.vidWidth, glConfig.vidHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP );
 	}
 
-	if ( r_DynamicGlowWidth->integer > glConfig.vidWidth  )
-	{
-		r_DynamicGlowWidth->integer = glConfig.vidWidth;
+	// Glow buffer size: the cvars, or about a quarter of the screen when they
+	// are 0, with the blur radius scaled to look the same as at 320x240
+	if ( r_DynamicGlowWidth->integer > 0 && r_DynamicGlowHeight->integer > 0 ) {
+		tr.glowWidth = r_DynamicGlowWidth->integer;
+		tr.glowHeight = r_DynamicGlowHeight->integer;
+		tr.glowRadiusScale = 1.0f;
+	} else {
+		tr.glowWidth = glConfig.vidWidth / 4;
+		tr.glowHeight = glConfig.vidHeight / 4;
+		tr.glowRadiusScale = tr.glowHeight / 240.0f;
 	}
-	if ( r_DynamicGlowHeight->integer > glConfig.vidHeight  )
-	{
-		r_DynamicGlowHeight->integer = glConfig.vidHeight;
-	}
+	tr.glowWidth = Com_Clampi( 1, glConfig.vidWidth, tr.glowWidth );
+	tr.glowHeight = Com_Clampi( 1, glConfig.vidHeight, tr.glowHeight );
 
 	if (tr.blurImage) {
 		// Create the minimized scene blur image.
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
-		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16, r_DynamicGlowWidth->integer, r_DynamicGlowHeight->integer, 0, GL_RGB, GL_FLOAT, 0 );
+		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16, tr.glowWidth, tr.glowHeight, 0, GL_RGB, GL_FLOAT, 0 );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP );
@@ -2904,6 +2911,90 @@ Update images when renderer size changes
 */
 void R_UpdateImages( void ) {
 	R_BindGlowImages();
+}
+
+/*
+===============
+Color grading
+
+Applied to the 64^3 lookup table of the post-process gamma pass, so it
+costs nothing per frame. With every setting at its default the table is
+built by the original code and stays identical.
+===============
+*/
+typedef struct {
+	const char	*name;
+	float		saturation;
+	float		contrast;
+	float		vibrance;
+	vec3_t		shadowTint;		// multiplier at black, blended towards
+	vec3_t		highlightTint;	// the highlight one with luminance
+} colorGrade_t;
+
+static const colorGrade_t colorGrades[] = {
+	{ "",			1.00f, 1.00f, 0.00f, { 1.00f, 1.00f, 1.00f }, { 1.00f, 1.00f, 1.00f } },
+	{ "cinematic",	0.90f, 1.12f, 0.10f, { 0.94f, 0.99f, 1.06f }, { 1.06f, 1.00f, 0.92f } },
+	{ "vivid",		1.25f, 1.06f, 0.35f, { 1.00f, 1.00f, 1.00f }, { 1.00f, 1.00f, 1.00f } },
+	{ "cold",		0.92f, 1.04f, 0.00f, { 0.95f, 1.00f, 1.08f }, { 0.97f, 1.00f, 1.06f } },
+	{ "warm",		1.05f, 1.03f, 0.05f, { 1.04f, 1.00f, 0.95f }, { 1.08f, 1.00f, 0.90f } },
+	{ "noir",		0.00f, 1.15f, 0.00f, { 1.00f, 1.00f, 1.00f }, { 1.00f, 1.00f, 1.00f } },
+};
+
+static qboolean R_GetColorGrade( colorGrade_t *grade ) {
+	const colorGrade_t	*base = &colorGrades[0];
+
+	for ( size_t i = 0; i < ARRAY_LEN( colorGrades ); i++ ) {
+		if ( !Q_stricmp( r_colorGrade->string, colorGrades[i].name ) ) {
+			base = &colorGrades[i];
+			break;
+		}
+	}
+	if ( base == &colorGrades[0] && r_colorGrade->string[0] ) {
+		ri.Printf( PRINT_WARNING, "r_colorGrade: unknown grade \"%s\", use cinematic, vivid, cold, warm or noir\n", r_colorGrade->string );
+	}
+
+	// tight bounds: a grade must not turn into a visibility aid
+	*grade = *base;
+	grade->saturation *= Com_Clamp( 0.0f, 2.0f, r_saturation->value );
+	grade->contrast *= Com_Clamp( 0.5f, 1.5f, r_contrast->value );
+	grade->vibrance += Com_Clamp( -1.0f, 1.0f, r_vibrance->value );
+
+	return (qboolean)( base != &colorGrades[0] || r_saturation->value != 1.0f ||
+		r_contrast->value != 1.0f || r_vibrance->value != 0.0f );
+}
+
+static void R_GradeColor( const colorGrade_t *grade, const float in[3], float out[3] ) {
+	// Rec. 601 weights suit these gamma encoded values and keep red
+	// readable when desaturated (it was too dark with Rec. 709)
+	const float luma = 0.299f * in[0] + 0.587f * in[1] + 0.114f * in[2];
+	const float maxc = max( in[0], max( in[1], in[2] ) );
+	const float minc = min( in[0], min( in[1], in[2] ) );
+	// vibrance boosts dull colors more than already saturated ones
+	const float sat = grade->saturation * ( 1.0f + grade->vibrance * ( 1.0f - ( maxc - minc ) ) );
+
+	for ( int i = 0; i < 3; i++ ) {
+		float c = luma + ( in[i] - luma ) * sat;
+		c = ( c - 0.5f ) * grade->contrast + 0.5f;
+		c *= grade->shadowTint[i] + ( grade->highlightTint[i] - grade->shadowTint[i] ) * luma;
+		out[i] = Com_Clamp( 0.0f, 1.0f, c );
+	}
+}
+
+static byte R_GammaByte( float c, float g, int shift ) {
+	int inf;
+
+	if ( g == 1.0f ) {
+		inf = (int)( c * 255.0f + 0.5f );
+	} else {
+		inf = (int)( 255.0f * powf( c, 1.0f / g ) + 0.5f );
+	}
+	return (byte)Com_Clampi( 0, 255, inf << shift );
+}
+
+static void R_UploadGammaLUT( GLuint image, const byte *lutTable ) {
+	qglBindTexture(GL_TEXTURE_3D, image);
+	qglPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	qglTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 64, 64, 64, GL_RGB, GL_UNSIGNED_BYTE, lutTable);
 }
 
 /*
@@ -2996,10 +3087,34 @@ void R_SetColorMappings( void ) {
 			}
 		}
 
-		qglBindTexture(GL_TEXTURE_3D, tr.gammaLUTImage);
-		qglPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		qglTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 64, 64, 64, GL_RGB, GL_UNSIGNED_BYTE, lutTable);
-		
+		colorGrade_t grade;
+		const qboolean graded = R_GetColorGrade( &grade );
+
+		tr.gammaLUTSplit = (qboolean)( graded && r_colorGradeSplit->integer );
+		if ( tr.gammaLUTSplit ) {
+			// before/after comparison: the ungraded table for the left half
+			R_UploadGammaLUT( tr.gammaLUTClassicImage, lutTable );
+		}
+
+		if ( graded ) {
+			write = lutTable;
+			for (int z = 0; z < 64; z++) {
+				for (int y = 0; y < 64; y++) {
+					for (int x = 0; x < 64; x++) {
+						const float in[3] = { x / 63.0f, y / 63.0f, z / 63.0f };
+						float out[3];
+
+						R_GradeColor( &grade, in, out );
+						*write++ = R_GammaByte( out[0], g, shift );
+						*write++ = R_GammaByte( out[1], g, shift );
+						*write++ = R_GammaByte( out[2], g, shift );
+					}
+				}
+			}
+		}
+
+		R_UploadGammaLUT( tr.gammaLUTImage, lutTable );
+
 		Hunk_FreeTempMemory(lutTable);
 	}
 
@@ -3027,13 +3142,16 @@ void	R_InitImages( void ) {
 	if (r_gammamethod->integer == GAMMA_POSTPROCESSING) {
 		qglEnable(GL_TEXTURE_3D);
 		tr.gammaLUTImage = 1024 + giTextureBindNum++;
-		qglBindTexture(GL_TEXTURE_3D, tr.gammaLUTImage);
-		qglTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 64, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		tr.gammaLUTClassicImage = 1024 + giTextureBindNum++;
+		for (int i = 0; i < 2; i++) {
+			qglBindTexture(GL_TEXTURE_3D, i ? tr.gammaLUTClassicImage : tr.gammaLUTImage);
+			qglTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 64, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		}
 		qglDisable(GL_TEXTURE_3D);
 		qglEnable(GL_TEXTURE_2D);
 	}

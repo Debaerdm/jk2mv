@@ -106,6 +106,13 @@ cvar_t	*r_DynamicGlowIntensity;
 cvar_t	*r_DynamicGlowSoft;
 cvar_t	*r_DynamicGlowWidth;
 cvar_t	*r_DynamicGlowHeight;
+cvar_t	*r_DynamicGlowFinish;
+cvar_t	*r_ext_alphaToCoverage;
+cvar_t	*r_colorGrade;
+cvar_t	*r_saturation;
+cvar_t	*r_contrast;
+cvar_t	*r_vibrance;
+cvar_t	*r_colorGradeSplit;
 
 cvar_t	*r_ignoreGLErrors;
 cvar_t	*r_logFile;
@@ -673,6 +680,10 @@ static void InitOpenGL(void) {
 		// set default state
 		GL_SetDefaultState();
 	}
+
+	// tr is cleared on every R_Init, also when the context is kept
+	tr.msaaSamples = 0;
+	qglGetIntegerv(GL_SAMPLES, &tr.msaaSamples);
 }
 
 /*
@@ -1079,6 +1090,14 @@ void R_Register( void )
 	r_DynamicGlowSoft = ri.Cvar_Get("r_DynamicGlowSoft", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
 	r_DynamicGlowWidth = ri.Cvar_Get("r_DynamicGlowWidth", "320", CVAR_ARCHIVE | CVAR_GLOBAL | CVAR_LATCH);
 	r_DynamicGlowHeight = ri.Cvar_Get("r_DynamicGlowHeight", "240", CVAR_ARCHIVE | CVAR_GLOBAL | CVAR_LATCH);
+	r_DynamicGlowFinish = ri.Cvar_Get("r_DynamicGlowFinish", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
+	r_ext_alphaToCoverage = ri.Cvar_Get("r_ext_alphaToCoverage", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
+
+	r_colorGrade = ri.Cvar_Get("r_colorGrade", "", CVAR_ARCHIVE | CVAR_GLOBAL);
+	r_saturation = ri.Cvar_Get("r_saturation", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
+	r_contrast = ri.Cvar_Get("r_contrast", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
+	r_vibrance = ri.Cvar_Get("r_vibrance", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
+	r_colorGradeSplit = ri.Cvar_Get("r_colorGradeSplit", "0", CVAR_GLOBAL);
 
 	r_picmip = ri.Cvar_Get("r_picmip", "1", CVAR_ARCHIVE | CVAR_GLOBAL | CVAR_LATCH);
 	r_colorMipLevels = ri.Cvar_Get ("r_colorMipLevels", "0", CVAR_LATCH );

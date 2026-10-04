@@ -974,6 +974,7 @@ typedef struct {
 	int			currenttextures[2];
 	int			currenttmu;
 	qboolean	finishCalled;
+	qboolean	alphaToCoverage;	// GL_SAMPLE_ALPHA_TO_COVERAGE enabled
 	int			texEnv[2];
 	int			faceCulling;
 	unsigned int	glStateBits;
@@ -1143,6 +1144,12 @@ typedef struct {
 	// gamma correction
 	GLuint gammaVertexShader, gammaPixelShader;
 	GLuint gammaLUTImage;
+	GLuint gammaLUTClassicImage;	// ungraded LUT for the left half of r_colorGradeSplit
+	qboolean gammaLUTSplit;
+
+	int						glowWidth, glowHeight;	// dynamic glow buffer size
+	float					glowRadiusScale;		// keeps the blur radius on screen with the automatic size
+	int						msaaSamples;			// samples of the default framebuffer, 0 without MSAA
 } trGlobals_t;
 
 
@@ -1247,6 +1254,13 @@ extern cvar_t	*r_DynamicGlowIntensity;
 extern cvar_t	*r_DynamicGlowSoft;
 extern cvar_t	*r_DynamicGlowWidth;
 extern cvar_t	*r_DynamicGlowHeight;
+extern cvar_t	*r_DynamicGlowFinish;
+extern cvar_t	*r_ext_alphaToCoverage;
+extern cvar_t	*r_colorGrade;
+extern cvar_t	*r_saturation;
+extern cvar_t	*r_contrast;
+extern cvar_t	*r_vibrance;
+extern cvar_t	*r_colorGradeSplit;
 
 extern	cvar_t	*r_nobind;						// turns off binding to appropriate textures
 extern	cvar_t	*r_singleShader;				// make most world faces use default shader

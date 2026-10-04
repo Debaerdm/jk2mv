@@ -383,8 +383,14 @@ void RE_BeginFrame( stereoFrame_t stereoFrame, qboolean skipBackend ) {
 	//
 	// gamma stuff
 	//
-	if ( r_gamma->modified ) {
+	if ( r_gamma->modified || r_colorGrade->modified || r_saturation->modified ||
+		r_contrast->modified || r_vibrance->modified || r_colorGradeSplit->modified ) {
 		r_gamma->modified = qfalse;
+		r_colorGrade->modified = qfalse;
+		r_saturation->modified = qfalse;
+		r_contrast->modified = qfalse;
+		r_vibrance->modified = qfalse;
+		r_colorGradeSplit->modified = qfalse;
 
 		R_SyncRenderThread();
 		R_SetColorMappings();

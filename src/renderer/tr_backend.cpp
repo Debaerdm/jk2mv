@@ -349,6 +349,12 @@ void GL_State( unsigned int stateBits )
 	//
 	if ( diff & GLS_ATEST_BITS )
 	{
+		// With MSAA, alpha to coverage antialiases the cut-out edges of
+		// foliage, fences and grates. It replaces the alpha test, except for
+		// "alpha < 0.5" which coverage can't express.
+		const qboolean alphaToCoverage = (qboolean)( r_ext_alphaToCoverage->integer && tr.msaaSamples > 1 );
+		qboolean coverage = qfalse;
+
 		switch ( stateBits & GLS_ATEST_BITS )
 		{
 		case 0:
@@ -357,23 +363,41 @@ void GL_State( unsigned int stateBits )
 		case GLS_ATEST_GT_0:
 			qglEnable( GL_ALPHA_TEST );
 			qglAlphaFunc( GL_GREATER, 0.0f );
+			coverage = alphaToCoverage;
 			break;
 		case GLS_ATEST_LT_80:
 			qglEnable( GL_ALPHA_TEST );
 			qglAlphaFunc( GL_LESS, 0.5f );
 			break;
 		case GLS_ATEST_GE_80:
-			qglEnable( GL_ALPHA_TEST );
-			qglAlphaFunc( GL_GEQUAL, 0.5f );
+			if ( alphaToCoverage ) {
+				qglDisable( GL_ALPHA_TEST );
+				coverage = qtrue;
+			} else {
+				qglEnable( GL_ALPHA_TEST );
+				qglAlphaFunc( GL_GEQUAL, 0.5f );
+			}
 			break;
 		case GLS_ATEST_GE_C0:
-			qglEnable( GL_ALPHA_TEST );
-			qglAlphaFunc( GL_GEQUAL, 0.75f );
+			if ( alphaToCoverage ) {
+				qglDisable( GL_ALPHA_TEST );
+				coverage = qtrue;
+			} else {
+				qglEnable( GL_ALPHA_TEST );
+				qglAlphaFunc( GL_GEQUAL, 0.75f );
+			}
 			break;
 		default:
 			assert( 0 );
 			break;
 		}
+
+		if ( coverage ) {
+			qglEnable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+		} else if ( alphaToCoverage || glState.alphaToCoverage ) {
+			qglDisable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+		}
+		glState.alphaToCoverage = coverage;
 	}
 
 	glState.glStateBits = stateBits;
@@ -1056,7 +1080,12 @@ const void	*RB_DrawSurfs( const void *data ) {
 		RB_RenderDrawSurfList( cmd->drawSurfs, cmd->numDrawSurfs );
 		g_bRenderGlowingObjects = false;
 
-		qglFinish();
+		// GL commands run in order, so the copy below already sees the glow
+		// draws; the finish only stalled the CPU. r_DynamicGlowFinish brings it
+		// back for drivers that might need it (old texture rectangle hack)
+		if ( r_DynamicGlowFinish->integer ) {
+			qglFinish();
+		}
 
 		// Copy the glow scene to texture.
 		qglDisable( GL_TEXTURE_2D );
@@ -1069,8 +1098,8 @@ const void	*RB_DrawSurfs( const void *data ) {
 		// Resize the viewport to the blur texture size.
 		const int oldViewWidth = backEnd.viewParms.viewportWidth;
 		const int oldViewHeight = backEnd.viewParms.viewportHeight;
-		backEnd.viewParms.viewportWidth = r_DynamicGlowWidth->integer;
-		backEnd.viewParms.viewportHeight = r_DynamicGlowHeight->integer;
+		backEnd.viewParms.viewportWidth = tr.glowWidth;
+		backEnd.viewParms.viewportHeight = tr.glowHeight;
 		SetViewportAndScissor();
 
 		// Blur the scene.
@@ -1265,7 +1294,9 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	backEnd.projection2D = qfalse;
 
-	if (!glState.finishCalled) {
+	// frames with a 3D view already applied r_finish in RB_BeginDrawingView;
+	// menu and loading frames used to finish unconditionally
+	if ( !glState.finishCalled && r_finish->integer ) {
 		qglFinish();
 	}
 
@@ -1320,25 +1351,45 @@ const void *RB_GammaCorrection( const void *data )
 	qglEnable(GL_FRAGMENT_PROGRAM_ARB);
 	qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, tr.gammaPixelShader);
 
+	// sceneImage is allocated at the screen size (R_BindGlowImages), so update
+	// it in place instead of re-specifying the texture every frame
 	GL_SelectTexture(0);
 	qglEnable(GL_TEXTURE_RECTANGLE_ARB);
 	qglBindTexture(GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage);
-	qglCopyTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, 0, 0, glConfig.vidWidth, glConfig.vidHeight, 0);
+	qglCopyTexSubImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight);
 	qglDisable(GL_TEXTURE_RECTANGLE_ARB);
 
 	GL_SelectTexture(1);
 	qglEnable(GL_TEXTURE_3D);
-	qglBindTexture(GL_TEXTURE_3D, tr.gammaLUTImage);
 
 	qglClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	qglClear(GL_COLOR_BUFFER_BIT);
 
-	qglBegin(GL_QUADS);
-	qglTexCoord2f(0.0f, 0.0f);
-	qglVertex2f(-1.0f, -1.0f);
+	// r_colorGradeSplit: ungraded left half, graded right half
+	const float splitX = tr.gammaLUTSplit ? 0.0f : -1.0f;
+	const float splitS = tr.gammaLUTSplit ? glConfig.vidWidth * 0.5f : 0.0f;
 
-	qglTexCoord2f(0.0f, (float)glConfig.vidHeight);
-	qglVertex2f(-1.0f, 1.0f);
+	if (tr.gammaLUTSplit) {
+		qglBindTexture(GL_TEXTURE_3D, tr.gammaLUTClassicImage);
+		qglBegin(GL_QUADS);
+		qglTexCoord2f(0.0f, 0.0f);
+		qglVertex2f(-1.0f, -1.0f);
+		qglTexCoord2f(0.0f, (float)glConfig.vidHeight);
+		qglVertex2f(-1.0f, 1.0f);
+		qglTexCoord2f(splitS, (float)glConfig.vidHeight);
+		qglVertex2f(0.0f, 1.0f);
+		qglTexCoord2f(splitS, 0.0f);
+		qglVertex2f(0.0f, -1.0f);
+		qglEnd();
+	}
+
+	qglBindTexture(GL_TEXTURE_3D, tr.gammaLUTImage);
+	qglBegin(GL_QUADS);
+	qglTexCoord2f(splitS, 0.0f);
+	qglVertex2f(splitX, -1.0f);
+
+	qglTexCoord2f(splitS, (float)glConfig.vidHeight);
+	qglVertex2f(splitX, 1.0f);
 
 	qglTexCoord2f((float)glConfig.vidWidth, (float)glConfig.vidHeight);
 	qglVertex2f(1.0f, 1.0f);
@@ -1352,6 +1403,14 @@ const void *RB_GammaCorrection( const void *data )
 
 	qglDisable(GL_TEXTURE_3D);
 	GL_SelectTexture(0);
+
+	if (tr.gammaLUTSplit) {
+		// divider line between the two halves
+		qglScissor(glConfig.vidWidth / 2 - 1, 0, 2, glConfig.vidHeight);
+		qglClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		qglClear(GL_COLOR_BUFFER_BIT);
+		qglScissor(0, 0, glConfig.vidWidth, glConfig.vidHeight);
+	}
 
 	return (const void *)(cmd + 1);
 }
@@ -1544,7 +1603,7 @@ static void RB_BlurGlowTexture()
 	/////////////////////////////////////////////////////////
 
 	// How much to offset each texel by.
-	float fTexelWidthOffset = 0.1f, fTexelHeightOffset = 0.1f;
+	float fTexelWidthOffset = 0.1f * tr.glowRadiusScale, fTexelHeightOffset = 0.1f * tr.glowRadiusScale;
 
 	GLuint uiTex = tr.screenGlow;
 
@@ -1637,8 +1696,8 @@ static void RB_BlurGlowTexture()
 		// make it look better (at a much higher cost of course). This is cheap though and still looks pretty great. In the future
 		// I might want to use an actual gaussian equation to correctly calculate the pixel coefficients and attenuates, texel
 		// offsets, gaussian amplitude and radius...
-		fTexelWidthOffset += r_DynamicGlowDelta->value;
-		fTexelHeightOffset += r_DynamicGlowDelta->value;
+		fTexelWidthOffset += r_DynamicGlowDelta->value * tr.glowRadiusScale;
+		fTexelHeightOffset += r_DynamicGlowDelta->value * tr.glowRadiusScale;
 	}
 
 	// Disable multi-texturing.
@@ -1727,16 +1786,16 @@ static void RB_DrawGlowOverlay()
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
 	qglBegin(GL_QUADS);
 		qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
-		qglTexCoord2f( 0, r_DynamicGlowHeight->integer );
+		qglTexCoord2f( 0, tr.glowHeight );
 		qglVertex2f( 0, 0 );
 
 		qglTexCoord2f( 0, 0 );
 		qglVertex2f( 0, glConfig.vidHeight );
 
-		qglTexCoord2f( r_DynamicGlowWidth->integer, 0 );
+		qglTexCoord2f( tr.glowWidth, 0 );
 		qglVertex2f( glConfig.vidWidth, glConfig.vidHeight );
 
-		qglTexCoord2f( r_DynamicGlowWidth->integer, r_DynamicGlowHeight->integer );
+		qglTexCoord2f( tr.glowWidth, tr.glowHeight );
 		qglVertex2f( glConfig.vidWidth, 0 );
 	qglEnd();
 
@@ -1752,8 +1811,8 @@ static void RB_DrawGlowOverlay()
 		int iTexWidth = glConfig.vidWidth, iTexHeight = glConfig.vidHeight;
 		if ( GL_TEXTURE_RECTANGLE_ARB == GL_TEXTURE_RECTANGLE_NV )
 		{
-			iTexWidth = r_DynamicGlowWidth->integer;
-			iTexHeight = r_DynamicGlowHeight->integer;
+			iTexWidth = tr.glowWidth;
+			iTexHeight = tr.glowHeight;
 		}
 
 		qglActiveTextureARB( GL_TEXTURE1_ARB );
