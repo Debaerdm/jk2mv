@@ -1165,7 +1165,11 @@ Other Changes
   and a latched cvar set right after the preset is applied with it. Every
   preset sets the whole group (what it doesn't change goes back to the
   default), so ``preset classic`` is the original look. It works in
-  autoexec.cfg too. ``preset`` alone lists them.
+  autoexec.cfg too. ``preset`` alone lists them. In the menus, Setup >
+  Video picks one (Graphics Preset, applied with Apply Changes), and Setup >
+  Advanced has anti-aliasing, post-processing, HDR, bloom, color grading,
+  per-pixel lights, glow quality, widescreen fov, frame latency and GL
+  extensions.
 * ``r_fullscreen 2`` is a borderless fullscreen window at the desktop
   resolution, without a display mode change. Alt+Enter toggles between
   windowed and the last fullscreen mode, remembered across sessions in

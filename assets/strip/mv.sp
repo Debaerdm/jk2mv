@@ -1,7 +1,7 @@
 VERSION 1
 ID 128
 REFERENCE MV
-COUNT 63
+COUNT 100
 INDEX 0
 {
    REFERENCE GAME_VERSION
@@ -568,4 +568,189 @@ INDEX 62
    TEXT_LANGUAGE3 "Aktiviere RAW Input für die Maus (Höchstmögliche Mauspräzision)."
    TEXT_LANGUAGE6 "Enable RAW mouse input (highest possible precision)."
    TEXT_LANGUAGE8 "Habilitar la entrada RAW de ratón (la mayor precisión posible)."
+}
+INDEX 63
+{
+   REFERENCE GRAPHICS_PRESET
+   TEXT_LANGUAGE1 "Graphics Preset:"
+}
+INDEX 64
+{
+   REFERENCE GRAPHICS_PRESET_INFO
+   TEXT_LANGUAGE1 "Set many graphics options at once, then apply the changes."
+}
+INDEX 65
+{
+   REFERENCE CLASSIC
+   TEXT_LANGUAGE1 "Classic"
+}
+INDEX 66
+{
+   REFERENCE ENHANCED
+   TEXT_LANGUAGE1 "Enhanced"
+}
+INDEX 67
+{
+   REFERENCE ULTRA
+   TEXT_LANGUAGE1 "Ultra"
+}
+INDEX 68
+{
+   REFERENCE COMPETITIVE
+   TEXT_LANGUAGE1 "Competitive"
+}
+INDEX 69
+{
+   REFERENCE MOVIE
+   TEXT_LANGUAGE1 "Movie"
+}
+INDEX 70
+{
+   REFERENCE PRESET_CLASSIC_INFO
+   TEXT_LANGUAGE1 "The original look of the game."
+}
+INDEX 71
+{
+   REFERENCE PRESET_ENHANCED_INFO
+   TEXT_LANGUAGE1 "Sharp textures, antialiasing, glow."
+}
+INDEX 72
+{
+   REFERENCE PRESET_ULTRA_INFO
+   TEXT_LANGUAGE1 "Enhanced with HDR, bloom, 8x AA."
+}
+INDEX 73
+{
+   REFERENCE PRESET_COMPETITIVE_INFO
+   TEXT_LANGUAGE1 "Original look, lowest input lag."
+}
+INDEX 74
+{
+   REFERENCE PRESET_MOVIE_INFO
+   TEXT_LANGUAGE1 "Enhanced, HDR and bloom, for videos."
+}
+INDEX 75
+{
+   REFERENCE PRESET_CUSTOM_INFO
+   TEXT_LANGUAGE1 "Your own settings, not a preset."
+}
+INDEX 76
+{
+   REFERENCE ADVANCED
+   TEXT_LANGUAGE1 "ADVANCED"
+}
+INDEX 77
+{
+   REFERENCE ADVANCED_INFO
+   TEXT_LANGUAGE1 "Configure advanced graphics options."
+}
+INDEX 78
+{
+   REFERENCE POST_PROCESSING
+   TEXT_LANGUAGE1 "Post-Processing:"
+}
+INDEX 79
+{
+   REFERENCE POST_PROCESSING_INFO
+   TEXT_LANGUAGE1 "Render offscreen: faster glow, needed for HDR and bloom."
+}
+INDEX 80
+{
+   REFERENCE HDR
+   TEXT_LANGUAGE1 "HDR:"
+}
+INDEX 81
+{
+   REFERENCE HDR_INFO
+   TEXT_LANGUAGE1 "Bright lights keep their color instead of turning white."
+}
+INDEX 82
+{
+   REFERENCE BLOOM
+   TEXT_LANGUAGE1 "Bloom:"
+}
+INDEX 83
+{
+   REFERENCE BLOOM_INFO
+   TEXT_LANGUAGE1 "Bright lights glow softly into their surroundings."
+}
+INDEX 84
+{
+   REFERENCE COLOR_GRADING
+   TEXT_LANGUAGE1 "Color Grading:"
+}
+INDEX 85
+{
+   REFERENCE COLOR_GRADING_INFO
+   TEXT_LANGUAGE1 "Color mood of the 3D view."
+}
+INDEX 86
+{
+   REFERENCE CINEMATIC
+   TEXT_LANGUAGE1 "Cinematic"
+}
+INDEX 87
+{
+   REFERENCE VIVID
+   TEXT_LANGUAGE1 "Vivid"
+}
+INDEX 88
+{
+   REFERENCE COLD
+   TEXT_LANGUAGE1 "Cold"
+}
+INDEX 89
+{
+   REFERENCE WARM
+   TEXT_LANGUAGE1 "Warm"
+}
+INDEX 90
+{
+   REFERENCE NOIR
+   TEXT_LANGUAGE1 "Noir"
+}
+INDEX 91
+{
+   REFERENCE PER_PIXEL_LIGHTS
+   TEXT_LANGUAGE1 "Per-Pixel Lights:"
+}
+INDEX 92
+{
+   REFERENCE PER_PIXEL_LIGHTS_INFO
+   TEXT_LANGUAGE1 "Round, smooth dynamic lights instead of the classic ones."
+}
+INDEX 93
+{
+   REFERENCE GLOW_QUALITY
+   TEXT_LANGUAGE1 "Glow Quality:"
+}
+INDEX 94
+{
+   REFERENCE GLOW_QUALITY_INFO
+   TEXT_LANGUAGE1 "Auto keeps the dynamic glow sharp at any resolution."
+}
+INDEX 95
+{
+   REFERENCE AUTO
+   TEXT_LANGUAGE1 "Auto"
+}
+INDEX 96
+{
+   REFERENCE WIDESCREEN_FOV
+   TEXT_LANGUAGE1 "Widescreen FOV:"
+}
+INDEX 97
+{
+   REFERENCE WIDESCREEN_FOV_INFO
+   TEXT_LANGUAGE1 "Wide screens see more on the sides, not less at the top."
+}
+INDEX 98
+{
+   REFERENCE FRAME_LATENCY
+   TEXT_LANGUAGE1 "Frame Latency:"
+}
+INDEX 99
+{
+   REFERENCE FRAME_LATENCY_INFO
+   TEXT_LANGUAGE1 "Frames prepared ahead of the GPU: 1 has the least input lag."
 }

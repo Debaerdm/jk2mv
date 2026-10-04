@@ -4,8 +4,18 @@ LINES_INSERT 14 [
 		disableColor					.75 .75 .75 1
 ]
 
+LINES_INSERT 25 [
+			setcvartocvar	ui_preset cl_preset ;
+			setcvar			ui_presetPending none ;
+]
+
+LINES_INSERT 28 [
+			setcvar			ui_setupVideoPage video ;
+]
+
 LINES_INSERT 35 [
 			hide			mvoptions ;
+			hide			mvvideo ;
 			close                   ingame_setup_modoptions ;
 ]
 
@@ -13,23 +23,139 @@ LINES_INSERT 48 [
 			close				ingame_setup_modoptions ;
 ]
 
+LINES_REPLACE 90 [
+			rect				20 43 170 30
+]
+
+LINES_REPLACE 105 [
+			rect				20 43 170 30
+]
+
+LINES_INSERT 130 [
+				setcvartocvar	ui_preset cl_preset ;
+				setcvar			ui_presetPending none ;
+]
+
+LINES_INSERT 133 [
+				setcvar			ui_setupVideoPage video ;
+]
+
 LINES_INSERT 140 [
 				hide			mvoptions ;
+				hide			mvvideo ;
 				close                   ingame_setup_modoptions ;
+]
+
+LINES_REPLACE 152 [
+			rect				20 71 170 30
+]
+
+LINES_REPLACE 167 [
+			rect				20 71 170 30
 ]
 
 LINES_INSERT 200 [
 				hide			mvoptions ;
+				hide			mvvideo ;
 				close                   ingame_setup_modoptions ;
+]
+
+LINES_INSERT 205 [
+
+		// advanced video button
+		itemDef
+		{
+			name				mvvideobutton_glow
+			style				WINDOW_STYLE_SHADER
+			rect				20 99 170 30
+			background			"gfx/menus/menu_blendbox2"			// Frame around button
+			forecolor			1 1 1 1
+			visible			0
+			// appearance_slot		1
+			decoration
+		}
+
+		itemDef
+		{
+			name				mvvideobutton
+			group				setup_submenu
+			text				@MV_ADVANCED
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				20 99 170 30
+			font				3
+			textscale			0.9
+			textalignx			170
+			textaligny			5
+			textalign			ITEM_ALIGN_RIGHT
+			textstyle			3
+			forecolor			0.65 0.65 1 1
+			visible			1
+			descText			@MV_ADVANCED_INFO
+
+			mouseEnter
+			{
+				show			mvvideobutton_glow
+			}
+			mouseExit
+			{
+				hide			mvvideobutton_glow
+			}
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+
+				defer			VideoSetup	videowarningMenu ;
+
+				uiScript		getvideosetup ;		// Get video settings
+				setcvartocvar	ui_preset cl_preset ;
+				setcvar			ui_presetPending none ;
+				setcvar			ui_setupVideoPage advanced ;
+
+				show			setup_background ;
+				hide			video ;
+				hide			applyChanges ;
+				hide			video2 ;
+				hide			vidrestart ;
+				hide			sound ;
+				hide			options ;
+				hide			mvoptions ;
+				show			mvvideo ;
+				hide			mods ;
+				hide			defaults ;
+				close			ingame_setup_modoptions ;
+
+				setitemcolor	setup_submenu		forecolor	0.65 0.65 1 1 ;
+				setitemcolor	mvvideobutton		forecolor	1 1 1 1 ;
+			}
+		}
+]
+
+LINES_REPLACE 212 [
+			rect				20 127 170 30
+]
+
+LINES_REPLACE 227 [
+			rect				20 127 170 30
 ]
 
 LINES_INSERT 260 [
 				hide			mvoptions ;
+				hide			mvvideo ;
 				close                   ingame_setup_modoptions ;
+]
+
+LINES_REPLACE 272 [
+			rect				20 155 170 30
+]
+
+LINES_REPLACE 287 [
+			rect				20 155 170 30
 ]
 
 LINES_INSERT 321 [
 				hide			mvoptions ;
+				hide			mvvideo ;
 				close                   ingame_setup_modoptions ;
 ]
 
@@ -39,7 +165,7 @@ LINES_INSERT 340 [
 		{
 			name				mvoptionsbutton_glow
 			style				WINDOW_STYLE_SHADER
-			rect				20 163 170 30
+			rect				20 183 170 30
 			background			"gfx/menus/menu_blendbox2"			// Frame around button
 			forecolor			1 1 1 1
 			visible			0
@@ -54,7 +180,7 @@ LINES_INSERT 340 [
 			text                    @MV_JK2MV
 			type                    ITEM_TYPE_BUTTON
 			style                   WINDOW_STYLE_EMPTY
-			rect                    20 163 170 30
+			rect                    20 183 170 30
 			font                    3
 			textscale               0.9
 			textalignx              170
@@ -89,6 +215,7 @@ LINES_INSERT 340 [
 				hide                    mods ;
 				hide                    defaults ;
 				show                    mvoptions ;
+				hide			mvvideo ;
 				close                   ingame_setup_modoptions ;
 
 				setitemcolor            setup_submenu forecolor 0.65 0.65 1 1 ;
@@ -101,7 +228,7 @@ LINES_INSERT 340 [
 		{
 			name				modoptionsbutton_glow
 			style				WINDOW_STYLE_SHADER
-			rect				20 193 170 30
+			rect				20 211 170 30
 			background			"gfx/menus/menu_blendbox2"			// Frame around button
 			forecolor			1 1 1 1
 			visible			0
@@ -116,7 +243,7 @@ LINES_INSERT 340 [
 			text                    @MV_MOD_OPTIONS
 			type                    ITEM_TYPE_BUTTON
 			style                   WINDOW_STYLE_EMPTY
-			rect                    20 193 170 30
+			rect                    20 211 170 30
 			font                    3
 			textscale               0.9
 			textalignx              170
@@ -151,6 +278,7 @@ LINES_INSERT 340 [
 				hide                    mods ;
 				hide                    defaults ;
 				hide                    mvoptions ;
+				hide			mvvideo ;
 				open			ingame_setup_modoptions ;
 
 				setitemcolor            setup_submenu forecolor 0.65 0.65 1 1 ;
@@ -160,20 +288,257 @@ LINES_INSERT 340 [
 ]
 
 LINES_REPLACE 347 [
-			rect				20 223 170 30
+			rect				20 239 170 30
 ]
 
 LINES_REPLACE 362 [
-			rect				20 223 170 30
+			rect				20 239 170 30
 ]
 
 LINES_INSERT 395 [
 				hide			mvoptions ;
+				hide			mvvideo ;
 				close                   ingame_setup_modoptions ;
 ]
 
 LINES_INSERT 400 [
 
+]
+
+LINES_INSERT 576 [
+		itemDef
+		{
+			name                    graphicspreset
+			group                   video
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_GRAPHICS_PRESET
+			descText                @MV_GRAPHICS_PRESET_INFO
+			cvar                    "ui_preset"
+			cvarStrList
+			{
+				@MV_CLASSIC             classic
+				@MV_ENHANCED            enhanced
+				@MV_ULTRA               ultra
+				@MV_COMPETITIVE         competitive
+				@MV_MOVIE               movie
+			}
+			cvarTest                "cl_preset"
+			hideCvar                { "custom" }
+
+			rect                    220 41 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav" ;
+				setcvartocvar           ui_presetPending ui_preset ;
+				uiScript                glCustom ;
+				setcvar                 ui_r_modified 1 ;
+				show                    applyChanges
+			}
+
+			mouseenter
+			{
+				show                    highlight1
+			}
+
+			mouseexit
+			{
+				hide                    highlight1
+			}
+		}
+
+		itemDef
+		{
+			name                    graphicspreset
+			group                   video
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_GRAPHICS_PRESET
+			descText                @MV_GRAPHICS_PRESET_INFO
+			cvar                    "ui_preset"
+			cvarStrList
+			{
+				@MENUS1_CUSTOM          custom
+				@MV_CLASSIC             classic
+				@MV_ENHANCED            enhanced
+				@MV_ULTRA               ultra
+				@MV_COMPETITIVE         competitive
+				@MV_MOVIE               movie
+			}
+			cvarTest                "cl_preset"
+			showCvar                { "custom" }
+
+			rect                    220 41 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav" ;
+				setcvartocvar           ui_presetPending ui_preset ;
+				uiScript                glCustom ;
+				setcvar                 ui_r_modified 1 ;
+				show                    applyChanges
+			}
+
+			mouseenter
+			{
+				show                    highlight1
+			}
+
+			mouseexit
+			{
+				hide                    highlight1
+			}
+		}
+
+		itemDef
+		{
+			name                    graphicspreset_info
+			group                   video
+			text                    @MV_PRESET_CLASSIC_INFO
+			cvarTest                "ui_preset"
+			showCvar                { "classic" }
+			rect                    220 61 300 20
+			textalign               ITEM_ALIGN_CENTER
+			textalignx              150
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               0.7 0.7 0.7 1
+			visible                 0
+			decoration
+		}
+
+		itemDef
+		{
+			name                    graphicspreset_info
+			group                   video
+			text                    @MV_PRESET_ENHANCED_INFO
+			cvarTest                "ui_preset"
+			showCvar                { "enhanced" }
+			rect                    220 61 300 20
+			textalign               ITEM_ALIGN_CENTER
+			textalignx              150
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               0.7 0.7 0.7 1
+			visible                 0
+			decoration
+		}
+
+		itemDef
+		{
+			name                    graphicspreset_info
+			group                   video
+			text                    @MV_PRESET_ULTRA_INFO
+			cvarTest                "ui_preset"
+			showCvar                { "ultra" }
+			rect                    220 61 300 20
+			textalign               ITEM_ALIGN_CENTER
+			textalignx              150
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               0.7 0.7 0.7 1
+			visible                 0
+			decoration
+		}
+
+		itemDef
+		{
+			name                    graphicspreset_info
+			group                   video
+			text                    @MV_PRESET_COMPETITIVE_INFO
+			cvarTest                "ui_preset"
+			showCvar                { "competitive" }
+			rect                    220 61 300 20
+			textalign               ITEM_ALIGN_CENTER
+			textalignx              150
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               0.7 0.7 0.7 1
+			visible                 0
+			decoration
+		}
+
+		itemDef
+		{
+			name                    graphicspreset_info
+			group                   video
+			text                    @MV_PRESET_MOVIE_INFO
+			cvarTest                "ui_preset"
+			showCvar                { "movie" }
+			rect                    220 61 300 20
+			textalign               ITEM_ALIGN_CENTER
+			textalignx              150
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               0.7 0.7 0.7 1
+			visible                 0
+			decoration
+		}
+
+		itemDef
+		{
+			name                    graphicspreset_info
+			group                   video
+			text                    @MV_PRESET_CUSTOM_INFO
+			cvarTest                "ui_preset"
+			showCvar                { "custom" }
+			rect                    220 61 300 20
+			textalign               ITEM_ALIGN_CENTER
+			textalignx              150
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               0.7 0.7 0.7 1
+			visible                 0
+			decoration
+		}
+
+]
+
+LINES_REPLACE 583 [
+			rect			220 81 300 20
+]
+
+LINES_REPLACE 607 [
+				show			highlight3
+]
+
+LINES_REPLACE 611 [
+				hide			highlight3
+]
+
+LINES_REPLACE 625 [
+			group				mvvideo
+]
+
+LINES_REPLACE 628 [
+			rect				220 261 300 20
+]
+
+LINES_REPLACE 643 [
+				show			highlight12
+]
+
+LINES_REPLACE 647 [
+				hide			highlight12
 ]
 
 LINES_INSERT 656 [
@@ -194,7 +559,7 @@ LINES_INSERT 656 [
             }
 			cvar				"ui_r_aspectratio"
 
-			rect				220 81 300 20
+			rect				220 101 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
 			textaligny			-2
@@ -212,11 +577,11 @@ LINES_INSERT 656 [
 
 			mouseenter
 			{
-				show			highlight3
+				show			highlight4
 			}
 			mouseexit
 			{
-				hide			highlight3
+				hide			highlight4
 			}
 			action
 			{
@@ -243,7 +608,7 @@ LINES_INSERT 656 [
             }
 			cvar				"ui_r_aspectratio"
 
-			rect				220 81 300 20
+			rect				220 101 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
 			textaligny			-2
@@ -261,11 +626,11 @@ LINES_INSERT 656 [
 
 			mouseenter
 			{
-				show			highlight3
+				show			highlight4
 			}
 			mouseexit
 			{
-				hide			highlight3
+				hide			highlight4
 			}
 			action
 			{
@@ -305,16 +670,16 @@ LINES_INSERT 665 [
 				"0"
 			}
 
-			rect				220 101 300 20
+			rect				220 121 300 20
 ]
 
 LINES_DELETE 679 683
 LINES_INSERT 678 [
-				show			highlight4
+				show			highlight5
 			}
 			mouseexit
 			{
-				hide			highlight4
+				hide			highlight5
 			}
 			action
 			{
@@ -358,7 +723,7 @@ LINES_INSERT 678 [
 				"1"
 			}
 
-			rect				220 101 300 20
+			rect				220 121 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
 			textaligny			-2
@@ -371,11 +736,11 @@ LINES_INSERT 678 [
 
 			mouseenter
 			{
-				show			highlight4
+				show			highlight5
 			}
 			mouseexit
 			{
-				hide			highlight4
+				hide			highlight5
 			}
 			action
 			{
@@ -408,7 +773,7 @@ LINES_INSERT 678 [
 				"2"
 			}
 
-			rect				220 101 300 20
+			rect				220 121 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
 			textaligny			-2
@@ -421,18 +786,6 @@ LINES_INSERT 678 [
 
 			mouseenter
 			{
-				show			highlight4
-			}
-			mouseexit
-			{
-				hide			highlight4
-]
-
-LINES_REPLACE 700 [
-			rect				220 121 300 20
-]
-
-LINES_REPLACE 716 [
 				show			highlight5
 			}
 			mouseexit
@@ -440,11 +793,11 @@ LINES_REPLACE 716 [
 				hide			highlight5
 ]
 
-LINES_REPLACE 738 [
+LINES_REPLACE 700 [
 			rect				220 141 300 20
 ]
 
-LINES_REPLACE 754 [
+LINES_REPLACE 716 [
 				show			highlight6
 			}
 			mouseexit
@@ -452,11 +805,11 @@ LINES_REPLACE 754 [
 				hide			highlight6
 ]
 
-LINES_REPLACE 775 [
+LINES_REPLACE 738 [
 			rect				220 161 300 20
 ]
 
-LINES_REPLACE 790 [
+LINES_REPLACE 754 [
 				show			highlight7
 			}
 			mouseexit
@@ -464,11 +817,11 @@ LINES_REPLACE 790 [
 				hide			highlight7
 ]
 
-LINES_REPLACE 812 [
+LINES_REPLACE 775 [
 			rect				220 181 300 20
 ]
 
-LINES_REPLACE 827 [
+LINES_REPLACE 790 [
 				show			highlight8
 			}
 			mouseexit
@@ -476,11 +829,11 @@ LINES_REPLACE 827 [
 				hide			highlight8
 ]
 
-LINES_REPLACE 848 [
+LINES_REPLACE 812 [
 			rect				220 201 300 20
 ]
 
-LINES_REPLACE 863 [
+LINES_REPLACE 827 [
 				show			highlight9
 			}
 			mouseexit
@@ -488,11 +841,11 @@ LINES_REPLACE 863 [
 				hide			highlight9
 ]
 
-LINES_REPLACE 884 [
+LINES_REPLACE 848 [
 			rect				220 221 300 20
 ]
 
-LINES_REPLACE 899 [
+LINES_REPLACE 863 [
 				show			highlight10
 			}
 			mouseexit
@@ -500,16 +853,28 @@ LINES_REPLACE 899 [
 				hide			highlight10
 ]
 
-LINES_REPLACE 920 [
+LINES_REPLACE 884 [
 			rect				220 241 300 20
 ]
 
-LINES_REPLACE 935 [
+LINES_REPLACE 899 [
 				show			highlight11
 			}
 			mouseexit
 			{
 				hide			highlight11
+]
+
+LINES_REPLACE 920 [
+			rect				220 261 300 20
+]
+
+LINES_REPLACE 935 [
+				show			highlight12
+			}
+			mouseexit
+			{
+				hide			highlight12
 ]
 
 LINES_INSERT 944 [
@@ -521,10 +886,10 @@ LINES_INSERT 944 [
 		itemDef
 		{
 			name				multisample
-			group				video
+			group				mvvideo
 			type				ITEM_TYPE_MULTI
 			text				@MV_ANTIALIASING
-			rect				220 261 300 20
+			rect				220 41 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
 			textaligny			-2
@@ -548,11 +913,11 @@ LINES_INSERT 944 [
 
 			mouseenter
 			{
-				show			highlight12
+				show			highlight1
 			}
 			mouseexit
 			{
-				hide			highlight12
+				hide			highlight1
 			}
 			action
 			{
@@ -572,11 +937,277 @@ LINES_REPLACE 971 [
 ]
 
 LINES_REPLACE 991 [
-			rect				20 253 170 30
+			rect				20 267 170 30
 ]
 
 LINES_REPLACE 1005 [
-			rect				20 253 170 30
+			rect				20 267 170 30
+]
+
+LINES_INSERT 1030 [
+				hide			mvvideo ;
+]
+
+LINES_INSERT 1112 [
+			cvarTest			"ui_presetPending"
+			hideCvar			{ "classic" ; "enhanced" ; "ultra" ; "competitive" ; "movie" }
+]
+
+LINES_INSERT 1131 [
+
+		// vidrestart_yes when the classic preset was picked
+		itemDef
+		{
+			name				vidrestart_yes_preset
+			group				vidrestart
+			text				@MENUS0_YES
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				367 241 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			0.65 0.65 1 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "classic" }
+			visible			-1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+				close		all ;
+				exec			"preset classic" ;
+				setcvar		ui_presetPending none ;
+				uiScript	updatevideosetup ;
+			}
+			mouseEnter
+			{
+				show			vidrestart_yes_button
+			}
+			mouseExit
+			{
+				hide			vidrestart_yes_button
+			}
+
+		}
+
+		// vidrestart_yes when the enhanced preset was picked
+		itemDef
+		{
+			name				vidrestart_yes_preset
+			group				vidrestart
+			text				@MENUS0_YES
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				367 241 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			0.65 0.65 1 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "enhanced" }
+			visible			-1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+				close		all ;
+				exec			"preset enhanced" ;
+				setcvar		ui_presetPending none ;
+				uiScript	updatevideosetup ;
+			}
+			mouseEnter
+			{
+				show			vidrestart_yes_button
+			}
+			mouseExit
+			{
+				hide			vidrestart_yes_button
+			}
+
+		}
+
+		// vidrestart_yes when the ultra preset was picked
+		itemDef
+		{
+			name				vidrestart_yes_preset
+			group				vidrestart
+			text				@MENUS0_YES
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				367 241 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			0.65 0.65 1 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "ultra" }
+			visible			-1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+				close		all ;
+				exec			"preset ultra" ;
+				setcvar		ui_presetPending none ;
+				uiScript	updatevideosetup ;
+			}
+			mouseEnter
+			{
+				show			vidrestart_yes_button
+			}
+			mouseExit
+			{
+				hide			vidrestart_yes_button
+			}
+
+		}
+
+		// vidrestart_yes when the competitive preset was picked
+		itemDef
+		{
+			name				vidrestart_yes_preset
+			group				vidrestart
+			text				@MENUS0_YES
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				367 241 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			0.65 0.65 1 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "competitive" }
+			visible			-1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+				close		all ;
+				exec			"preset competitive" ;
+				setcvar		ui_presetPending none ;
+				uiScript	updatevideosetup ;
+			}
+			mouseEnter
+			{
+				show			vidrestart_yes_button
+			}
+			mouseExit
+			{
+				hide			vidrestart_yes_button
+			}
+
+		}
+
+		// vidrestart_yes when the movie preset was picked
+		itemDef
+		{
+			name				vidrestart_yes_preset
+			group				vidrestart
+			text				@MENUS0_YES
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				367 241 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			0.65 0.65 1 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "movie" }
+			visible			-1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+				close		all ;
+				exec			"preset movie" ;
+				setcvar		ui_presetPending none ;
+				uiScript	updatevideosetup ;
+			}
+			mouseEnter
+			{
+				show			vidrestart_yes_button
+			}
+			mouseExit
+			{
+				hide			vidrestart_yes_button
+			}
+
+		}
+]
+
+LINES_INSERT 1160 [
+			cvarTest			"ui_setupVideoPage"
+			hideCvar			{ "advanced" }
+]
+
+LINES_INSERT 1169 [
+				hide			mvvideo ;
+]
+
+LINES_INSERT 1183 [
+
+		itemDef
+		{
+			name				vidrestart_no_advanced
+			group				vidrestart
+			text				@MENUS0_NO
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				240 241 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			60
+			textaligny			-1
+			descText			@MENUS0_DO_NOT_APPLY_CHANGES
+			forecolor			0.65 0.65 1 1
+			cvarTest			"ui_setupVideoPage"
+			showCvar			{ "advanced" }
+			visible			0
+			// appearance_slot		6
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+				show			setup_background ;
+				hide 			vidrestart ;
+				show			mvvideo ;
+				hide			video2 ;
+				hide			video ;
+				show			applyChanges ;
+				hide			vidrestart_yes_button ;
+				hide			vidrestart_no_button ;
+			}
+			mouseEnter
+			{
+				show			vidrestart_no_button
+			}
+			mouseExit
+			{
+				hide			vidrestart_no_button
+			}
+
+		}
 ]
 
 LINES_DELETE 1377 1377
@@ -988,6 +1619,350 @@ LINES_INSERT 2255 [
 			mouseexit
 			{
 				hide			highlight11
+			}
+		}
+
+		//----------------------------------------------------------------------------------------------
+		//
+		//	JK2MV ADVANCED VIDEO FIELDS
+		//
+		//----------------------------------------------------------------------------------------------
+		itemDef
+		{
+			name                    postprocessing
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_POST_PROCESSING
+			descText                @MV_POST_PROCESSING_INFO
+			cvar                    "r_fbo"
+			cvarFloatList
+			{
+				@MENUS0_OFF             0
+				@MENUS0_ON              1
+			}
+			cvarTest                "r_gammamethod"
+			enableCvar              { "2" }
+
+			rect                    220 61 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav" ;
+				setcvar                 ui_r_modified 1 ;
+				show                    applyChanges
+			}
+
+			mouseenter
+			{
+				show                    highlight2
+			}
+
+			mouseexit
+			{
+				hide                    highlight2
+			}
+		}
+
+		itemDef
+		{
+			name                    hdr
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_HDR
+			descText                @MV_HDR_INFO
+			cvar                    "r_hdr"
+			cvarFloatList
+			{
+				@MENUS0_OFF             0
+				@MENUS0_ON              1
+			}
+			cvarTest                "r_fbo"
+			disableCvar             { "0" }
+
+			rect                    220 81 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav" ;
+				setcvar                 ui_r_modified 1 ;
+				show                    applyChanges
+			}
+
+			mouseenter
+			{
+				show                    highlight3
+			}
+
+			mouseexit
+			{
+				hide                    highlight3
+			}
+		}
+
+		itemDef
+		{
+			name                    bloom
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_BLOOM
+			descText                @MV_BLOOM_INFO
+			cvar                    "r_bloom"
+			cvarFloatList
+			{
+				@MENUS0_OFF             0
+				@MENUS0_ON              1
+			}
+			cvarTest                "r_fbo"
+			disableCvar             { "0" }
+
+			rect                    220 101 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav" ;
+				setcvar                 ui_r_modified 1 ;
+				show                    applyChanges
+			}
+
+			mouseenter
+			{
+				show                    highlight4
+			}
+
+			mouseexit
+			{
+				hide                    highlight4
+			}
+		}
+
+		itemDef
+		{
+			name                    colorgrade
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_COLOR_GRADING
+			descText                @MV_COLOR_GRADING_INFO
+			cvar                    "r_colorGrade"
+			cvarStrList
+			{
+				@MENUS0_OFF             ""
+				@MV_CINEMATIC           cinematic
+				@MV_VIVID               vivid
+				@MV_COLD                cold
+				@MV_WARM                warm
+				@MV_NOIR                noir
+			}
+			cvarTest                "r_gammamethod"
+			enableCvar              { "2" }
+
+			rect                    220 121 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav"
+			}
+
+			mouseenter
+			{
+				show                    highlight5
+			}
+
+			mouseexit
+			{
+				hide                    highlight5
+			}
+		}
+
+		itemDef
+		{
+			name                    dlightmode
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_PER_PIXEL_LIGHTS
+			descText                @MV_PER_PIXEL_LIGHTS_INFO
+			cvar                    "r_dlightMode"
+			cvarFloatList
+			{
+				@MENUS0_OFF             0
+				@MENUS0_ON              1
+			}
+			cvarTest                "r_dynamiclight"
+			disableCvar             { "0" }
+
+			rect                    220 161 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav"
+			}
+
+			mouseenter
+			{
+				show                    highlight7
+			}
+
+			mouseexit
+			{
+				hide                    highlight7
+			}
+		}
+
+		itemDef
+		{
+			name                    glowquality
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_GLOW_QUALITY
+			descText                @MV_GLOW_QUALITY_INFO
+			cvar                    "r_DynamicGlowWidth"
+			cvarFloatList
+			{
+				@MV_CLASSIC             320
+				@MV_AUTO                0
+			}
+			cvarTest                "r_DynamicGlow"
+			disableCvar             { "0" }
+
+			rect                    220 181 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav" ;
+				setcvar                 r_DynamicGlowHeight 240 ;
+				setcvar                 ui_r_modified 1 ;
+				show                    applyChanges
+			}
+
+			mouseenter
+			{
+				show                    highlight8
+			}
+
+			mouseexit
+			{
+				hide                    highlight8
+			}
+		}
+
+		itemDef
+		{
+			name                    fovaspectfix
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_WIDESCREEN_FOV
+			descText                @MV_WIDESCREEN_FOV_INFO
+			cvar                    "cl_fovAspectFix"
+			cvarFloatList
+			{
+				@MENUS0_OFF             0
+				@MENUS0_ON              1
+			}
+
+			rect                    220 221 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav"
+			}
+
+			mouseenter
+			{
+				show                    highlight10
+			}
+
+			mouseexit
+			{
+				hide                    highlight10
+			}
+		}
+
+		itemDef
+		{
+			name                    framelatency
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_FRAME_LATENCY
+			descText                @MV_FRAME_LATENCY_INFO
+			cvar                    "r_maxFrameLatency"
+			cvarFloatList
+			{
+				@MENUS0_DEFAULT         0
+				"1"                     1
+				"2"                     2
+				"3"                     3
+			}
+
+			rect                    220 241 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav"
+			}
+
+			mouseenter
+			{
+				show                    highlight11
+			}
+
+			mouseexit
+			{
+				hide                    highlight11
 			}
 		}
 

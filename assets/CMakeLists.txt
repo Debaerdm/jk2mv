@@ -64,6 +64,7 @@ set(AssetsFiles
 	"ui/jk2mp/ingame_setup_modoptions.menu"
 	"ui/jk2mp/joinserver.menu_patch"
 	"ui/jk2mp/setup.menu_patch"
+	"ui/jk2mp/vid_warning.menu_patch"
 	"ui/jk2mv/download_info.menu"
 	"ui/jk2mv/download_popup.menu"
 

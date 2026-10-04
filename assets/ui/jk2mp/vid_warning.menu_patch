@@ -1,0 +1,232 @@
+ORI_HASH 2476975518
+
+LINES_INSERT 28 [
+			setcvar			ui_presetPending none ;
+]
+
+LINES_INSERT 143 [
+				setcvar			ui_presetPending none ;
+]
+
+LINES_INSERT 188 [
+			cvarTest			"ui_presetPending"
+			hideCvar			{ "classic" ; "enhanced" ; "ultra" ; "competitive" ; "movie" }
+]
+
+LINES_INSERT 209 [
+
+		// vidwarn_yes when the classic preset was picked
+		itemDef
+		{
+			name				vidwarn_yes_preset
+			group				vidwarn
+			text				@MENUS2_APPLY
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				340 386 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textstyle			3
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			.96 .933 .40 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "classic" }
+			visible				1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+
+				exec			"preset classic" ;
+				setcvar		ui_presetPending none ;
+				uiScript		updatevideosetup ;
+
+//				uiScript		setvid1data	setupMenu ;		// Set video settings
+				close			all
+			}
+			mouseEnter
+			{
+				show		vidwarn_yes_button
+			}
+			mouseExit
+			{
+				hide		vidwarn_yes_button
+			}
+		}
+
+		// vidwarn_yes when the enhanced preset was picked
+		itemDef
+		{
+			name				vidwarn_yes_preset
+			group				vidwarn
+			text				@MENUS2_APPLY
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				340 386 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textstyle			3
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			.96 .933 .40 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "enhanced" }
+			visible				1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+
+				exec			"preset enhanced" ;
+				setcvar		ui_presetPending none ;
+				uiScript		updatevideosetup ;
+
+//				uiScript		setvid1data	setupMenu ;		// Set video settings
+				close			all
+			}
+			mouseEnter
+			{
+				show		vidwarn_yes_button
+			}
+			mouseExit
+			{
+				hide		vidwarn_yes_button
+			}
+		}
+
+		// vidwarn_yes when the ultra preset was picked
+		itemDef
+		{
+			name				vidwarn_yes_preset
+			group				vidwarn
+			text				@MENUS2_APPLY
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				340 386 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textstyle			3
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			.96 .933 .40 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "ultra" }
+			visible				1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+
+				exec			"preset ultra" ;
+				setcvar		ui_presetPending none ;
+				uiScript		updatevideosetup ;
+
+//				uiScript		setvid1data	setupMenu ;		// Set video settings
+				close			all
+			}
+			mouseEnter
+			{
+				show		vidwarn_yes_button
+			}
+			mouseExit
+			{
+				hide		vidwarn_yes_button
+			}
+		}
+
+		// vidwarn_yes when the competitive preset was picked
+		itemDef
+		{
+			name				vidwarn_yes_preset
+			group				vidwarn
+			text				@MENUS2_APPLY
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				340 386 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textstyle			3
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			.96 .933 .40 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "competitive" }
+			visible				1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+
+				exec			"preset competitive" ;
+				setcvar		ui_presetPending none ;
+				uiScript		updatevideosetup ;
+
+//				uiScript		setvid1data	setupMenu ;		// Set video settings
+				close			all
+			}
+			mouseEnter
+			{
+				show		vidwarn_yes_button
+			}
+			mouseExit
+			{
+				hide		vidwarn_yes_button
+			}
+		}
+
+		// vidwarn_yes when the movie preset was picked
+		itemDef
+		{
+			name				vidwarn_yes_preset
+			group				vidwarn
+			text				@MENUS2_APPLY
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				340 386 120 32
+			font				2
+			textscale			1
+			textalign			ITEM_ALIGN_CENTER
+			textstyle			3
+			textalignx			60
+			textaligny			0
+			descText			@MENUS0_APPLY_CHANGES_AND_THEN
+			forecolor			.96 .933 .40 1
+			cvarTest			"ui_presetPending"
+			showCvar			{ "movie" }
+			visible				1
+			// appearance_slot		5
+
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+
+				exec			"preset movie" ;
+				setcvar		ui_presetPending none ;
+				uiScript		updatevideosetup ;
+
+//				uiScript		setvid1data	setupMenu ;		// Set video settings
+				close			all
+			}
+			mouseEnter
+			{
+				show		vidwarn_yes_button
+			}
+			mouseExit
+			{
+				hide		vidwarn_yes_button
+			}
+		}
+]
