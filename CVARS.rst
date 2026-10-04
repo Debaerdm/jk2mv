@@ -430,7 +430,8 @@ Client-Side
 :Default: "0"
 :Description:
    Render each frame into an offscreen buffer (framebuffer object) and show
-   it through the post-process gamma pass. On its own it looks the same as 0;
+   it through the post-process gamma pass. On its own it looks the same as 0,
+   and the dynamic glow gets faster (no screen copies, finer blur);
    ``r_hdr`` and ``r_bloom`` need it. Requires ``r_gammamethod 2`` and
    vid_restart. With MSAA the offscreen buffer is multisampled.
    ``r_measureOverdraw`` doesn't work with it.

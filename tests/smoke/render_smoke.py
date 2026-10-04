@@ -5,7 +5,7 @@ Draws the generated ci_box room with the testscene command (no cgame or
 retail assets needed) under several settings, with SDL's offscreen video
 driver and software OpenGL, and checks the screenshots:
   - rendering offscreen (r_fbo 1) gives the same image as the back buffer,
-    with and without the dynamic glow
+    and the same dynamic glow within its extra precision
   - bloom brightens the wall around the lamp and leaves the rest alone
   - in HDR the bloom of the red strips stays red instead of washing out
   - every effect at once with MSAA runs without a GL error
@@ -168,10 +168,13 @@ def main():
             errors.append(message)
 
     if len(shots) == len(runs):
-        for a, b in (('classic', 'fbo'), ('glow', 'glow_fbo')):
+        # the offscreen glow keeps 16 bits between its blur passes where the
+        # copies of the classic one go through the 8-bit back buffer
+        for a, b, max_pixels, max_diff in (('classic', 'fbo', 640 * 480 // 200, 2),
+                                           ('glow', 'glow_fbo', 640 * 480 // 50, 4)):
             differing, largest = compare(shots[a], shots[b])
             print('%s vs %s: %d pixels differ, by up to %d' % (a, b, differing, largest))
-            check(differing <= 640 * 480 // 200 and largest <= 2,
+            check(differing <= max_pixels and largest <= max_diff,
                   '%s and %s differ: %d pixels, up to %d' % (a, b, differing, largest))
 
         classic = shots['classic']

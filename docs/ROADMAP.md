@@ -134,7 +134,11 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 
 **Avancement.**
 - **VQ-5 et VQ-6 sont livrés :** `r_fbo`, `r_hdr`, `r_bloom`, `r_exposure` (src/renderer/tr_postfx.cpp), dans les presets `ultra` et `movie`.
-- **`r_fbo 1` :** il supprime la copie plein écran de la passe gamma. Le glow garde encore ses copies, qui restent à porter sur des FBO.
+- **`r_fbo 1` :** il supprime la copie plein écran de la passe gamma et toutes les copies du glow.
+  - Les objets lumineux se dessinent dans leur propre cible, qui partage la profondeur de la scène.
+  - Le flou alterne entre deux petites cibles 16 bits.
+  - La scène n'est plus redessinée.
+  - Sous llvmpipe en 640x480 : glow à 4,5 ms au lieu de 9,9 ms, temps GPU de la frame à 6,9 ms au lieu de 13,4 ms (`r_gpuTimers`). Le critère 2 reste à mesurer sur une vraie carte.
 - **RB-9 est livré :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie.
 - **BM-6 (phase 2) est livré :** `r_gpuTimers 1` mesure le temps GPU de la frame, du glow et des passes post. Le résultat s'affiche dans `cl_perfOverlay` et entre dans les percentiles de `benchmark`. C'est l'outil pour vérifier les critères 2 et 3 sur une vraie carte.
 - **FE-9 est livré :** `r_dlightPriority 1` (par défaut). Au-delà de 32 lumières, chaque scène garde les 32 qui comptent le plus, au lieu des 32 premières ajoutées. `testscene ... dlights` crée ce cas et `smoke_render` le vérifie.

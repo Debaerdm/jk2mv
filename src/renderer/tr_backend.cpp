@@ -19,8 +19,8 @@ bool g_bDynamicGlowSupported = false;
 
 #ifndef DEDICATED
 
-static void RB_DrawGlowOverlay();
-static void RB_BlurGlowTexture();
+static void RB_DrawGlowOverlay( qboolean drawScene );
+static void RB_BlurGlowTexture( qboolean offscreen );
 #define MAX_GLOW_PASSES		16		// with the automatic glow size
 const void *RB_GammaCorrection( const void *data );
 
@@ -1072,64 +1072,92 @@ const void	*RB_DrawSurfs( const void *data ) {
 	{
 		R_GPUTimerBegin( GPU_GLOW );
 
-		// Copy the normal scene to texture.
-		qglDisable( GL_TEXTURE_2D );
-		qglEnable( GL_TEXTURE_RECTANGLE_ARB );
-		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage );
-		R_PostFXCopyFrame( glConfig.vidWidth, glConfig.vidHeight );
-		qglDisable( GL_TEXTURE_RECTANGLE_ARB );
-		qglEnable( GL_TEXTURE_2D );
+		if ( R_PostFXGlowBegin() ) {
+			// r_fbo: the glowing objects go to their own target, which shares
+			// the scene depth, so the scene stays as it is: no copies, and
+			// the blur passes go from one small target to the other
+			g_bRenderGlowingObjects = true;
+			RB_RenderDrawSurfList( cmd->drawSurfs, cmd->numDrawSurfs );
+			g_bRenderGlowingObjects = false;
+			R_PostFXGlowObjectsDone();
 
-		// Just clear colors, but leave the depth buffer intact so we can 'share' it.
-		qglClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
-		qglClear( GL_COLOR_BUFFER_BIT );
+			const int oldViewWidth = backEnd.viewParms.viewportWidth;
+			const int oldViewHeight = backEnd.viewParms.viewportHeight;
+			backEnd.viewParms.viewportWidth = tr.glowWidth;
+			backEnd.viewParms.viewportHeight = tr.glowHeight;
+			RB_BlurGlowTexture( qtrue );
+			backEnd.viewParms.viewportWidth = oldViewWidth;
+			backEnd.viewParms.viewportHeight = oldViewHeight;
 
-		// Render the glowing objects.
-		g_bRenderGlowingObjects = true;
-		RB_RenderDrawSurfList( cmd->drawSurfs, cmd->numDrawSurfs );
-		g_bRenderGlowingObjects = false;
+			R_PostFXGlowEnd();
+			SetViewportAndScissor();
+			if ( r_DynamicGlow->integer == 2 ) {
+				// debugging: the glow alone
+				qglClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
+				qglClear( GL_COLOR_BUFFER_BIT );
+			}
+			RB_DrawGlowOverlay( qfalse );
+		} else {
+			// Copy the normal scene to texture.
+			qglDisable( GL_TEXTURE_2D );
+			qglEnable( GL_TEXTURE_RECTANGLE_ARB );
+			qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage );
+			R_PostFXCopyFrame( glConfig.vidWidth, glConfig.vidHeight );
+			qglDisable( GL_TEXTURE_RECTANGLE_ARB );
+			qglEnable( GL_TEXTURE_2D );
 
-		// GL commands run in order, so the copy below already sees the glow
-		// draws; the finish only stalled the CPU. r_DynamicGlowFinish brings it
-		// back for drivers that might need it (old texture rectangle hack)
-		if ( r_DynamicGlowFinish->integer ) {
-			qglFinish();
+			// Just clear colors, but leave the depth buffer intact so we can 'share' it.
+			qglClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
+			qglClear( GL_COLOR_BUFFER_BIT );
+
+			// Render the glowing objects.
+			g_bRenderGlowingObjects = true;
+			RB_RenderDrawSurfList( cmd->drawSurfs, cmd->numDrawSurfs );
+			g_bRenderGlowingObjects = false;
+
+			// GL commands run in order, so the copy below already sees the glow
+			// draws; the finish only stalled the CPU. r_DynamicGlowFinish brings it
+			// back for drivers that might need it (old texture rectangle hack)
+			if ( r_DynamicGlowFinish->integer ) {
+				qglFinish();
+			}
+
+			// Copy the glow scene to texture.
+			qglDisable( GL_TEXTURE_2D );
+			qglEnable( GL_TEXTURE_RECTANGLE_ARB );
+			qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow );
+			R_PostFXCopyFrame( glConfig.vidWidth, glConfig.vidHeight );
+			qglDisable( GL_TEXTURE_RECTANGLE_ARB );
+			qglEnable( GL_TEXTURE_2D );
+
+			// Resize the viewport to the blur texture size.
+			const int oldViewWidth = backEnd.viewParms.viewportWidth;
+			const int oldViewHeight = backEnd.viewParms.viewportHeight;
+			backEnd.viewParms.viewportWidth = tr.glowWidth;
+			backEnd.viewParms.viewportHeight = tr.glowHeight;
+			SetViewportAndScissor();
+
+			// Blur the scene.
+			RB_BlurGlowTexture( qfalse );
+
+			// Copy the finished glow scene back to texture.
+			qglDisable( GL_TEXTURE_2D );
+			qglEnable( GL_TEXTURE_RECTANGLE_ARB );
+			qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
+			R_PostFXCopyFrame( backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+			qglDisable( GL_TEXTURE_RECTANGLE_ARB );
+			qglEnable( GL_TEXTURE_2D );
+
+			// Set the viewport back to normal.
+			backEnd.viewParms.viewportWidth = oldViewWidth;
+			backEnd.viewParms.viewportHeight = oldViewHeight;
+			SetViewportAndScissor();
+			qglClear( GL_COLOR_BUFFER_BIT );
+
+			// Draw the glow additively over the screen.
+			RB_DrawGlowOverlay( qtrue );
+
 		}
-
-		// Copy the glow scene to texture.
-		qglDisable( GL_TEXTURE_2D );
-		qglEnable( GL_TEXTURE_RECTANGLE_ARB );
-		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow );
-		R_PostFXCopyFrame( glConfig.vidWidth, glConfig.vidHeight );
-		qglDisable( GL_TEXTURE_RECTANGLE_ARB );
-		qglEnable( GL_TEXTURE_2D );
-
-		// Resize the viewport to the blur texture size.
-		const int oldViewWidth = backEnd.viewParms.viewportWidth;
-		const int oldViewHeight = backEnd.viewParms.viewportHeight;
-		backEnd.viewParms.viewportWidth = tr.glowWidth;
-		backEnd.viewParms.viewportHeight = tr.glowHeight;
-		SetViewportAndScissor();
-
-		// Blur the scene.
-		RB_BlurGlowTexture();
-
-		// Copy the finished glow scene back to texture.
-		qglDisable( GL_TEXTURE_2D );
-		qglEnable( GL_TEXTURE_RECTANGLE_ARB );
-		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
-		R_PostFXCopyFrame( backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
-		qglDisable( GL_TEXTURE_RECTANGLE_ARB );
-		qglEnable( GL_TEXTURE_2D );
-
-		// Set the viewport back to normal.
-		backEnd.viewParms.viewportWidth = oldViewWidth;
-		backEnd.viewParms.viewportHeight = oldViewHeight;
-		SetViewportAndScissor();
-		qglClear( GL_COLOR_BUFFER_BIT );
-
-		// Draw the glow additively over the screen.
-		RB_DrawGlowOverlay();
 
 		R_GPUTimerEnd( GPU_GLOW );
 	}
@@ -1593,7 +1621,7 @@ void EndPixelShader()
 // reason it acts different on radeon! It's against the spec!).
 extern bool g_bTextureRectangleHack;
 
-static void RB_BlurGlowTexture()
+static void RB_BlurGlowTexture( qboolean offscreen )
 {
 	qglDisable (GL_CLIP_PLANE0);
 	GL_Cull( CT_TWO_SIDED );
@@ -1701,6 +1729,20 @@ static void RB_BlurGlowTexture()
 
 	for ( int iNumBlurPasses = 0; iNumBlurPasses < iBlurPasses; iNumBlurPasses++ )
 	{
+		if ( offscreen ) {
+			// r_fbo: read the previous pass (the glow objects at first),
+			// draw into the other blur target
+			if ( iNumBlurPasses == 1 && !g_bTextureRectangleHack ) {
+				iTexWidth = backEnd.viewParms.viewportWidth;
+				iTexHeight = backEnd.viewParms.viewportHeight;
+			}
+			for ( int unit = 3; unit >= 0; unit-- ) {
+				qglActiveTextureARB( GL_TEXTURE0_ARB + unit );
+				qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, uiTex );
+			}
+			uiTex = R_PostFXGlowBlurTarget( iNumBlurPasses, iBlurPasses );
+		}
+
 		// Load the Texel Offsets into the Vertex Program.
 		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 0, -fTexelWidthOffset, -fTexelWidthOffset, 0.0f, 0.0f );
 		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 1, -fTexelWidthOffset, fTexelWidthOffset, 0.0f, 0.0f );
@@ -1708,7 +1750,7 @@ static void RB_BlurGlowTexture()
 		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 3, fTexelWidthOffset, fTexelWidthOffset, 0.0f, 0.0f );
 
 		// After first pass put the tex coords to the viewport size.
-		if ( iNumBlurPasses == 1 )
+		if ( iNumBlurPasses == 1 && !offscreen )
 		{
 			// OK, very weird, but dependent on which texture rectangle extension we're using, the
 			// texture either needs to be always texure correct or view correct...
@@ -1756,8 +1798,10 @@ static void RB_BlurGlowTexture()
 			qglVertex2f( backEnd.viewParms.viewportWidth, 0 );
 		qglEnd();
 
-		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
-		R_PostFXCopyFrame( backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+		if ( !offscreen ) {
+			qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
+			R_PostFXCopyFrame( backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+		}
 
 		// Increase the texel offsets.
 		// NOTE: This is possibly the most important input to the effect. Even by using an exponential function I've been able to
@@ -1797,7 +1841,7 @@ static void RB_BlurGlowTexture()
 }
 
 // Draw the glow blur over the screen additively.
-static void RB_DrawGlowOverlay()
+static void RB_DrawGlowOverlay( qboolean drawScene )
 {
 	qglDisable (GL_CLIP_PLANE0);
 	GL_Cull( CT_TWO_SIDED );
@@ -1817,8 +1861,8 @@ static void RB_DrawGlowOverlay()
 	qglDisable( GL_TEXTURE_2D );
 	qglEnable( GL_TEXTURE_RECTANGLE_ARB );
 
-	// For debug purposes.
-	if ( r_DynamicGlow->integer != 2 )
+	// For debug purposes. With r_fbo the scene was never covered.
+	if ( drawScene && r_DynamicGlow->integer != 2 )
 	{
 		// Render the normal scene texture.
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage );

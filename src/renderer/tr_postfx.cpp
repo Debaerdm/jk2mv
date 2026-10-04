@@ -9,7 +9,9 @@
 //   r_bloom 1: threshold bloom of the 3D view (not the HUD) through a chain of
 //              downsampled buffers.
 // The color grade (r_colorGrade and co.) also moves to the end of the 3D view,
-// so it no longer tints the HUD.
+// so it no longer tints the HUD. The dynamic glow draws its objects into a
+// target of its own sharing the scene's depth and blurs between two small
+// targets, instead of copying the screen around.
 // Everything is off by default; with r_fbo 1 and no effect the image is the
 // same as without it. Programs are ARB assembly, the level the gamma and glow
 // passes already need, embedded in the code so they also work on pure servers.
@@ -67,6 +69,17 @@ static struct {
 	GLuint			copyProgram;
 	GLuint			toneMapProgram;	// HDR: exposure, bloom and highlight roll-off
 	GLuint			gradeProgram;	// copy through the color grade LUT
+
+	// dynamic glow, created on first use
+	struct {
+		qboolean	tried, ok;
+		GLuint		objectsFbo;		// glowing objects, scene depth; draws into tr.screenGlow
+		GLuint		objectsColor;	// with MSAA: multisampled color, resolved into tr.screenGlow
+		GLuint		resolveFbo;
+		GLuint		blurFbo[2];		// tr.blurImage and blurTexture, ping-pong
+		GLuint		blurTexture;
+		int			width, height;	// glow size they were made for
+	} glow;
 } pfx;
 
 static const char *pfxTapFP =
@@ -179,10 +192,28 @@ static qboolean R_CreateTarget( renderTarget_t *rt, int width, int height, GLenu
 	return (qboolean)( qglCheckFramebufferStatus( GL_FRAMEBUFFER ) == GL_FRAMEBUFFER_COMPLETE );
 }
 
+static void R_DestroyGlowTargets( void ) {
+	GLuint fbos[] = { pfx.glow.objectsFbo, pfx.glow.resolveFbo, pfx.glow.blurFbo[0], pfx.glow.blurFbo[1] };
+
+	for ( size_t i = 0; i < ARRAY_LEN( fbos ); i++ ) {
+		if ( fbos[i] ) {
+			qglDeleteFramebuffers( 1, &fbos[i] );
+		}
+	}
+	if ( pfx.glow.objectsColor ) {
+		qglDeleteRenderbuffers( 1, &pfx.glow.objectsColor );
+	}
+	if ( pfx.glow.blurTexture ) {
+		qglDeleteTextures( 1, &pfx.glow.blurTexture );
+	}
+	Com_Memset( &pfx.glow, 0, sizeof( pfx.glow ) );
+}
+
 static void R_DestroyTargets( void ) {
 	if ( !qglDeleteFramebuffers ) {
 		return;
 	}
+	R_DestroyGlowTargets();
 	if ( pfx.scene.fbo ) {
 		qglDeleteFramebuffers( 1, &pfx.scene.fbo );
 		qglDeleteTextures( 1, &pfx.scene.texture );
@@ -467,6 +498,118 @@ qboolean R_PostFXBindScene( GLenum buffer ) {
 // the frame hasn't reached the window yet
 qboolean R_PostFXPending( void ) {
 	return pfx.drawing;
+}
+
+static qboolean R_FramebufferComplete( void ) {
+	return (qboolean)( qglCheckFramebufferStatus( GL_FRAMEBUFFER ) == GL_FRAMEBUFFER_COMPLETE );
+}
+
+// render targets of the dynamic glow, on the glow images (R_BindGlowImages)
+static qboolean R_CreateGlowTargets( void ) {
+	const GLuint depth = pfx.samples ? pfx.msaaDepth : pfx.sceneDepth;
+
+	pfx.glow.width = tr.glowWidth;
+	pfx.glow.height = tr.glowHeight;
+
+	qglGenFramebuffers( 1, &pfx.glow.objectsFbo );
+	qglBindFramebuffer( GL_FRAMEBUFFER, pfx.glow.objectsFbo );
+	if ( pfx.samples ) {
+		qglGenRenderbuffers( 1, &pfx.glow.objectsColor );
+		qglBindRenderbuffer( GL_RENDERBUFFER, pfx.glow.objectsColor );
+		qglRenderbufferStorageMultisample( GL_RENDERBUFFER, pfx.samples, GL_RGBA16, pfx.width, pfx.height );
+		qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, pfx.glow.objectsColor );
+	} else {
+		qglFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow, 0 );
+	}
+	qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depth );
+	if ( !R_FramebufferComplete() ) {
+		return qfalse;
+	}
+	if ( pfx.samples ) {
+		qglGenFramebuffers( 1, &pfx.glow.resolveFbo );
+		qglBindFramebuffer( GL_FRAMEBUFFER, pfx.glow.resolveFbo );
+		qglFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow, 0 );
+		if ( !R_FramebufferComplete() ) {
+			return qfalse;
+		}
+	}
+
+	pfx.glow.blurTexture = R_AllocTextureName();
+	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.glow.blurTexture );
+	qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16, tr.glowWidth, tr.glowHeight, 0, GL_RGBA, GL_UNSIGNED_SHORT, NULL );
+	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+
+	const GLuint blurTextures[2] = { tr.blurImage, pfx.glow.blurTexture };
+	for ( int i = 0; i < 2; i++ ) {
+		qglGenFramebuffers( 1, &pfx.glow.blurFbo[i] );
+		qglBindFramebuffer( GL_FRAMEBUFFER, pfx.glow.blurFbo[i] );
+		qglFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, blurTextures[i], 0 );
+		if ( !R_FramebufferComplete() ) {
+			return qfalse;
+		}
+	}
+	return qtrue;
+}
+
+/*
+==================
+R_PostFXGlowBegin
+
+Dynamic glow with r_fbo (RB_DrawSurfs): binds the glow objects' target,
+which shares the scene depth, cleared. Returns qfalse for the classic path
+with copies (not drawing offscreen, or the targets can't be made).
+==================
+*/
+qboolean R_PostFXGlowBegin( void ) {
+	if ( !pfx.drawing ) {
+		return qfalse;
+	}
+	if ( pfx.glow.tried && ( pfx.glow.width != tr.glowWidth || pfx.glow.height != tr.glowHeight ) ) {
+		R_DestroyGlowTargets();		// glow size changed
+	}
+	if ( !pfx.glow.tried ) {
+		pfx.glow.tried = qtrue;
+		pfx.glow.ok = R_CreateGlowTargets();
+		if ( !pfx.glow.ok ) {
+			ri.Printf( PRINT_WARNING, "r_fbo: couldn't create the glow targets, using copies\n" );
+		}
+	}
+	if ( !pfx.glow.ok ) {
+		qglBindFramebuffer( GL_FRAMEBUFFER, pfx.samples ? pfx.msaaFbo : pfx.scene.fbo );
+		return qfalse;
+	}
+	qglBindFramebuffer( GL_FRAMEBUFFER, pfx.glow.objectsFbo );
+	qglClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
+	qglClear( GL_COLOR_BUFFER_BIT );
+	return qtrue;
+}
+
+// glowing objects drawn: resolve them into tr.screenGlow with MSAA
+void R_PostFXGlowObjectsDone( void ) {
+	if ( pfx.samples ) {
+		qglBindFramebuffer( GL_READ_FRAMEBUFFER, pfx.glow.objectsFbo );
+		qglBindFramebuffer( GL_DRAW_FRAMEBUFFER, pfx.glow.resolveFbo );
+		qglBlitFramebuffer( 0, 0, pfx.width, pfx.height, 0, 0, pfx.width, pfx.height, GL_COLOR_BUFFER_BIT, GL_NEAREST );
+	}
+}
+
+// binds the target of a blur pass, chosen so the last pass ends in
+// tr.blurImage, and returns its texture, the source of the next pass
+GLuint R_PostFXGlowBlurTarget( int pass, int passes ) {
+	const int target = ( passes - 1 - pass ) & 1;	// 0: tr.blurImage
+
+	qglBindFramebuffer( GL_FRAMEBUFFER, pfx.glow.blurFbo[target] );
+	qglViewport( 0, 0, tr.glowWidth, tr.glowHeight );
+	qglScissor( 0, 0, tr.glowWidth, tr.glowHeight );
+	return target ? pfx.glow.blurTexture : tr.blurImage;
+}
+
+// back to the scene for the glow overlay
+void R_PostFXGlowEnd( void ) {
+	qglBindFramebuffer( GL_FRAMEBUFFER, pfx.samples ? pfx.msaaFbo : pfx.scene.fbo );
 }
 
 // copies the multisampled image into the scene texture
