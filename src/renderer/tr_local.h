@@ -1154,6 +1154,9 @@ typedef struct {
 	GLuint gammaLUTImage;
 	GLuint gammaLUTClassicImage;	// ungraded LUT for the left half of r_colorGradeSplit
 	qboolean gammaLUTSplit;
+	GLuint gradeLUTImage;			// r_fbo: color grade of the 3D view, before gamma
+	qboolean gradeInView;			// the grade goes on the 3D view, not in the gamma LUT
+	qboolean gradeSplit;			// r_colorGradeSplit on the 3D view
 
 	int						glowWidth, glowHeight;	// dynamic glow buffer size
 	float					glowRadiusScale;		// keeps the blur radius on screen with the automatic size
@@ -1494,6 +1497,7 @@ void		R_InitPostFX( void );
 void		R_ShutdownPostFX( void );
 void		R_ResizePostFX( void );
 GLenum		R_PostFXSceneFormat( void );
+qboolean	R_PostFXGradesView( void );
 qboolean	R_PostFXBindScene( GLenum buffer );
 qboolean	R_PostFXPending( void );
 void		R_PostFXCopyFrame( int width, int height );

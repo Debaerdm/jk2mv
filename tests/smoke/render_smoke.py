@@ -11,6 +11,8 @@ driver and software OpenGL, and checks the screenshots:
   - every effect at once with MSAA runs without a GL error
   - per-pixel dynamic lights (r_dlightMode 1) light the wall and floor near
     the light without the classic vertical smear above it
+  - with r_fbo the color grade tints the 3D view as before but no longer the
+    console drawn over it
 
 usage: render_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
@@ -40,6 +42,13 @@ RUNS = {
     'all': ['+set', 'r_fbo', '1', '+set', 'r_hdr', '1', '+set', 'r_bloom', '1', '+set', 'r_DynamicGlow', '1',
             '+set', 'r_ext_multisample', '4'],
 }
+# with the console open over the bottom of the view
+CONSOLE = ['+toggleconsole', '+wait', '40']
+GRADE_RUNS = {
+    'console': [],
+    'noir_classic': ['+set', 'r_colorGrade', 'noir'],
+    'noir_view': ['+set', 'r_colorGrade', 'noir', '+set', 'r_fbo', '1'],
+}
 DLIGHT_RUNS = {
     'nodlight': (['+testscene', 'ci_box', '200', '0', '96', '0', '0'], []),
     'dlight_classic': (DLIGHT_SCENE, ['+set', 'r_dlightMode', '0']),
@@ -55,6 +64,9 @@ FLOOR = (100, 400, 540, 470)
 WALL_AT_LIGHT = (312, 274, 328, 288)
 WALL_ABOVE_LIGHT = (312, 6, 328, 22)
 FLOOR_UNDER_LIGHT = (300, 440, 340, 470)
+# with the console open: its background, and the view under it
+CONSOLE_BACK = (100, 60, 540, 200)
+VIEW_UNDER_CONSOLE = (100, 400, 540, 470)
 
 
 class Shot:
@@ -89,7 +101,7 @@ def compare(a, b):
     return differing, largest
 
 
-def run(client, work, name, args, scene=SCENE):
+def run(client, work, name, args, scene=SCENE, after=()):
     env = dict(os.environ, SDL_VIDEODRIVER='offscreen', LIBGL_ALWAYS_SOFTWARE='1')
     for cfg in ('jk2mvconfig.cfg', 'jk2mvglobal.cfg'):   # archived r_ settings of the previous run
         path = os.path.join(work, 'base', cfg)
@@ -99,7 +111,7 @@ def run(client, work, name, args, scene=SCENE):
            '+set', 'r_allowsoftwaregl', '1', '+set', 'r_fullscreen', '0', '+set', 'r_mode', '3',
            '+set', 's_initsound', '0', '+set', 'com_introplayed', '1', '+set', 'con_notifytime', '0',
            '+set', 'r_ignoreGLErrors', '0'] + args + \
-          ['+wait', '60'] + scene + ['+wait', '30', '+screenshot_tga', 'render_' + name, '+wait', '5', '+quit']
+          ['+wait', '60'] + scene + ['+wait', '30'] + list(after) + [ '+screenshot_tga', 'render_' + name, '+wait', '5', '+quit']
     try:
         proc = subprocess.run(cmd, cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               timeout=180)
@@ -135,10 +147,11 @@ def main():
         shutil.copy(lib, work)
 
     shots, errors, last_log = {}, [], ''
-    runs = [(name, args, SCENE) for name, args in RUNS.items()]
-    runs += [(name, args, scene) for name, (scene, args) in DLIGHT_RUNS.items()]
-    for name, args, scene in runs:
-        shot, errs, log = run(client, work, name, args, scene)
+    runs = [(name, args, SCENE, ()) for name, args in RUNS.items()]
+    runs += [(name, args, scene, ()) for name, (scene, args) in DLIGHT_RUNS.items()]
+    runs += [(name, args, SCENE, CONSOLE) for name, args in GRADE_RUNS.items()]
+    for name, args, scene, after in runs:
+        shot, errs, log = run(client, work, name, args, scene, after)
         errors += errs
         if errs:
             last_log = log
@@ -188,11 +201,24 @@ def main():
         check(gain('dlight_classic', WALL_ABOVE_LIGHT) >= 10, 'the classic light no longer smears (test scene changed?)')
         check(gain('dlight_pixel', WALL_ABOVE_LIGHT) <= 2, 'the per-pixel light reaches past its radius')
 
+        plain, graded, view = shots['console'], shots['noir_classic'], shots['noir_view']
+        print('console background: plain %s, noir %s, noir with r_fbo %s' % (
+            [round(c) for c in plain.mean(CONSOLE_BACK)], [round(c) for c in graded.mean(CONSOLE_BACK)],
+            [round(c) for c in view.mean(CONSOLE_BACK)]))
+        check(max(abs(p - q) for p, q in zip(view.mean(CONSOLE_BACK), plain.mean(CONSOLE_BACK))) <= 1,
+              'with r_fbo the grade still tints the console')
+        check(max(abs(p - q) for p, q in zip(graded.mean(CONSOLE_BACK), plain.mean(CONSOLE_BACK))) >= 5,
+              'noir does not change the console without r_fbo (test no longer meaningful)')
+        view_floor, graded_floor = view.mean(VIEW_UNDER_CONSOLE), graded.mean(VIEW_UNDER_CONSOLE)
+        check(max(abs(p - q) for p, q in zip(view_floor, graded_floor)) <= 3,
+              'the graded view differs with r_fbo: %s vs %s' % (view_floor, graded_floor))
+        check(max(view_floor) - min(view_floor) <= 2, 'noir left color in the view: %s' % view_floor)
+
     if errors:
         print('\n'.join(last_log.splitlines()[-60:]))
         print('render smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
-    print('render smoke test passed: offscreen path identical, bloom, HDR and per-pixel lights visible, no GL error')
+    print('render smoke test passed: offscreen path identical, bloom, HDR, per-pixel lights and view grading work, no GL error')
 
 
 if __name__ == '__main__':

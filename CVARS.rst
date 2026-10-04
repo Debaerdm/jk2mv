@@ -364,7 +364,8 @@ Client-Side
 :Description:
    Color mood applied by the post-process gamma pass (``r_gammamethod 2``) at
    no runtime cost. ``r_saturation``, ``r_contrast`` and ``r_vibrance``
-   adjust it further, or work on their own.
+   adjust it further, or work on their own. With ``r_fbo 1`` it is applied
+   to the 3D view only, so the HUD, menus and console keep their colors.
 
 ..
 

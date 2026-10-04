@@ -8,6 +8,8 @@
 //              rolls highlights off smoothly instead of clipping them.
 //   r_bloom 1: threshold bloom of the 3D view (not the HUD) through a chain of
 //              downsampled buffers.
+// The color grade (r_colorGrade and co.) also moves to the end of the 3D view,
+// so it no longer tints the HUD.
 // Everything is off by default; with r_fbo 1 and no effect the image is the
 // same as without it. Programs are ARB assembly, the level the gamma and glow
 // passes already need, embedded in the code so they also work on pure servers.
@@ -48,6 +50,7 @@ static struct {
 	qboolean		active;			// r_fbo and everything created
 	qboolean		hdr;
 	qboolean		bloom;
+	qboolean		floatTextures;	// for the post target, whatever r_hdr
 	qboolean		drawing;		// the frame goes to the offscreen target
 	int				width, height;
 	int				samples;
@@ -58,11 +61,12 @@ static struct {
 	GLuint			msaaColor, msaaDepth;
 	GLuint			sceneDepth;
 	renderTarget_t	blur[BLOOM_LEVELS];	// bloom chain, half size and down
-	renderTarget_t	post;			// HDR: tone mapped view, copied back
+	renderTarget_t	post;			// the view composited (HDR, bloom), copied back through the grade
 
 	GLuint			tapProgram;		// 4 bilinear taps, threshold, scale
 	GLuint			copyProgram;
 	GLuint			toneMapProgram;	// HDR: exposure, bloom and highlight roll-off
+	GLuint			gradeProgram;	// copy through the color grade LUT
 } pfx;
 
 static const char *pfxTapFP =
@@ -94,6 +98,17 @@ static const char *pfxTapFP =
 static const char *pfxCopyFP =
 	"!!ARBfp1.0\n"
 	"TEX result.color, fragment.texcoord[0], texture[0], RECT;\n"
+	"END\n";
+
+// 64^3 LUT, sampled at texel centers so it is exact on its entries
+static const char *pfxGradeFP =
+	"!!ARBfp1.0\n"
+	"PARAM lut = { 0.984375, 0.0078125, 0, 0 };\n"	// 63/64, 0.5/64
+	"TEMP c, t;\n"
+	"TEX c, fragment.texcoord[0], texture[0], RECT;\n"
+	"MAD_SAT t.xyz, c, lut.x, lut.y;\n"
+	"TEX result.color.xyz, t, texture[1], 3D;\n"
+	"MOV result.color.w, c.w;\n"
 	"END\n";
 
 // Scene times exposure plus bloom, then the highlights: x below the knee is
@@ -244,9 +259,16 @@ static qboolean R_CreateTargetsFormat( GLenum format ) {
 			}
 		}
 	}
-	// tone mapped values fit in 8 bits
-	if ( pfx.hdr && !R_CreateTarget( &pfx.post, pfx.width, pfx.height, GL_RGBA8, 0 ) ) {
-		return qfalse;
+	// 16 bits when possible: the grade gets stored again after it
+	if ( !( pfx.floatTextures && R_CreateTarget( &pfx.post, pfx.width, pfx.height, GL_RGBA16F, 0 ) ) ) {
+		if ( pfx.post.fbo ) {
+			qglDeleteFramebuffers( 1, &pfx.post.fbo );
+			qglDeleteTextures( 1, &pfx.post.texture );
+			Com_Memset( &pfx.post, 0, sizeof( pfx.post ) );
+		}
+		if ( !R_CreateTarget( &pfx.post, pfx.width, pfx.height, GL_RGBA8, 0 ) ) {
+			return qfalse;
+		}
 	}
 	return qtrue;
 }
@@ -331,7 +353,8 @@ void R_InitPostFX( void ) {
 	}
 	pfx.available = qtrue;
 
-	pfx.hdr = (qboolean)( r_hdr->integer && ( GL_CheckForExtension( "GL_ARB_texture_float" ) || GL_CheckForExtension( "GL_ARB_half_float_pixel" ) ) );
+	pfx.floatTextures = (qboolean)( GL_CheckForExtension( "GL_ARB_texture_float" ) || GL_CheckForExtension( "GL_ARB_half_float_pixel" ) );
+	pfx.hdr = (qboolean)( r_hdr->integer && pfx.floatTextures );
 	if ( r_hdr->integer && !pfx.hdr ) {
 		ri.Printf( PRINT_WARNING, "r_hdr: float textures are not supported\n" );
 	}
@@ -340,7 +363,8 @@ void R_InitPostFX( void ) {
 	pfx.tapProgram = R_PostFXProgram( pfxTapFP );
 	pfx.copyProgram = R_PostFXProgram( pfxCopyFP );
 	pfx.toneMapProgram = R_PostFXProgram( pfxToneMapFP );
-	if ( !pfx.tapProgram || !pfx.copyProgram || !pfx.toneMapProgram ) {
+	pfx.gradeProgram = R_PostFXProgram( pfxGradeFP );
+	if ( !pfx.tapProgram || !pfx.copyProgram || !pfx.toneMapProgram || !pfx.gradeProgram ) {
 		pfx.bloom = qfalse;
 		pfx.hdr = qfalse;
 	}
@@ -370,6 +394,8 @@ void R_InitPostFX( void ) {
 		// the glow pass copies the scene into sceneImage and draws it back
 		R_UpdateImages();
 	}
+	// the color grade moves from the gamma LUT to the end of the view
+	R_SetColorMappings();
 	ri.Printf( PRINT_ALL, "...rendering offscreen (%ix%i%s%s%s)\n", pfx.width, pfx.height,
 		pfx.samples ? va( ", MSAA %ix", pfx.samples ) : "", pfx.hdr ? ", HDR" : "", pfx.bloom ? ", bloom" : "" );
 }
@@ -380,7 +406,7 @@ void R_ShutdownPostFX( void ) {
 	}
 	qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	R_DestroyTargets();
-	const GLuint programs[] = { pfx.tapProgram, pfx.copyProgram, pfx.toneMapProgram };
+	const GLuint programs[] = { pfx.tapProgram, pfx.copyProgram, pfx.toneMapProgram, pfx.gradeProgram };
 	for ( size_t i = 0; i < ARRAY_LEN( programs ); i++ ) {
 		if ( programs[i] ) {
 			qglDeleteProgramsARB( 1, &programs[i] );
@@ -400,8 +426,17 @@ void R_ResizePostFX( void ) {
 		ri.Printf( PRINT_WARNING, "r_fbo: couldn't resize the render targets, rendering to the window\n" );
 		R_DestroyTargets();
 		pfx.active = qfalse;
+		qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
+		// the grade goes back into the gamma LUT
+		R_SetColorMappings();
+		return;
 	}
 	qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
+}
+
+// the color grade is applied at the end of the 3D view (R_SetColorMappings)
+qboolean R_PostFXGradesView( void ) {
+	return pfx.active;
 }
 
 // format of tr.sceneImage, which the glow pass fills with copies of the scene
@@ -576,17 +611,20 @@ static float R_PostFXWhite( void ) {
 R_PostFXEndView
 
 End of the main 3D view (RB_DrawSurfs), before the HUD is drawn over it:
-bloom, and in HDR the tone mapping of the view, which can't be done in place
-so it goes through the post target.
+bloom, the HDR tone mapping and the color grade. Except for a plain bloom,
+the view is composited into the post target (it can't be read and written
+in place) and copied back through the grade.
 ==================
 */
 void R_PostFXEndView( int x, int y, int w, int h ) {
 	// r_bloom 2 blooms the whole frame at present time instead (debugging)
 	const qboolean bloom = (qboolean)( pfx.bloom && r_bloom->integer != 2 );
+	const qboolean grade = (qboolean)( tr.gradeInView && tr.gradeLUTImage );
 	const float white = R_PostFXWhite();
+	const GLuint target = pfx.samples ? pfx.msaaFbo : pfx.scene.fbo;
 	int bloomW = 0, bloomH = 0;
 
-	if ( !pfx.drawing || ( !bloom && !pfx.hdr ) || w <= 0 || h <= 0 ) {
+	if ( !pfx.drawing || ( !bloom && !pfx.hdr && !grade ) || w <= 0 || h <= 0 ) {
 		return;
 	}
 
@@ -596,22 +634,28 @@ void R_PostFXEndView( int x, int y, int w, int h ) {
 		R_BloomChain( x, y, w, h, Com_Clamp( 0.0f, 1.0f, r_bloomThreshold->value ) * white, &bloomW, &bloomH );
 	}
 
-	if ( !pfx.hdr ) {
+	if ( !pfx.hdr && !grade ) {
 		R_AddBloom( x, y, w, h, bloomW, bloomH );
 		R_EndPasses();
 		return;
 	}
 
-	const float knee = white * 0.8f;
-	const float range = white - knee;
-
+	// scene (times the exposure in HDR) plus bloom, highlights rolled off
+	// in HDR; without HDR the knee is out of reach
 	R_SetTarget( pfx.post.fbo, x, y, w, h );
 	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.toneMapProgram );
-	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 0, knee, range, 1.4426950f / range,
-		Com_Clamp( 0.25f, 4.0f, r_exposure->value ) );
+	if ( pfx.hdr ) {
+		const float knee = white * 0.8f;
+		const float range = white - knee;
+
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 0, knee, range, 1.4426950f / range,
+			Com_Clamp( 0.25f, 4.0f, r_exposure->value ) );
+	} else {
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 0, 1.0e6f, 1.0f, 1.0f, 1.0f );
+	}
 	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 1,
 		bloom ? Com_Clamp( 0.0f, 4.0f, r_bloomIntensity->value ) / BLOOM_LEVELS : 0.0f, 0.0f, 0.0f, 0.0f );
-	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, x, y, bloomW / (float)w, bloomH / (float)h );
+	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, x, y, bloom ? bloomW / (float)w : 0.0f, bloom ? bloomH / (float)h : 0.0f );
 	GL_SelectTexture( 1 );
 	qglEnable( GL_TEXTURE_RECTANGLE_ARB );
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, bloom ? pfx.blur[0].texture : pfx.scene.texture );
@@ -620,12 +664,21 @@ void R_PostFXEndView( int x, int y, int w, int h ) {
 	R_DrawQuad( x, y, x + w, y + h );
 	GL_SelectTexture( 1 );
 	qglDisable( GL_TEXTURE_RECTANGLE_ARB );
-	GL_SelectTexture( 0 );
 
-	R_SetTarget( pfx.samples ? pfx.msaaFbo : pfx.scene.fbo, x, y, w, h );
-	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.copyProgram );
+	// back into the scene, through the grade (r_colorGradeSplit: right half)
+	const int split = grade && tr.gradeSplit ? w / 2 : 0;
+
+	qglBindTexture( GL_TEXTURE_3D, grade ? tr.gradeLUTImage : 0 );
+	GL_SelectTexture( 0 );
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.post.texture );
-	R_DrawQuad( x, y, x + w, y + h );
+	if ( split ) {
+		R_SetTarget( target, x, y, split, h );
+		qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.copyProgram );
+		R_DrawQuad( x, y, x + split, y + h );
+	}
+	R_SetTarget( target, x + split, y, w - split, h );
+	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, grade ? pfx.gradeProgram : pfx.copyProgram );
+	R_DrawQuad( x + split, y, x + w, y + h );
 	R_EndPasses();
 }
 

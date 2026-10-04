@@ -1433,8 +1433,9 @@ const void *RB_GammaCorrection( const void *data )
 	qglDisable(GL_TEXTURE_3D);
 	GL_SelectTexture(0);
 
-	if (tr.gammaLUTSplit) {
-		// divider line between the two halves
+	if (tr.gammaLUTSplit || tr.gradeSplit) {
+		// divider line between the two halves (with r_fbo the grade was
+		// applied to the right half of the 3D view)
 		qglScissor(glConfig.vidWidth / 2 - 1, 0, 2, glConfig.vidHeight);
 		qglClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 		qglClear(GL_COLOR_BUFFER_BIT);

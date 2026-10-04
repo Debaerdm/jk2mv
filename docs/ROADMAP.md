@@ -136,6 +136,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 - **VQ-5 et VQ-6 sont livrés :** `r_fbo`, `r_hdr`, `r_bloom`, `r_exposure` (src/renderer/tr_postfx.cpp), dans les presets `ultra` et `movie`.
 - **`r_fbo 1` :** il supprime la copie plein écran de la passe gamma. Le glow garde encore ses copies, qui restent à porter sur des FBO.
 - **RB-9 est livré :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie.
+- **VQ-2b est livré :** avec `r_fbo 1`, l'étalonnage passe dans une table 3D appliquée à la fin de la vue 3D, avant le HUD. La passe gamma garde la table classique.
 - **Tonemapping :** c'est une épaule exponentielle au-dessus de 0,8 × blanc, appliquée à la fin de la vue 3D, avant le HUD. Je l'ai préférée à ACES pour que l'image d'origine reste intacte sous le genou.
 - **Banc d'essai sans assets :** la commande `testscene` et la salle de test de ci_box. Le test CI `smoke_render` vérifie :
   - `r_fbo 1` identique au pixel près, avec et sans glow ;

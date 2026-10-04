@@ -1490,6 +1490,10 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	if (tr.gammaLUTClassicImage) {
 		qglDeleteTextures(1, &tr.gammaLUTClassicImage);
 	}
+
+	if (tr.gradeLUTImage) {
+		qglDeleteTextures(1, &tr.gradeLUTImage);
+	}
 	// --------
 
 	R_ShutdownFonts();
