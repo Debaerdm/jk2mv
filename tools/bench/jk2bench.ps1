@@ -22,6 +22,8 @@
 
   Demo files go to <HomePath>\base\demos\ (bench_ffa.dm_16, ...).
   Copy assets0/1/2/5.pk3 into the base folder next to jk2mvmp.exe first.
+  The same arguments work through powershell -File (from cmd.exe or a
+  shortcut), lists included: -Demos bench_ffa,bench_duel -Presets cpu,gpu.
 #>
 param(
     [Parameter(Mandatory = $true)] [string] $Exe,
@@ -36,18 +38,6 @@ param(
 $ErrorActionPreference = "Stop"
 $inv = [Globalization.CultureInfo]::InvariantCulture
 
-# absolute paths: the game runs from its own folder
-$Exe = (Resolve-Path $Exe).ProviderPath
-New-Item -ItemType Directory -Force $HomePath | Out-Null
-$HomePath = (Resolve-Path $HomePath).ProviderPath
-$Csv = [IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $Csv))
-# powershell -File passes "-Demos a,b" as one string
-$Demos = @($Demos | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-foreach ($demo in $Demos) {
-    $base = Join-Path $HomePath "base\demos\$demo"
-    if (-not ((Test-Path "$base.dm_15") -or (Test-Path "$base.dm_16"))) { throw "no demo $base.dm_15 or .dm_16" }
-}
-
 # +set arguments for each measurement preset
 $PresetArgs = @{
     # small resolution: the CPU side dominates
@@ -58,16 +48,42 @@ $PresetArgs = @{
     "gpu"     = "+set r_mode -1 +set r_customwidth 3840 +set r_customheight 2160 +set r_ext_multisample 4 +set r_ext_texture_filter_anisotropic 16 +set r_DynamicGlow 1"
 }
 
+# powershell -File passes "-Demos a,b" and "-Presets a,b" as one string each
+$Demos = @($Demos | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$Presets = @($Presets | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+# checked before anything is launched or the CSV is overwritten
+foreach ($preset in $Presets) {
+    if (-not $PresetArgs.ContainsKey($preset)) { throw "unknown preset $preset (cpu, classic or gpu)" }
+}
+
+# absolute paths: the game runs from its own folder
+$Exe = (Resolve-Path $Exe).ProviderPath
+New-Item -ItemType Directory -Force $HomePath | Out-Null
+# without the trailing '\' that tab completion adds ('.\home\'), except at a
+# drive root: see ConvertTo-Argument
+$HomePath = (Resolve-Path $HomePath).ProviderPath -replace '(?<=[^:\\])\\+$', ''
+# relative to the current location, absolute and UNC paths kept as they are
+$Csv = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Csv)
+foreach ($demo in $Demos) {
+    $base = Join-Path $HomePath "base\demos\$demo"
+    if (-not ((Test-Path "$base.dm_15") -or (Test-Path "$base.dm_16"))) { throw "no demo $base.dm_15 or .dm_16" }
+}
+
+# one argument of the game's command line, quoted if it has spaces. SDL's
+# WinMain, which splits it, reads every '\"' as an escaped quote, so a quoted
+# argument must not end in '\': '"C:\home\"' swallows the rest of the line.
+function ConvertTo-Argument([string] $s) { if ($s -match '\s') { "`"$s`"" } else { $s } }
+
 $log = Join-Path $HomePath "base\qconsole.log"
 $configs = @("jk2mvconfig.cfg", "jk2mvglobal.cfg") | ForEach-Object { Join-Path $HomePath "base\$_" }
-$common = "+set fs_homepath `"$HomePath`" +set logfile 2 +set r_fullscreen 1 +set r_swapInterval 0 +set com_maxfps 0 +set s_initsound 0"
+$common = "+set fs_homepath $(ConvertTo-Argument $HomePath) +set logfile 2 +set r_fullscreen 1 +set r_swapInterval 0 +set com_maxfps 0 +set s_initsound 0"
 $results = @()
 
 function Invoke-Run([string] $preset, [string] $demo) {
     if (Test-Path $log) { Remove-Item $log }
     # settings archived by the previous run would leak into this one
     foreach ($cfg in $configs) { if (Test-Path $cfg) { Remove-Item $cfg } }
-    $arguments = "$common $($PresetArgs[$preset]) +set timedemo 1 +set nextdemo quit +demo $demo"
+    $arguments = "$common $($PresetArgs[$preset]) +set timedemo 1 +set nextdemo quit +demo $(ConvertTo-Argument $demo)"
     $p = Start-Process -FilePath $Exe -ArgumentList $arguments -WorkingDirectory (Split-Path $Exe) -PassThru
     # a demo that fails to load leaves the game in the menu
     if (-not $p.WaitForExit($TimeoutSec * 1000)) {
@@ -96,7 +112,6 @@ function Add-CsvRow($r) {
 }
 
 foreach ($preset in $Presets) {
-    if (-not $PresetArgs.ContainsKey($preset)) { throw "unknown preset $preset" }
     foreach ($demo in $Demos) {
         Write-Host "== $preset / $demo : warm-up"
         Invoke-Run $preset $demo | Out-Null
