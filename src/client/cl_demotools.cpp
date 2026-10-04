@@ -6,6 +6,7 @@
 
 #include "client.h"
 #include "cl_campath.h"
+#include <cmath>
 
 extern console_t con;
 
@@ -40,8 +41,29 @@ static struct {
 	qboolean	photo;
 	int			photoHideHud;
 	float		photoTimescale;
+	float		photoPausedTimescale;
 	qboolean	photoFreecam;
+	qboolean	photoPlaying;
 } dt;
+
+/*
+==================
+CL_DemoToolsReset
+
+From CL_Disconnect, so a demo never starts with the camera, the photo mode
+or the timeline of the previous one. The camera keys stay.
+==================
+*/
+void CL_DemoToolsReset( void ) {
+	if ( dt.photo ) {
+		Cvar_Set( "cl_demoHideHud", va( "%i", dt.photoHideHud ) );
+	}
+	dt.freecam = dt.playing = dt.photo = qfalse;
+	dt.startServerTime = 0;
+	dt.haveView = qfalse;
+	dt.lastFrameUsec = 0;
+	dt.pausedTimescale = 0.0f;
+}
 
 static qboolean CL_DemoToolsCheck( void ) {
 	if ( !clc.demoplaying ) {
@@ -141,6 +163,8 @@ static void CL_DemoCamStartFromView( void ) {
 	}
 	dt.fov = 0.0f;
 	dt.lastFrameUsec = 0;
+	// level, whatever bob or damage roll the recorded view had
+	dt.angles[ROLL] = 0.0f;
 	// mouse look continues from the camera angles
 	VectorCopy( dt.angles, cl.viewangles );
 }
@@ -194,6 +218,9 @@ static void CL_CamAdd_f( void ) {
 static void CL_CamDel_f( void ) {
 	int i;
 
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
 	if ( !dt.numKeys ) {
 		Com_Printf( "no camera keys\n" );
 		return;
@@ -219,6 +246,9 @@ static void CL_CamDel_f( void ) {
 }
 
 static void CL_CamClear_f( void ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
 	dt.numKeys = 0;
 	dt.playing = qfalse;
 	Com_Printf( "camera path cleared\n" );
@@ -262,7 +292,7 @@ static void CL_CamSave_f( void ) {
 	char			path[MAX_QPATH];
 	fileHandle_t	f;
 
-	if ( !CL_CamPathName( path, sizeof( path ) ) ) {
+	if ( !CL_DemoToolsCheck() || !CL_CamPathName( path, sizeof( path ) ) ) {
 		return;
 	}
 	f = FS_FOpenFileWrite( path );
@@ -280,13 +310,36 @@ static void CL_CamSave_f( void ) {
 	Com_Printf( "wrote %i camera keys to %s\n", dt.numKeys, path );
 }
 
+// one "time x y z pitch yaw roll fov speed" line of a .cam file
+static qboolean CL_CamParseKey( const char *line, camKey_t *k ) {
+	int	used = 0;
+
+	if ( sscanf( line, "%d %f %f %f %f %f %f %f %f %n", &k->time, &k->origin[0], &k->origin[1], &k->origin[2],
+		&k->angles[0], &k->angles[1], &k->angles[2], &k->fov, &k->timescale, &used ) != 9 || line[used] ) {
+		return qfalse;
+	}
+	for ( int i = 0; i < 3; i++ ) {
+		if ( !std::isfinite( k->origin[i] ) || !std::isfinite( k->angles[i] ) ) {
+			return qfalse;
+		}
+	}
+	if ( !std::isfinite( k->fov ) || !std::isfinite( k->timescale ) ) {
+		return qfalse;
+	}
+	// 0 keeps the game's fov; speeds in the demo_speed range
+	k->fov = k->fov <= 0.0f ? 0.0f : Com_Clamp( 1.0f, 179.0f, k->fov );
+	k->timescale = Com_Clamp( 0.05f, 16.0f, k->timescale );
+	return qtrue;
+}
+
 static void CL_CamLoad_f( void ) {
 	char		path[MAX_QPATH];
 	char		*buffer;
 	const char	*p;
-	int			n = 0;
+	int			n = 0, bad = 0;
+	qboolean	header = qtrue;
 
-	if ( !CL_CamPathName( path, sizeof( path ) ) ) {
+	if ( !CL_DemoToolsCheck() || !CL_CamPathName( path, sizeof( path ) ) ) {
 		return;
 	}
 	if ( FS_ReadFile( path, (void **)&buffer ) < 0 || !buffer ) {
@@ -294,31 +347,50 @@ static void CL_CamLoad_f( void ) {
 		return;
 	}
 
-	p = buffer;
-	if ( strncmp( p, "jk2mvcam 1", 10 ) ) {
-		Com_Printf( "%s is not a camera path\n", path );
-		FS_FreeFile( buffer );
-		return;
-	}
-	p = strchr( p, '\n' );
-	while ( p && *p && n < MAX_CAM_KEYS ) {
-		camKey_t k;
+	// line by line: a short line must not borrow numbers from the next one
+	for ( p = buffer; *p && n < MAX_CAM_KEYS; ) {
+		char		line[256];
+		const char	*eol = strchr( p, '\n' );
+		size_t		len = eol ? (size_t)( eol - p ) : strlen( p );
+		camKey_t	k;
 
-		if ( sscanf( p, "%i %f %f %f %f %f %f %f %f", &k.time, &k.origin[0], &k.origin[1], &k.origin[2],
-			&k.angles[0], &k.angles[1], &k.angles[2], &k.fov, &k.timescale ) == 9 ) {
-			n = CamPath_Insert( dt.keys, n, MAX_CAM_KEYS, &k );
-			if ( n < 0 ) {
-				n = MAX_CAM_KEYS;
-				break;
-			}
+		Q_strncpyz( line, p, (int)MIN( len + 1, sizeof( line ) ) );
+		len = strlen( line );
+		while ( len && ( line[len - 1] == '\r' || line[len - 1] == ' ' || line[len - 1] == '\t' ) ) {
+			line[--len] = 0;
 		}
-		p = strchr( p + 1, '\n' );
+		p = eol ? eol + 1 : p + strlen( p );
+
+		if ( header ) {
+			if ( strcmp( line, "jk2mvcam 1" ) ) {
+				Com_Printf( "%s is not a camera path\n", path );
+				FS_FreeFile( buffer );
+				return;
+			}
+			header = qfalse;
+			continue;
+		}
+		if ( !line[0] ) {
+			continue;
+		}
+		if ( !CL_CamParseKey( line, &k ) ) {
+			bad++;
+			continue;
+		}
+		n = CamPath_Insert( dt.keys, n, MAX_CAM_KEYS, &k );
+		if ( n < 0 ) {
+			n = MAX_CAM_KEYS;
+			break;
+		}
 	}
 	FS_FreeFile( buffer );
 
 	dt.numKeys = n;
 	dt.playing = qfalse;
 	Com_Printf( "loaded %i camera keys from %s\n", dt.numKeys, path );
+	if ( bad ) {
+		Com_Printf( S_COLOR_YELLOW "skipped %i malformed lines\n", bad );
+	}
 }
 
 /*
@@ -336,7 +408,9 @@ static void CL_PhotoMode_f( void ) {
 		dt.photo = qtrue;
 		dt.photoHideHud = cl_demoHideHud->integer;
 		dt.photoTimescale = CL_Timescale();
+		dt.photoPausedTimescale = dt.pausedTimescale;
 		dt.photoFreecam = dt.freecam;
+		dt.photoPlaying = dt.playing;
 		Cvar_Set( "cl_demoHideHud", "1" );
 		if ( CL_Timescale() > 0.0f ) {
 			dt.pausedTimescale = CL_Timescale();
@@ -349,10 +423,13 @@ static void CL_PhotoMode_f( void ) {
 		}
 		Com_Printf( "photo mode: frame your shot, then screenshot_png. photomode again to leave.\n" );
 	} else {
+		// back exactly as before: a paused demo stays paused
 		dt.photo = qfalse;
 		Cvar_Set( "cl_demoHideHud", va( "%i", dt.photoHideHud ) );
-		CL_SetTimescale( dt.photoTimescale > 0.0f ? dt.photoTimescale : 1.0f );
+		CL_SetTimescale( dt.photoTimescale );
+		dt.pausedTimescale = dt.photoPausedTimescale;
 		dt.freecam = dt.photoFreecam;
+		dt.playing = dt.photoPlaying;
 		Com_Printf( "photo mode off\n" );
 	}
 }
@@ -381,9 +458,7 @@ void CL_DemoToolsFrame( void ) {
 
 	if ( !clc.demoplaying ) {
 		if ( dt.freecam || dt.playing || dt.photo || dt.startServerTime ) {
-			dt.freecam = dt.playing = dt.photo = qfalse;
-			dt.startServerTime = 0;
-			dt.haveView = qfalse;
+			CL_DemoToolsReset();
 		}
 		return;
 	}
@@ -395,13 +470,14 @@ void CL_DemoToolsFrame( void ) {
 	if ( dt.playing && dt.numKeys > 0 ) {
 		camView_t view;
 
-		if ( CamPath_Evaluate( dt.keys, dt.numKeys, (float)cl.serverTime, &view ) ) {
+		if ( CamPath_Evaluate( dt.keys, dt.numKeys, (double)cl.serverTime, &view ) ) {
 			VectorCopy( view.origin, dt.origin );
 			VectorCopy( view.angles, dt.angles );
 			dt.fov = view.fov;
 			// speed ramps, unless paused by hand
-			if ( CL_Timescale() > 0.0f && view.timescale > 0.0f && fabsf( view.timescale - CL_Timescale() ) > 0.001f ) {
-				CL_SetTimescale( view.timescale );
+			const float scale = Com_Clamp( 0.05f, 16.0f, view.timescale );
+			if ( CL_Timescale() > 0.0f && fabsf( scale - CL_Timescale() ) > 0.001f ) {
+				CL_SetTimescale( scale );
 			}
 		}
 	} else if ( dt.freecam ) {
@@ -409,6 +485,8 @@ void CL_DemoToolsFrame( void ) {
 		vec3_t			forward, right;
 		const float		speed = cl_freecamSpeed->value * seconds;
 
+		// no looking past straight up or down: the controls would invert
+		cl.viewangles[PITCH] = Com_Clamp( -89.0f, 89.0f, AngleNormalize180( cl.viewangles[PITCH] ) );
 		VectorCopy( cl.viewangles, dt.angles );
 		AngleVectors( dt.angles, forward, right, NULL );
 		VectorMA( dt.origin, speed * cmd->forwardmove / 127.0f, forward, dt.origin );
@@ -430,23 +508,21 @@ qboolean CL_DemoCamView( const refdef_t *fd, refdef_t *out ) {
 	const qboolean mainView = (qboolean)( !( fd->rdflags & RDF_NOWORLDMODEL ) &&
 		fd->width * fd->height * 2 >= cls.glconfig.winWidth * cls.glconfig.winHeight );
 
-	if ( !clc.demoplaying || !mainView ) {
+	if ( !clc.demoplaying || !mainView || !CL_DemoCamActive() ) {
+		if ( clc.demoplaying && mainView ) {
+			VectorCopy( fd->vieworg, dt.viewOrigin );
+			vectoangles( fd->viewaxis[0], dt.viewAngles );
+			// roll from the left vector
+			dt.viewAngles[ROLL] = RAD2DEG( atan2f( fd->viewaxis[1][2], fd->viewaxis[2][2] ) );
+			dt.viewFov = fd->fov_x;
+			dt.haveView = qtrue;
+		}
 		if ( fd->rdflags & RDF_FREECAM ) {
 			// reserved for the engine
 			*out = *fd;
 			out->rdflags &= ~RDF_FREECAM;
 			return qtrue;
 		}
-		return qfalse;
-	}
-
-	if ( !CL_DemoCamActive() ) {
-		VectorCopy( fd->vieworg, dt.viewOrigin );
-		vectoangles( fd->viewaxis[0], dt.viewAngles );
-		// roll from the left vector
-		dt.viewAngles[ROLL] = RAD2DEG( atan2f( fd->viewaxis[1][2], fd->viewaxis[2][2] ) );
-		dt.viewFov = fd->fov_x;
-		dt.haveView = qtrue;
 		return qfalse;
 	}
 
@@ -488,7 +564,8 @@ void CL_DrawDemoTimeline( void ) {
 	static const vec4_t	fill = { 0.95f, 0.75f, 0.2f, 0.9f };
 	char				text[96];
 
-	if ( !clc.demoplaying || !cl_demoTimeline->integer || cls.state != CA_ACTIVE ) {
+	// not in photo mode shots or with the HUD hidden
+	if ( !clc.demoplaying || !cl_demoTimeline->integer || cls.state != CA_ACTIVE || dt.photo || CL_DemoHideHud() ) {
 		return;
 	}
 

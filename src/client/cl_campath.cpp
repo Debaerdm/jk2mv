@@ -129,6 +129,122 @@ void CamPath_Slerp( const float from[4], const float to[4], float t, float out[4
 	}
 }
 
+// Quaternions in double precision, x y z w
+static void QuatMul( const double a[4], const double b[4], double out[4] ) {
+	out[0] = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1];
+	out[1] = a[3] * b[1] + a[1] * b[3] + a[2] * b[0] - a[0] * b[2];
+	out[2] = a[3] * b[2] + a[2] * b[3] + a[0] * b[1] - a[1] * b[0];
+	out[3] = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
+}
+
+// log of the rotation from a to b, the short way: axis times half angle
+static void QuatLogBetween( const double a[4], const double b[4], double out[3] ) {
+	const double conj[4] = { -a[0], -a[1], -a[2], a[3] };
+	double r[4];
+
+	QuatMul( conj, b, r );
+	if ( r[3] < 0.0 ) {
+		for ( int i = 0; i < 4; i++ ) {
+			r[i] = -r[i];
+		}
+	}
+	const double s = sqrt( r[0] * r[0] + r[1] * r[1] + r[2] * r[2] );
+	const double k = s > 1e-12 ? atan2( s, r[3] ) / s : 1.0;
+	for ( int i = 0; i < 3; i++ ) {
+		out[i] = r[i] * k;
+	}
+}
+
+// a * exp( v )
+static void QuatMulExp( const double a[4], const double v[3], double out[4] ) {
+	const double angle = sqrt( v[0] * v[0] + v[1] * v[1] + v[2] * v[2] );
+	const double k = angle > 1e-12 ? sin( angle ) / angle : 1.0;
+	const double e[4] = { v[0] * k, v[1] * k, v[2] * k, cos( angle ) };
+
+	QuatMul( a, e, out );
+}
+
+// slerp without taking the short way: the squad terms are already aligned
+static void QuatSlerpAligned( const double a[4], const double b[4], double t, double out[4] ) {
+	const double cosom = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+	double s0 = 1.0 - t, s1 = t, len = 0.0;
+
+	if ( fabs( cosom ) < 0.9995 ) {
+		const double omega = acos( cosom );
+		s0 = sin( ( 1.0 - t ) * omega ) / sin( omega );
+		s1 = sin( t * omega ) / sin( omega );
+	}
+	for ( int i = 0; i < 4; i++ ) {
+		out[i] = s0 * a[i] + s1 * b[i];
+		len += out[i] * out[i];
+	}
+	len = sqrt( len );
+	for ( int i = 0; i < 4; i++ ) {
+		out[i] /= len;
+	}
+}
+
+static void KeyQuat( const camKey_t *key, const double align[4], double q[4] ) {
+	float f[4];
+
+	CamPath_AnglesToQuat( key->angles, f );
+	for ( int i = 0; i < 4; i++ ) {
+		q[i] = f[i];
+	}
+	if ( align && q[0] * align[0] + q[1] * align[1] + q[2] * align[2] + q[3] * align[3] < 0.0 ) {
+		for ( int i = 0; i < 4; i++ ) {
+			q[i] = -q[i];
+		}
+	}
+}
+
+/*
+Orientation between keys i and i + 1 at u in [0, 1]: a squad whose
+tangents in log space are the Catmull-Rom ones of the positions, scaled to
+the uneven key spacing. Squad's derivative at u = 0 is log(qa^-1 qb) +
+2 log(qa^-1 ca), which gives ca for a wanted tangent; likewise at u = 1.
+With evenly spaced keys this is Shoemake's squad.
+*/
+static void SquadOrientation( const camKey_t *keys, int numKeys, int i, double u, float angles[3] ) {
+	const int prev = i > 0 ? i - 1 : i;
+	const int next = i + 2 < numKeys ? i + 2 : i + 1;
+	double qa[4], qb[4], qp[4], qn[4];
+
+	KeyQuat( &keys[i], nullptr, qa );
+	KeyQuat( &keys[i + 1], qa, qb );
+	KeyQuat( &keys[prev], qa, qp );
+	KeyQuat( &keys[next], qb, qn );
+
+	const double dt = (double)keys[i + 1].time - keys[i].time;
+	const double spanA = (double)keys[i + 1].time - keys[prev].time;
+	const double spanB = (double)keys[next].time - keys[i].time;
+	double forward[3], backward[3], ahead[3], behind[3];
+
+	QuatLogBetween( qa, qb, forward );		// a to b
+	QuatLogBetween( qa, qp, backward );		// a to the key before
+	QuatLogBetween( qb, qn, ahead );		// b to the key after
+	QuatLogBetween( qb, qa, behind );		// b to a
+
+	double toCa[3], toCb[3];
+	for ( int k = 0; k < 3; k++ ) {
+		const double tangentA = spanA > 0.0 ? ( forward[k] - backward[k] ) / spanA * dt : forward[k];
+		const double tangentB = spanB > 0.0 ? ( ahead[k] - behind[k] ) / spanB * dt : -behind[k];
+
+		toCa[k] = ( tangentA - forward[k] ) * 0.5;
+		toCb[k] = ( -tangentB - behind[k] ) * 0.5;
+	}
+
+	double ca[4], cb[4], outer[4], inner[4], q[4];
+	QuatMulExp( qa, toCa, ca );
+	QuatMulExp( qb, toCb, cb );
+	QuatSlerpAligned( qa, qb, u, outer );
+	QuatSlerpAligned( ca, cb, u, inner );
+	QuatSlerpAligned( outer, inner, 2.0 * u * ( 1.0 - u ), q );
+
+	const float f[4] = { (float)q[0], (float)q[1], (float)q[2], (float)q[3] };
+	CamPath_QuatToAngles( f, angles );
+}
+
 // Catmull-Rom tangent at key i for a segment of length dt, scaled to the
 // uneven spacing of the keys
 static double Tangent( const camKey_t *keys, int numKeys, int i, int axis, double dt ) {
@@ -142,7 +258,7 @@ static double Tangent( const camKey_t *keys, int numKeys, int i, int axis, doubl
 	return ( (double)keys[next].origin[axis] - keys[prev].origin[axis] ) / span * dt;
 }
 
-bool CamPath_Evaluate( const camKey_t *keys, int numKeys, float time, camView_t *out ) {
+bool CamPath_Evaluate( const camKey_t *keys, int numKeys, double time, camView_t *out ) {
 	int i;
 
 	if ( numKeys <= 0 ) {
@@ -176,11 +292,7 @@ bool CamPath_Evaluate( const camKey_t *keys, int numKeys, float time, camView_t 
 			h01 * b->origin[axis] + h11 * Tangent( keys, numKeys, i + 1, axis, dt ) );
 	}
 
-	float qa[4], qb[4], q[4];
-	CamPath_AnglesToQuat( a->angles, qa );
-	CamPath_AnglesToQuat( b->angles, qb );
-	CamPath_Slerp( qa, qb, (float)u, q );
-	CamPath_QuatToAngles( q, out->angles );
+	SquadOrientation( keys, numKeys, i, u, out->angles );
 
 	out->fov = (float)( a->fov + ( b->fov - a->fov ) * u );
 	out->timescale = (float)( a->timescale + ( b->timescale - a->timescale ) * u );

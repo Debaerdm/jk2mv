@@ -2867,9 +2867,11 @@ qboolean R_SavePNG( const char *filename, const byte *bgrBottomUp, int width, in
 	png_destroy_write_struct( &png, &info );
 
 	ri.FS_WriteFile( filename, out->data, (int)out->size );
+	// FS_WriteFile only prints its failures: check the file is there
+	const qboolean written = (qboolean)( ri.FS_ReadFile( filename, NULL ) == (int)out->size );
 	free( out->data );
 	free( out );
-	return qtrue;
+	return written;
 }
 
 static void R_BindGlowImages( void ) {

@@ -644,6 +644,7 @@ void R_PostFXCopyFrame( int width, int height ) {
 
 // draws a source rectangle over the whole current viewport
 static void R_DrawQuad( float s0, float t0, float s1, float t1 ) {
+	backEnd.pc.c_drawCalls++;
 	qglBegin( GL_QUADS );
 	qglTexCoord2f( s0, t0 );
 	qglVertex2f( -1.0f, -1.0f );
@@ -659,6 +660,7 @@ static void R_DrawQuad( float s0, float t0, float s1, float t1 ) {
 // one 4-tap pass from a rectangle texture into the current target
 static void R_TapPass( GLuint source, float s0, float t0, float s1, float t1, float offset, float threshold, float scale ) {
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, source );
+	backEnd.pc.c_binds++;
 	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 0, offset, offset, -offset, -offset );
 	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 1, threshold, scale, 0.0f, 0.0f );
 	R_DrawQuad( s0, t0, s1, t1 );

@@ -872,7 +872,15 @@ intptr_t CL_UISystemCalls(intptr_t *args) {
 		return 0;
 
 	case UI_R_RENDERSCENE:
-		re.RenderScene( VMAV(1, const refdef_t) );
+		if ( VMAV(1, const refdef_t)->rdflags & RDF_FREECAM ) {
+			// reserved for the engine (demo camera)
+			refdef_t fd = *VMAV(1, const refdef_t);
+
+			fd.rdflags &= ~RDF_FREECAM;
+			re.RenderScene( &fd );
+		} else {
+			re.RenderScene( VMAV(1, const refdef_t) );
+		}
 		return 0;
 
 	case UI_R_SETCOLOR:

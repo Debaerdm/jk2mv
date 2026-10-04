@@ -421,6 +421,7 @@ extern	cvar_t	*cl_perfOverlay;
 
 void CL_InitPresets( void );
 qboolean CL_DemoHideHud( void );
+void CL_DemoToolsReset( void );
 
 // cl_bench.cpp
 void CL_InitBenchmark( void );
@@ -435,7 +436,7 @@ void CL_TestSceneReset( void );
 qboolean CL_TestSceneActive( void );
 void CL_DrawTestScene( void );
 void CL_BenchmarkFrame( void );
-void CL_BenchmarkDemoCompleted( void );
+qboolean CL_BenchmarkDemoCompleted( void );
 void CL_CompleteDemoName( char *args, int argNum );
 
 // cl_demotools.cpp

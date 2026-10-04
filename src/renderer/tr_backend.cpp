@@ -1784,6 +1784,7 @@ static void RB_BlurGlowTexture( qboolean offscreen )
 		}
 
 		// Draw the fullscreen quad.
+		backEnd.pc.c_drawCalls++;
 		qglBegin( GL_QUADS );
 			qglMultiTexCoord2fARB( GL_TEXTURE0_ARB, 0, iTexHeight );
 			qglVertex2f( 0, 0 );

@@ -2784,10 +2784,15 @@ int Com_ModifyMsec( int msec ) {
 		msec = com_fixedtime->integer;
 	} else if ( com_timescale->value && com_demoplaying ) {
 		// keep the fraction, so slow motion plays at the requested speed
-		// instead of getting stuck at 1 msec per frame
+		// instead of getting stuck at 1 msec per frame. A nonsense timescale
+		// (negative, infinite, NaN) gives no time rather than poisoning the
+		// fraction for the rest of the session.
 		static float carry;
-		const float scaled = msec * com_timescale->value + carry;
+		float scaled = msec * com_timescale->value + carry;
 
+		if ( !( scaled >= 0.0f && scaled <= 1000000.0f ) ) {
+			scaled = carry = 0.0f;
+		}
 		msec = (int)scaled;
 		carry = scaled - msec;
 	} else if ( com_timescale->value ) {

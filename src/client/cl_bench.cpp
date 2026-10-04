@@ -61,13 +61,18 @@ static void CL_BenchStats( const std::vector<int> &frameUsec, benchStats_t *st )
 	}
 
 	const size_t n = sorted.size();
+	// nearest rank: the smallest value with at least p of the frames at or below it
+	auto percentile = [&sorted, n]( size_t num, size_t den ) {
+		const size_t rank = ( n * num + den - 1 ) / den;
+		return sorted[rank ? rank - 1 : 0] / 1000.0;
+	};
 	st->frames = (int)n;
 	st->seconds = sum / 1e6;
 	st->avgFps = st->seconds > 0.0 ? n / st->seconds : 0.0;
-	st->p50 = sorted[n * 50 / 100] / 1000.0;
-	st->p90 = sorted[n * 90 / 100] / 1000.0;
-	st->p99 = sorted[n * 99 / 100] / 1000.0;
-	st->p999 = sorted[n * 999 / 1000] / 1000.0;
+	st->p50 = percentile( 50, 100 );
+	st->p90 = percentile( 90, 100 );
+	st->p99 = percentile( 99, 100 );
+	st->p999 = percentile( 999, 1000 );
 	st->max = sorted[n - 1] / 1000.0;
 
 	// CapFrameX style lows: average frame rate of the slowest frames
@@ -159,6 +164,7 @@ static void CL_BenchFinish( void ) {
 			"version", "r_picmip", "r_textureMode", "r_ext_texture_filter_anisotropic", "r_ext_multisample",
 			"r_DynamicGlow", "r_DynamicGlowWidth", "r_DynamicGlowHeight", "r_gammamethod", "r_swapInterval",
 			"com_maxfps", "cl_autolodscale", "r_fbo", "r_hdr", "r_bloom", "r_dlightMode", "r_gpuTimers",
+			"r_colorGrade", "r_ext_alphaToCoverage", "r_dlightPriority",
 		};
 		for ( size_t i = 0; i < ARRAY_LEN( cvars ); i++ ) {
 			FS_Printf( f, "%s: %s\n", cvars[i], Cvar_VariableString( cvars[i] ) );
@@ -197,6 +203,11 @@ static void CL_Benchmark_f( void ) {
 		Com_Printf( "a benchmark is already running, benchmark stop to abort it\n" );
 		return;
 	}
+	// timedemo without the fps cap must not leak into a game or another demo
+	if ( cls.state != CA_DISCONNECTED || clc.demoplaying ) {
+		Com_Printf( "benchmark: disconnect or stop the demo first\n" );
+		return;
+	}
 
 	Q_strncpyz( bench.demo, Cmd_Argv( 1 ), sizeof( bench.demo ) );
 	bench.runs = Cmd_Argc() > 2 ? Com_Clampi( 1, 50, atoi( Cmd_Argv( 2 ) ) ) : 5;
@@ -226,7 +237,12 @@ void CL_BenchmarkFrame( void ) {
 
 	if ( bench.pendingStart ) {
 		if ( clc.demoplaying || cls.state > CA_DISCONNECTED ) {
-			return;		// the previous run is still shutting down
+			// the previous run is still shutting down
+			if ( ++bench.waitFrames > BENCH_START_TIMEOUT ) {
+				Com_Printf( S_COLOR_RED "benchmark: the previous demo did not stop\n" );
+				CL_BenchStop();
+			}
+			return;
 		}
 		bench.pendingStart = qfalse;
 		bench.started = qfalse;
@@ -236,7 +252,8 @@ void CL_BenchmarkFrame( void ) {
 		bench.frames.reserve( 8192 );
 		bench.gpuFrames.clear();
 		bench.gpuFrames.reserve( 8192 );
-		Cbuf_AddText( va( "demo %s\n", bench.demo ) );
+		// quoted: demo names can have spaces
+		Cbuf_AddText( va( "demo \"%s\"\n", bench.demo ) );
 		return;
 	}
 
@@ -262,14 +279,16 @@ void CL_BenchmarkFrame( void ) {
 ==================
 CL_BenchmarkDemoCompleted
 
-When a timedemo ends: closes the run and queues the next one
+When a timedemo ends: closes the run and queues the next one. Returns qtrue
+while more runs follow, so nextdemo only runs once the results are written.
 ==================
 */
-void CL_BenchmarkDemoCompleted( void ) {
+qboolean CL_BenchmarkDemoCompleted( void ) {
 	char line[256];
 
-	if ( !bench.active ) {
-		return;
+	// only the demo the benchmark started counts
+	if ( !bench.active || bench.pendingStart || !bench.started ) {
+		return qfalse;
 	}
 
 	if ( bench.current >= bench.warmup ) {
@@ -295,10 +314,12 @@ void CL_BenchmarkDemoCompleted( void ) {
 	bench.started = qfalse;
 	if ( bench.current < bench.warmup + bench.runs ) {
 		bench.pendingStart = qtrue;
-	} else {
-		CL_BenchFinish();
-		CL_BenchStop();
+		bench.waitFrames = 0;
+		return qtrue;
 	}
+	CL_BenchFinish();
+	CL_BenchStop();
+	return qfalse;
 }
 
 void CL_InitBenchmark( void ) {

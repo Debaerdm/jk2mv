@@ -200,3 +200,46 @@ TEST(CamPathInsert, KeepsKeysSortedAndReplacesSameTime) {
 	ASSERT_EQ( n, 3 );
 	EXPECT_EQ( CamPath_Insert( keys, n, 3, &k4 ), -1 );
 }
+
+TEST(CamPathEvaluate, LargeServerTimesKeepMillisecondPrecision) {
+	// public servers run for days: demo server times pass 2^24 ms
+	const int base = 1000000000;
+	const camKey_t keys[2] = { Key( base, 0, 0, 0, 0, 0, 0 ), Key( base + 1000, 1000, 0, 0, 0, 90, 0 ) };
+	camView_t v;
+	float last = -1.0f;
+	int distinct = 0;
+	for ( int t = 0; t < 1000; t++ ) {
+		ASSERT_TRUE( CamPath_Evaluate( keys, 2, (double)base + t, &v ) );
+		if ( v.origin[0] != last ) {
+			distinct++;
+			last = v.origin[0];
+		}
+	}
+	EXPECT_GE( distinct, 999 );
+}
+
+static double YawRate( const camKey_t *keys, int n, double t, double h ) {
+	camView_t a, b;
+	CamPath_Evaluate( keys, n, t - h, &a );
+	CamPath_Evaluate( keys, n, t + h, &b );
+	return ( b.angles[1] - a.angles[1] ) / ( 2.0 * h );
+}
+
+TEST(CamPathEvaluate, TurnRateIsContinuousAtUnevenKeys) {
+	// a pan that slows down: plain slerp jumped from 90 to 150 degrees/s
+	const camKey_t keys[3] = { Key( 0, 0, 0, 0, 0, 0, 0 ), Key( 1000, 1000, 0, 0, 0, 90, 0 ), Key( 1200, 1200, 0, 0, 0, 120, 0 ) };
+	const double before = YawRate( keys, 3, 999.0, 0.5 );
+	const double after = YawRate( keys, 3, 1001.0, 0.5 );
+	EXPECT_NEAR( after, before, 0.02 * fabs( before ) ) << before << " " << after;
+
+	// still goes through the keys
+	camView_t v;
+	ASSERT_TRUE( CamPath_Evaluate( keys, 3, 1000.0, &v ) );
+	EXPECT_NEAR( v.angles[1], 90.0, 1e-3 );
+}
+
+TEST(CamPathEvaluate, EvenKeysTurnAtTheCatmullRomRate) {
+	// evenly spaced 0, 90, 180 degree keys: 0.09 degrees/ms through the middle
+	const camKey_t keys[3] = { Key( 0, 0, 0, 0, 0, 0, 0 ), Key( 1000, 0, 0, 0, 0, 90, 0 ), Key( 2000, 0, 0, 0, 0, 180, 0 ) };
+	EXPECT_NEAR( YawRate( keys, 3, 1000.0, 0.5 ), 0.09, 0.002 );
+}

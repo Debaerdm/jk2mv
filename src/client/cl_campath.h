@@ -24,9 +24,11 @@ typedef struct {
 
 // Evaluates a path of keys sorted by time. Positions follow a Hermite spline
 // with Catmull-Rom tangents scaled to the uneven key spacing, orientations a
-// quaternion slerp, fov and timescale a linear blend. Before the first key
-// and after the last one the end keys hold. Returns false without keys.
-bool CamPath_Evaluate( const camKey_t *keys, int numKeys, float time, camView_t *out );
+// squad (spherical cubic) with the same tangents, so neither the speed nor
+// the turn rate jumps at a key; fov and timescale blend linearly. Before the
+// first key and after the last one the end keys hold. Returns false without
+// keys. The time is a double: demo server times go past float precision.
+bool CamPath_Evaluate( const camKey_t *keys, int numKeys, double time, camView_t *out );
 
 // Inserts a key keeping the array sorted, replacing a key at the same time.
 // Returns the new key count, or -1 when the array is full.

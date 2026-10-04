@@ -901,10 +901,10 @@ Other Changes
     requested speed instead of getting stuck at 1 ms of game time per frame.
   - ``demo_freecam``: fly freely through the demo with the movement keys and
     the mouse; sound and effects follow the camera, and the recorder's own
-    body is visible.
+    body is visible. The recorder's own sounds stay at full volume.
   - Camera paths: ``cam_add`` records a key (position, angles, fov, speed)
     at the current demo time, ``cam_play`` follows the smooth path through the
-    keys (speed keys make slow motion ramps), ``cam_del [index]``,
+    keys, with smooth turns (speed keys make slow motion ramps), ``cam_del [index]``,
     ``cam_clear``, ``cam_list``, ``cam_save <name>`` and ``cam_load <name>``
     (demos/<name>.cam).
   - ``photomode`` pauses the demo, frees the camera and hides the HUD; again
