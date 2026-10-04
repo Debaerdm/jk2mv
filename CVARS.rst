@@ -974,7 +974,9 @@ Other Changes
 * ``cl_aviMotionBlur N`` (2 - 32, default 0): ``video`` and ``video_mp4`` run
   N game frames per video frame and blend them, for real motion blur (the
   window shows the frames as they come). Needs ``r_fbo 1``; recording takes
-  N times longer.
+  N times longer. At most 1000 game frames per second: 16 frames at 60 fps,
+  none above 500 fps. ``cl_aviFrameRate`` and ``cl_aviMotionBlur`` are read
+  when a recording starts.
 * ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
 * ``testscene <map> [x y z [yaw [pitch]]] [dlight | dlights] [spin]`` draws a
   map from a fixed camera while disconnected, in place of the main menu and

@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "client.h"
 #include "snd_local.h"
+#include "cl_videoclock.h"
 #include "../sys/sys_spawn.h"
 
 #define INDEX_FILE_EXTENSION ".index.dat"
@@ -876,7 +877,9 @@ void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size )
 CL_StartVideoBlend
 
 cl_aviMotionBlur N: the game runs N engine frames per video frame and the
-renderer averages them (needs r_fbo 1), for real motion blur
+renderer averages them (needs r_fbo 1), for real motion blur. At most 1000
+engine frames per second: the engine counts whole milliseconds, and more
+would give frames without time of their own (16 frames at 60 fps).
 ===============
 */
 void CL_StartVideoBlend( void )
@@ -885,18 +888,25 @@ void CL_StartVideoBlend( void )
 	afd.blendIndex = 0;
 	if ( cl_aviMotionBlur->integer > 1 ) {
 		if ( re.SetFrameBlend && re.SetFrameBlend( 0, 0 ) ) {
-			afd.blendFrames = Com_Clampi( 2, 32, cl_aviMotionBlur->integer );
+			afd.blendFrames = CL_VideoBlendFrames( cl_aviMotionBlur->integer, afd.frameRate );
+			if ( afd.blendFrames < 2 ) {
+				Com_Printf( S_COLOR_YELLOW "cl_aviMotionBlur needs cl_aviFrameRate %d or less, recording "
+					"without motion blur\n", VIDEO_MAX_ENGINE_FPS / 2 );
+			} else if ( afd.blendFrames < Com_Clampi( 2, 32, cl_aviMotionBlur->integer ) ) {
+				Com_Printf( S_COLOR_YELLOW "cl_aviMotionBlur: %d frames at %d fps, the most for %d game frames "
+					"per second\n", afd.blendFrames, afd.frameRate, VIDEO_MAX_ENGINE_FPS );
+			}
 		} else {
 			Com_Printf( S_COLOR_YELLOW "cl_aviMotionBlur needs r_fbo 1, recording without motion blur\n" );
 		}
 	}
 }
 
-// engine frames per second while recording: the video frame rate times the
-// motion blur frames; 0 when not recording
+// engine frames per second while recording: the video frame rate set when
+// the recording started times the motion blur frames; 0 when not recording
 int CL_VideoEngineFrameRate( void )
 {
-	return afd.fileOpen ? cl_aviFrameRate->integer * afd.blendFrames : 0;
+	return afd.fileOpen ? afd.frameRate * afd.blendFrames : 0;
 }
 
 // before the frame is drawn: where it goes in the blend

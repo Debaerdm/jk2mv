@@ -137,6 +137,10 @@ add_jk2mv_test(test_cl_fov
   ${CMAKE_SOURCE_DIR}/src/client/cl_fov.cpp
 )
 
+add_jk2mv_test(test_cl_videoclock
+  test_cl_videoclock.cpp
+)
+
 # ==============================================================================
 # Renderer: dynamic light selection (links the real engine source)
 # ==============================================================================

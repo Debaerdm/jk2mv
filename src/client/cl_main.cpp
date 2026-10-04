@@ -4,6 +4,7 @@
 #include "../qcommon/strip.h"
 #include <limits.h>
 #include "snd_local.h"
+#include "cl_videoclock.h"
 #include <mv_setup.h>
 
 #if !defined(G2_H_INC)
@@ -2546,21 +2547,14 @@ void CL_Frame ( int msec ) {
 	// demo slow motion can give 0 msec frames, which still get a video
 	// frame: they need their share of game time too; a paused demo (and its
 	// demo_step) keeps its own msec
-	if ( CL_VideoRecording() && cl_aviFrameRate->integer && ( msec || clc.demoplaying ) &&
+	if ( CL_VideoRecording() && ( msec || clc.demoplaying ) &&
 		com_timescale->value > 0.0f && !cl_paused->integer ) {
 		if ( cls.state == CA_ACTIVE || cl_forceavidemo->integer || CL_TestSceneActive() ) {
 			static double	overflow = 0.0;
-			double			frameTime;
 
-			// with motion blur, several engine frames per video frame
-			frameTime = (1000.0 / CL_VideoEngineFrameRate()) * com_timescale->value;
-			frameTime += overflow;
-
-			msec = floor(frameTime);
-			if (msec == 0)
-				msec = 1;
-
-			overflow = frameTime - msec;
+			// with motion blur, several engine frames per video frame; in
+			// slow motion a frame can get under a millisecond, then 0
+			msec = CL_VideoFrameMsec( ( 1000.0 / CL_VideoEngineFrameRate() ) * com_timescale->value, &overflow );
 		}
 	}
 
