@@ -74,7 +74,7 @@ char *demoAutoFormat(const char* name) {
 				outIndex += strlen( outBuf + outIndex );
 				break;
 			case 't':		//timestamp
-				while (demoAuto.timeStamps[t] && t < MAX_TIMESTAMPS) {
+				while (t < MAX_TIMESTAMPS && demoAuto.timeStamps[t]) {
 					int min = demoAuto.timeStamps[t] / 60000;
 					int sec = (demoAuto.timeStamps[t] / 1000) % 60;
 					if (t == 0) {

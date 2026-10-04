@@ -42,7 +42,8 @@ CMiniHeap(size_t size)
 // give me some space from the heap please
 char *MiniHeapAlloc(size_t size)
 {
-	if (mCurrentHeap + size <= mHeap + mSize)
+	// no arithmetic on a NULL heap when malloc failed
+	if (mHeap && size <= (size_t)(mHeap + mSize - mCurrentHeap))
 	{
 		char *tempAddress =  mCurrentHeap;
 		mCurrentHeap += size;
