@@ -610,34 +610,73 @@ static const char *dlightFP =
 	"MOV result.color.w, c.z;\n"
 	"END\n";
 
+// the first pending GL error, all of them cleared
+static GLenum R_DlightGLError( void ) {
+	const GLenum first = qglGetError();
+
+	for ( int i = 0; i < 16 && first != GL_NO_ERROR && qglGetError() != GL_NO_ERROR; i++ ) {
+	}
+	return first;
+}
+
+// any GL error counts, not only a syntax error: a target the driver
+// doesn't know fails with GL_INVALID_ENUM and leaves the error position
+// of the previous program
 static GLuint R_DlightProgram( GLenum target, const char *text ) {
 	GLuint	program = 0;
-	GLint	errorPos = -1;
+	GLint	errorPos = -1, native = 0;
 
+	R_DlightGLError();
 	qglGenProgramsARB( 1, &program );
 	qglBindProgramARB( target, program );
 	qglProgramStringARB( target, GL_PROGRAM_FORMAT_ASCII_ARB, (int)strlen( text ), text );
 	qglGetIntegerv( GL_PROGRAM_ERROR_POSITION_ARB, &errorPos );
+	if ( errorPos == -1 ) {
+		qglGetProgramivARB( target, GL_PROGRAM_UNDER_NATIVE_LIMITS_ARB, &native );
+	}
+	const GLenum error = R_DlightGLError();
+
 	if ( errorPos != -1 ) {
 		ri.Printf( PRINT_WARNING, "dynamic light program error at %i: %s\n", errorPos,
 			(const char *)qglGetString( GL_PROGRAM_ERROR_STRING_ARB ) );
-		qglDeleteProgramsARB( 1, &program );
-		return 0;
+	} else if ( error != GL_NO_ERROR ) {
+		ri.Printf( PRINT_WARNING, "dynamic light program refused, GL error 0x%x\n", error );
+	} else if ( !native ) {
+		ri.Printf( PRINT_WARNING, "dynamic light program over the hardware limits\n" );
+	} else {
+		return program;
 	}
-	return program;
+	qglDeleteProgramsARB( 1, &program );
+	R_DlightGLError();
+	return 0;
 }
 
 void R_InitDlightPrograms( void ) {
+	const char	*missing = NULL;
+
 	r_dlightMode = ri.Cvar_Get( "r_dlightMode", "0", CVAR_ARCHIVE | CVAR_GLOBAL );
 	dlightVertexProgram = dlightFragmentProgram = 0;
 
-	if ( !qglGenProgramsARB || !qglProgramEnvParameter4fARB || !GL_CheckForExtension( "GL_ARB_vertex_program" ) ) {
+	// both extensions: the program functions are loaded when either one is
+	// there, and without the fragment one (GeForce 3 and 4 Ti, Radeon 8500
+	// to 9250) the vertex program alone would add garbage over every lit
+	// triangle
+	if ( !GL_CheckForExtension( "GL_ARB_vertex_program" ) ) {
+		missing = "GL_ARB_vertex_program";
+	} else if ( !GL_CheckForExtension( "GL_ARB_fragment_program" ) ) {
+		missing = "GL_ARB_fragment_program";
+	} else if ( !qglGenProgramsARB || !qglProgramEnvParameter4fARB ) {
+		missing = "the ARB program functions";
+	}
+	if ( missing ) {
+		ri.Printf( PRINT_ALL, "...per-pixel dynamic lights need %s, r_dlightMode 1 uses the classic ones\n", missing );
 		return;
 	}
 	dlightVertexProgram = R_DlightProgram( GL_VERTEX_PROGRAM_ARB, dlightVP );
 	dlightFragmentProgram = R_DlightProgram( GL_FRAGMENT_PROGRAM_ARB, dlightFP );
 	if ( !dlightVertexProgram || !dlightFragmentProgram ) {
 		R_ShutdownDlightPrograms();
+		ri.Printf( PRINT_WARNING, "per-pixel dynamic lights unavailable, r_dlightMode 1 uses the classic ones\n" );
 	}
 }
 

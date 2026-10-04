@@ -139,7 +139,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
   - Le flou alterne entre deux petites cibles 16 bits.
   - La scène n'est plus redessinée.
   - Sous llvmpipe en 640x480 : glow à 4,5 ms au lieu de 9,9 ms, temps GPU de la frame à 6,9 ms au lieu de 13,4 ms (`r_gpuTimers`). Le critère 2 reste à mesurer sur une vraie carte.
-- **RB-9 est livré :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie.
+- **RB-9 est livré :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie. Sans GL_ARB_fragment_program (GeForce 3/4 Ti, Radeon 8500-9250) ou si un programme est refusé, le journal le dit et les lumières classiques restent (vérifié sous llvmpipe en masquant l'extension).
 - **PX-3 est livré :** `cl_fovAspectFix 1`, la correction Hor+ du champ de vision en écran large, dans le preset `enhanced`.
 - **Phase 4, piste client :**
   - FE-17 : `-ffp-contract=off` explicite pour GCC et Clang, plus l'option CMake `UseLTO`.
