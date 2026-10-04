@@ -21,6 +21,17 @@ New and Modified Cvars
 
 ..
 
+:Name: com_speeds
+:Values: "0", "1", "3"
+:Default: "0"
+:Description:
+   Print the time spent in each part of every frame, in milliseconds with
+   microsecond resolution: all, server (sv), events (ev), client (cl), game
+   module (gm), renderer frontend (rf) and backend (bk).
+   | 3: Also print the time spent processing each server packet.
+
+..
+
 :Name: com_timestamps
 :Values: "0", "1"
 :Default: "1"
@@ -156,7 +167,7 @@ Client-Side
 
 :Name: con_timestamps
 :Values: "0", "1"
-:Default: "1"
+:Default: "0"
 :Description:
    Draw local timestamps in console and condump output.
 
@@ -249,10 +260,51 @@ Client-Side
 ..
 
 :Name: r_dynamicGlow
-:Values: "0", "1"
+:Values: "0", "1", "2"
 :Default: "0"
 :Description:
    Enable / Disable dynamic glow effect.
+   | 2: Debug view, shows only the glow buffer.
+
+..
+
+:Name: r_dynamicGlowPasses
+:Values: Integer >= 1
+:Default: "5"
+:Description:
+   Number of blur passes applied to the glow.
+
+..
+
+:Name: r_dynamicGlowDelta
+:Values: Float
+:Default: "0.8"
+:Description:
+   Distance between the blur samples of each pass.
+
+..
+
+:Name: r_dynamicGlowIntensity
+:Values: Float
+:Default: "1.13"
+:Description:
+   Brightness of the glow.
+
+..
+
+:Name: r_dynamicGlowSoft
+:Values: "0", "1"
+:Default: "1"
+:Description:
+   Use soft blending for the glow.
+
+..
+
+:Name: r_dynamicGlowWidth / r_dynamicGlowHeight
+:Values: Integer
+:Default: "320" / "240"
+:Description:
+   Resolution of the glow buffer. Requires vid_restart.
 
 ..
 
@@ -362,7 +414,7 @@ Client-Side
 
 :Name: r_printMissingModels
 :Values: "0", "1"
-:Default: "1"
+:Default: "0"
 :Description:
    Print a warning when a model fails to load.
 
@@ -562,23 +614,15 @@ Server-Side
 
 ..
 
-:Name: sv_hibernateTime
-:Values: Integer >= 0
-:Default: "0"
-:Description:
-   Switches the server to a hibernation mode in which it
-   uses less CPU power when no player is connected.
-   The value is the time in milliseconds after which it automatically
-   switches to the said state when the last player disconnected from the server.
-   The value zero disables hibernation mode.
-
-..
-
 :Name: sv_hibernateFps
-:Values: Integer >= 1
-:Default: "5"
+:Values: Integer >= 0
+:Default: "4"
 :Description:
-   The fps to use while the server is in hibernation mode.
+   The fps to use while the server is in hibernation mode, in which it uses
+   less CPU power. The server hibernates when no human player is connected
+   (bots do not count), at the earliest 10 seconds after a map load.
+   The value zero disables hibernation mode. Set it to 0 for load tests with
+   bots.
 
 ..
 
