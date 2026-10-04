@@ -589,8 +589,11 @@ static qboolean R_CreateGlowTargets( void ) {
 	qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16, tr.glowWidth, tr.glowHeight, 0, GL_RGBA, GL_UNSIGNED_SHORT, NULL );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+	// GL_CLAMP like tr.blurImage, not GL_CLAMP_TO_EDGE: the taps near the
+	// screen edges blend in the black border, so the glow fades there as
+	// with the classic copies instead of piling up
+	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP );
+	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP );
 
 	const GLuint blurTextures[2] = { tr.blurImage, pfx.glow.blurTexture };
 	for ( int i = 0; i < 2; i++ ) {
