@@ -954,7 +954,7 @@ Other Changes
   modules, to try renderer settings (the renderer smoke test uses it);
   ``testscene off`` or Escape brings the menu back. ``spin`` turns the
   camera, and ``video`` and ``video_mp4`` work there too, to try the video
-  settings.
+  settings; the recording stops with the scene.
 * ``benchmark <demo> [runs] [warmup] [tag]`` plays a demo in timedemo mode
   several times without the 1000 fps cap and prints the average fps, frame
   time percentiles and the 1% low per run and pooled; it writes every frame

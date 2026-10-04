@@ -16,14 +16,18 @@ driver and software OpenGL, and checks the screenshots:
     console drawn over it
   - past 32 dynamic lights, r_dlightPriority keeps the visible one that the
     classic first come first served limit drops
+  - video records the spinning scene at its fixed frame rate and stops with
+    testscene off, which brings the menu back
 
 usage: render_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
 
 import glob
+import math
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 
@@ -60,6 +64,12 @@ DLIGHT_RUNS = {
     'crowd_classic': (DLIGHT_SCENE[:-1] + ['dlights'], ['+set', 'r_dlightPriority', '0']),
     'crowd': (DLIGHT_SCENE[:-1] + ['dlights'], ['+set', 'r_dlightPriority', '1']),
 }
+# uncompressed video of the spinning scene from its first frame: the camera
+# starts 20 degrees right of the lamp and turns left, so the lamp crosses
+# the view; the run ends on the menu after testscene off
+VIDEO_ARGS = ['+set', 'cl_aviMotionJpeg', '0', '+set', 'cl_aviFrameRate', '30']
+VIDEO_SCENE = ['+testscene', 'ci_box', '-256', '0', '96', '-20', '0', 'spin', '+video', 'ci_spin']
+VIDEO_AFTER = ['+testscene', 'off', '+wait', '40']
 
 # 640x480 screen areas, top-down
 WALL_NEAR_LAMP = (350, 175, 375, 200)
@@ -83,6 +93,13 @@ class Shot:
         self.width, self.height, bpp, self.pixels = read_tga(path)
         self.step = bpp // 8
 
+    @classmethod
+    def frame(cls, width, height, pixels):
+        """An uncompressed video frame, also bottom-up BGR rows."""
+        shot = cls.__new__(cls)
+        shot.width, shot.height, shot.step, shot.pixels = width, height, 3, pixels
+        return shot
+
     def rgb(self, x, y):
         # bottom-up rows, BGR(A)
         i = ((self.height - 1 - y) * self.width + x) * self.step
@@ -101,6 +118,34 @@ class Shot:
     def shows_menu(self):
         r, g, b = self.mean(MENU_PROBE)
         return g > 200 and r < 20 and b < 20
+
+    def lamp_yaw(self):
+        """Camera yaw in the video scene, from where the lamp shows: it is
+        the only pure white, straight ahead at yaw 0, and the view is 90
+        degrees wide. None without the lamp."""
+        xs = [x for y in range(100, 260, 2) for x in range(0, self.width, 2) if min(self.rgb(x, y)) >= 250]
+        if not xs:
+            return None
+        half = self.width / 2
+        return math.degrees(math.atan((sum(xs) / len(xs) - half) / half))
+
+
+def read_avi(path):
+    """The video frames of an uncompressed engine AVI."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    avih = data.find(b'avih')
+    width, height = struct.unpack('<2I', data[avih + 40:avih + 48])
+    frames = []
+    pos = data.find(b'movi') + 4
+    while pos + 8 <= len(data):
+        chunk, size = data[pos:pos + 4], struct.unpack('<I', data[pos + 4:pos + 8])[0]
+        if chunk == b'idx1':
+            break
+        if chunk == b'00dc':
+            frames.append(Shot.frame(width, height, data[pos + 8:pos + 8 + size]))
+        pos += 8 + size + (size & 1)
+    return frames
 
 
 def compare(a, b):
@@ -163,6 +208,7 @@ def main():
     runs = [(name, args, SCENE, ()) for name, args in RUNS.items()]
     runs += [(name, args, scene, ()) for name, (scene, args) in DLIGHT_RUNS.items()]
     runs += [(name, args, SCENE, CONSOLE) for name, args in GRADE_RUNS.items()]
+    runs.append(('video', VIDEO_ARGS, VIDEO_SCENE, VIDEO_AFTER))
     for name, args, scene, after in runs:
         shot, errs, log = run(client, work, name, args, scene, after)
         errors += errs
@@ -176,8 +222,8 @@ def main():
             errors.append(message)
 
     # a frame that reopens the full screen main menu hides the scene, as the
-    # retail menus did
-    covered = sorted(name for name, shot in shots.items() if shot.shows_menu())
+    # retail menus did (the video run ends on the menu)
+    covered = sorted(name for name, shot in shots.items() if name != 'video' and shot.shows_menu())
     check(not covered, 'the main menu hides the test scene: %s' % ', '.join(covered))
 
     if len(shots) == len(runs):
@@ -240,11 +286,31 @@ def main():
               'the graded view differs with r_fbo: %s vs %s' % (view_floor, graded_floor))
         check(max(view_floor) - min(view_floor) <= 2, 'noir left color in the view: %s' % view_floor)
 
+        # the recording holds the spinning scene, and stops with it
+        avi = os.path.join(work, 'base', 'videos', 'ci_spin.avi')
+        frames = read_avi(avi) if os.path.isfile(avi) else []
+        menu = [n for n, frame in enumerate(frames) if frame.shows_menu()]
+        yaws = [frame.lamp_yaw() for frame in frames]
+        print('video: %d frames, camera yaw %s' % (len(frames), ' '.join(
+            '%.1f' % yaw if yaw is not None else '-' for yaw in yaws)))
+        check(len(frames) >= 5, 'video: %d frames recorded' % len(frames))
+        check(not menu, 'video: frames %s show the main menu, not the scene' % menu)
+        if len(frames) >= 5 and None not in yaws:
+            # 90 degrees per second of client time, which the video steps by
+            # 1/30 s per frame whatever the real frame rate
+            step = (yaws[-1] - yaws[0]) / (len(frames) - 1)
+            print('video: spin turns the camera %.2f degrees per frame' % step)
+            check(abs(step - 3) <= 0.3, 'video: spin turns %.2f degrees per frame instead of 3' % step)
+        elif frames:
+            check(False, 'video: no lamp in frames %s' % [n for n, yaw in enumerate(yaws) if yaw is None])
+        check(shots['video'].shows_menu(), 'testscene off did not bring the main menu back')
+
     if errors:
         print('\n'.join(last_log.splitlines()[-60:]))
         print('render smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
-    print('render smoke test passed: offscreen path identical, bloom, HDR, per-pixel lights and view grading work, no GL error')
+    print('render smoke test passed: offscreen path identical, bloom, HDR, per-pixel lights, view grading and '
+          'test scene video work, no GL error')
 
 
 if __name__ == '__main__':
