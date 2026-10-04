@@ -164,21 +164,37 @@ static void QuatMulExp( const double a[4], const double v[3], double out[4] ) {
 	QuatMul( a, e, out );
 }
 
+static double QuatDot( const double a[4], const double b[4] ) {
+	return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+}
+
 // slerp without taking the short way: the squad terms are already aligned
 static void QuatSlerpAligned( const double a[4], const double b[4], double t, double out[4] ) {
-	const double cosom = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+	const double cosom = QuatDot( a, b );
 	double s0 = 1.0 - t, s1 = t, len = 0.0;
 
-	if ( fabs( cosom ) < 0.9995 ) {
-		const double omega = acos( cosom );
-		s0 = sin( ( 1.0 - t ) * omega ) / sin( omega );
-		s1 = sin( t * omega ) / sin( omega );
+	// the normalized lerp only where they are nearly the same: near
+	// opposite, it passes through zero
+	if ( cosom < 0.9995 ) {
+		const double omega = acos( cosom > -1.0 ? cosom : -1.0 );
+		const double sinom = sin( omega );
+
+		if ( sinom < 1e-9 ) {
+			memcpy( out, a, 4 * sizeof( out[0] ) );
+			return;
+		}
+		s0 = sin( ( 1.0 - t ) * omega ) / sinom;
+		s1 = sin( t * omega ) / sinom;
 	}
 	for ( int i = 0; i < 4; i++ ) {
 		out[i] = s0 * a[i] + s1 * b[i];
 		len += out[i] * out[i];
 	}
 	len = sqrt( len );
+	if ( len < 1e-9 ) {
+		memcpy( out, a, 4 * sizeof( out[0] ) );
+		return;
+	}
 	for ( int i = 0; i < 4; i++ ) {
 		out[i] /= len;
 	}
@@ -191,7 +207,7 @@ static void KeyQuat( const camKey_t *key, const double align[4], double q[4] ) {
 	for ( int i = 0; i < 4; i++ ) {
 		q[i] = f[i];
 	}
-	if ( align && q[0] * align[0] + q[1] * align[1] + q[2] * align[2] + q[3] * align[3] < 0.0 ) {
+	if ( align && QuatDot( q, align ) < 0.0 ) {
 		for ( int i = 0; i < 4; i++ ) {
 			q[i] = -q[i];
 		}
@@ -238,8 +254,22 @@ static void SquadOrientation( const camKey_t *keys, int numKeys, int i, double u
 	QuatMulExp( qa, toCa, ca );
 	QuatMulExp( qb, toCb, cb );
 	QuatSlerpAligned( qa, qb, u, outer );
-	QuatSlerpAligned( ca, cb, u, inner );
-	QuatSlerpAligned( outer, inner, 2.0 * u * ( 1.0 - u ), q );
+
+	// Inner control points that are nearly opposite make the squad ill
+	// conditioned: a back and forth pan of 180 degrees puts them exactly
+	// opposite (NaN half way), and any pitch on its keys then flips the view
+	// around. Such segments fade to the plain slerp, which only gives up the
+	// smooth turn rate at their two keys. The weight depends on the keys
+	// only, so the path stays continuous.
+	const double cosInner = QuatDot( ca, cb );
+	const double squad = cosInner >= -0.8 ? 1.0 : cosInner <= -0.9 ? 0.0 : ( cosInner + 0.9 ) / 0.1;
+
+	if ( squad > 0.0 ) {
+		QuatSlerpAligned( ca, cb, u, inner );
+		QuatSlerpAligned( outer, inner, 2.0 * u * ( 1.0 - u ) * squad, q );
+	} else {
+		memcpy( q, outer, sizeof( q ) );
+	}
 
 	const float f[4] = { (float)q[0], (float)q[1], (float)q[2], (float)q[3] };
 	CamPath_QuatToAngles( f, angles );

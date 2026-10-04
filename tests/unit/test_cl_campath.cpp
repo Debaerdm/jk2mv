@@ -4,6 +4,7 @@
 // (src/client/cl_campath.cpp), which has no engine dependency.
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include "client/cl_campath.h"
@@ -242,4 +243,108 @@ TEST(CamPathEvaluate, EvenKeysTurnAtTheCatmullRomRate) {
 	// evenly spaced 0, 90, 180 degree keys: 0.09 degrees/ms through the middle
 	const camKey_t keys[3] = { Key( 0, 0, 0, 0, 0, 0, 0 ), Key( 1000, 0, 0, 0, 0, 90, 0 ), Key( 2000, 0, 0, 0, 0, 180, 0 ) };
 	EXPECT_NEAR( YawRate( keys, 3, 1000.0, 0.5 ), 0.09, 0.002 );
+}
+
+namespace {
+
+// rotation between two orientations, in degrees
+double AngleBetween( const float a[3], const float b[3] ) {
+	float qa[4], qb[4];
+	CamPath_AnglesToQuat( a, qa );
+	CamPath_AnglesToQuat( b, qb );
+	const double d = fabs( (double)qa[0] * qb[0] + (double)qa[1] * qb[1] + (double)qa[2] * qb[2] + (double)qa[3] * qb[3] );
+	return 2.0 * acos( d > 1.0 ? 1.0 : d ) * 180.0 / 3.14159265358979323846;
+}
+
+struct PathScan {
+	int		nans;
+	double	maxStep;		// biggest turn between two demo milliseconds, in degrees
+	double	pitchOver;		// how far the pitch goes past the steepest key, in degrees
+};
+
+// every millisecond of the path, as the demo camera evaluates it
+PathScan ScanPath( const camKey_t *keys, int n ) {
+	PathScan	s = { 0, 0.0, 0.0 };
+	double		steepest = 0.0;
+	camView_t	prev, v;
+
+	for ( int i = 0; i < n; i++ ) {
+		steepest = std::max( steepest, (double)fabs( keys[i].angles[0] ) );
+	}
+	CamPath_Evaluate( keys, n, keys[0].time, &prev );
+	for ( int t = keys[0].time + 1; t <= keys[n - 1].time; t++ ) {
+		CamPath_Evaluate( keys, n, (double)t, &v );
+		if ( !std::isfinite( v.angles[0] ) || !std::isfinite( v.angles[1] ) || !std::isfinite( v.angles[2] ) ) {
+			s.nans++;
+			continue;
+		}
+		s.maxStep = std::max( s.maxStep, AngleBetween( prev.angles, v.angles ) );
+		s.pitchOver = std::max( s.pitchOver, fabs( v.angles[0] ) - steepest );
+		prev = v;
+	}
+	return s;
+}
+
+} // namespace
+
+TEST(CamPathEvaluate, BackAndForthHalfTurnsStaySmooth) {
+	// 180 degree pans back and forth put the squad's inner control points of
+	// the middle segment exactly opposite: NaN at its midpoint, and with any
+	// pitch a flip of up to 120 degrees in a millisecond. A 1 second half turn
+	// needs well under 1 degree per millisecond.
+	const float pitches[][2] = { { 0.0f, 0.0f }, { 1.0f, -1.0f }, { 3.0f, -3.0f }, { 0.0f, 5.0f } };
+	const float yaws[] = { 180.0f, -180.0f, 179.0f, 178.0f };
+
+	for ( size_t p = 0; p < sizeof( pitches ) / sizeof( pitches[0] ); p++ ) {
+		for ( size_t y = 0; y < sizeof( yaws ) / sizeof( yaws[0] ); y++ ) {
+			const float a = pitches[p][0], b = pitches[p][1], yaw = yaws[y];
+			const camKey_t keys[4] = {
+				Key( 0, 0, 0, 0, a, 0, 0 ), Key( 1000, 0, 0, 0, b, yaw, 0 ),
+				Key( 2000, 0, 0, 0, a, 0, 0 ), Key( 3000, 0, 0, 0, b, yaw, 0 ) };
+			const PathScan s = ScanPath( keys, 4 );
+
+			EXPECT_EQ( s.nans, 0 ) << "pitch " << a << "/" << b << " yaw " << yaw;
+			EXPECT_LT( s.maxStep, 1.0 ) << "pitch " << a << "/" << b << " yaw " << yaw;
+			EXPECT_LT( s.pitchOver, 3.0 ) << "pitch " << a << "/" << b << " yaw " << yaw;
+			for ( int i = 0; i < 4; i++ ) {
+				camView_t v;
+				ASSERT_TRUE( CamPath_Evaluate( keys, 4, (double)keys[i].time, &v ) );
+				ExpectSameOrientation( v.angles, keys[i].angles );
+			}
+		}
+	}
+}
+
+TEST(CamPathEvaluate, BackAndForthPansWithJitterStaySmooth) {
+	// hand placed keys of a back and forth pan are never exactly level
+	unsigned int seed = 12345;
+	auto random = [&seed]() -> double {
+		seed = seed * 1664525u + 1013904223u;
+		return ( seed >> 8 ) / 16777216.0;
+	};
+
+	for ( int path = 0; path < 100; path++ ) {
+		const double turn = 170.0 + 10.0 * random();
+		camKey_t keys[6];
+		for ( int i = 0; i < 6; i++ ) {
+			keys[i] = Key( i * 1000, 0, 0, 0, (float)( 10.0 * random() - 5.0 ), (float)( ( i & 1 ) ? turn : 0.0 ), 0 );
+		}
+		const PathScan s = ScanPath( keys, 6 );
+
+		EXPECT_EQ( s.nans, 0 ) << "path " << path;
+		EXPECT_LT( s.maxStep, 1.0 ) << "path " << path;
+		EXPECT_LT( s.pitchOver, 3.0 ) << "path " << path;
+	}
+}
+
+TEST(CamPathEvaluate, BackAndForthPanTurnsHalfwayAtTheMiddle) {
+	// the middle segment of a 0, 170, 0, 170 degree pan eases out and in
+	// symmetrically: half way through the time, half way through the turn
+	const camKey_t keys[4] = {
+		Key( 0, 0, 0, 0, 0, 0, 0 ), Key( 1000, 0, 0, 0, 0, 170, 0 ),
+		Key( 2000, 0, 0, 0, 0, 0, 0 ), Key( 3000, 0, 0, 0, 0, 170, 0 ) };
+	camView_t v;
+	ASSERT_TRUE( CamPath_Evaluate( keys, 4, 1500.0, &v ) );
+	const float mid[3] = { 0.0f, 85.0f, 0.0f };
+	ExpectSameOrientation( v.angles, mid, 1e-3 );
 }
