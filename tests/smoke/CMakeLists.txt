@@ -21,3 +21,10 @@ if(TARGET ${MVMP})
       $<TARGET_FILE:${MVMP}> $<TARGET_FILE_DIR:${MVMP}> ${CMAKE_CURRENT_BINARY_DIR}/client)
   set_tests_properties(smoke_client PROPERTIES LABELS smoke TIMEOUT 300)
 endif()
+
+if(TARGET ${MVMP})
+  add_test(NAME smoke_render
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/render_smoke.py
+      $<TARGET_FILE:${MVMP}> $<TARGET_FILE_DIR:${MVMP}> ${CMAKE_CURRENT_BINARY_DIR}/render)
+  set_tests_properties(smoke_render PROPERTIES LABELS smoke TIMEOUT 600)
+endif()

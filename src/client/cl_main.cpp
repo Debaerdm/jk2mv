@@ -2649,6 +2649,7 @@ CL_InitRenderer
 void CL_InitRenderer( void ) {
 	// this sets up the renderer and calls R_Init
 	re.BeginRegistration( &cls.glconfig );
+	CL_TestSceneReset();
 
 	// load character sets
 #ifdef _JK2
@@ -3029,6 +3030,7 @@ void CL_Init( void ) {
 	CL_InitPresets();
 	CL_InitDemoTools();
 	CL_InitBenchmark();
+	CL_InitTestScene();
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
 	Cmd_AddCommand ("record", CL_Record_f);
 	Cmd_AddCommand ("demo", CL_PlayDemo_f);
@@ -3119,6 +3121,7 @@ void CL_Shutdown( void ) {
 	CL_ShutdownPresets();
 	CL_ShutdownDemoTools();
 	CL_ShutdownBenchmark();
+	CL_ShutdownTestScene();
 	Cmd_RemoveCommand ("disconnect");
 	Cmd_RemoveCommand ("record");
 	Cmd_RemoveCommand ("demo");

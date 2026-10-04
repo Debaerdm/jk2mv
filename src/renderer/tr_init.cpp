@@ -284,7 +284,7 @@ static void AssertCvarRange( cvar_t *cv, float minVal, float maxVal, qboolean sh
 
 Cannot use strstr directly to differentiate between (for eg) reg_combiners and reg_combiners2
 */
-bool GL_CheckForExtension(char *ext) {
+bool GL_CheckForExtension(const char *ext) {
 	const char *ptr = Q_stristr(glConfig.extensions_string, ext);
 	if (ptr == NULL)
 		return false;
@@ -1385,6 +1385,7 @@ void R_Init( void ) {
 	R_InitShaders();
 	R_InitSkins();
 	R_InitFonts();
+	R_InitPostFX();
 #endif
 	R_ModelInit();
 #ifndef DEDICATED
@@ -1426,6 +1427,8 @@ void RE_Shutdown( qboolean destroyWindow ) {
 
 
 #ifndef DEDICATED
+	R_ShutdownPostFX();
+
 	if ( r_DynamicGlow && r_DynamicGlow->integer )
 	{
 		// Release the Glow Vertex Shader.

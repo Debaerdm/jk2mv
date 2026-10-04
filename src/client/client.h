@@ -426,6 +426,15 @@ qboolean CL_DemoHideHud( void );
 // cl_bench.cpp
 void CL_InitBenchmark( void );
 void CL_ShutdownBenchmark( void );
+
+//
+// cl_testscene.cpp
+//
+void CL_InitTestScene( void );
+void CL_ShutdownTestScene( void );
+void CL_TestSceneReset( void );
+qboolean CL_TestSceneActive( void );
+void CL_DrawTestScene( void );
 void CL_BenchmarkFrame( void );
 void CL_BenchmarkDemoCompleted( void );
 void CL_CompleteDemoName( char *args, int argNum );

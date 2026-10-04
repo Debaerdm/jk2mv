@@ -21,6 +21,7 @@ bool g_bDynamicGlowSupported = false;
 
 static void RB_DrawGlowOverlay();
 static void RB_BlurGlowTexture();
+const void *RB_GammaCorrection( const void *data );
 
 /*
 ** GL_Bind
@@ -1071,7 +1072,7 @@ const void	*RB_DrawSurfs( const void *data ) {
 		qglDisable( GL_TEXTURE_2D );
 		qglEnable( GL_TEXTURE_RECTANGLE_ARB );
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage );
-		qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+		R_PostFXCopyFrame( glConfig.vidWidth, glConfig.vidHeight );
 		qglDisable( GL_TEXTURE_RECTANGLE_ARB );
 		qglEnable( GL_TEXTURE_2D );
 
@@ -1095,7 +1096,7 @@ const void	*RB_DrawSurfs( const void *data ) {
 		qglDisable( GL_TEXTURE_2D );
 		qglEnable( GL_TEXTURE_RECTANGLE_ARB );
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow );
-		qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+		R_PostFXCopyFrame( glConfig.vidWidth, glConfig.vidHeight );
 		qglDisable( GL_TEXTURE_RECTANGLE_ARB );
 		qglEnable( GL_TEXTURE_2D );
 
@@ -1113,7 +1114,7 @@ const void	*RB_DrawSurfs( const void *data ) {
 		qglDisable( GL_TEXTURE_2D );
 		qglEnable( GL_TEXTURE_RECTANGLE_ARB );
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
-		qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+		R_PostFXCopyFrame( backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
 		qglDisable( GL_TEXTURE_RECTANGLE_ARB );
 		qglEnable( GL_TEXTURE_2D );
 
@@ -1125,6 +1126,13 @@ const void	*RB_DrawSurfs( const void *data ) {
 
 		// Draw the glow additively over the screen.
 		RB_DrawGlowOverlay();
+	}
+
+	// r_bloom, r_hdr: on the main view, after the glow so it blooms too
+	if ( !( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) && !backEnd.viewParms.isPortal ) {
+		R_PostFXEndView( backEnd.viewParms.viewportX, backEnd.viewParms.viewportY,
+			backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+		SetViewportAndScissor();
 	}
 
 	return (const void *)(cmd + 1);
@@ -1142,8 +1150,11 @@ const void	*RB_DrawBuffer( const void *data ) {
 
 	cmd = (const drawBufferCommand_t *)data;
 
-	qglDrawBuffer( cmd->buffer );
-	qglReadBuffer( cmd->buffer );
+	// r_fbo: draw into the offscreen target instead of the back buffer
+	if ( !R_PostFXBindScene( (GLenum)cmd->buffer ) ) {
+		qglDrawBuffer( cmd->buffer );
+		qglReadBuffer( cmd->buffer );
+	}
 
 	// clear screen for debugging
 	if (tr.world && tr.world->globalFog != -1)
@@ -1278,6 +1289,13 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	cmd = (const swapBuffersCommand_t *)data;
 
+	// r_fbo frame that skipped the gamma pass: show it anyway
+	if ( R_PostFXPending() ) {
+		gammaCorrectionCommand_t present;
+
+		RB_GammaCorrection( &present );
+	}
+
 	// we measure overdraw by reading back the stencil buffer and
 	// counting up the number of increments that have happened
 	if ( r_measureOverdraw->integer ) {
@@ -1350,18 +1368,23 @@ const void *RB_GammaCorrection( const void *data )
 
 	RB_SetGL2D();
 
+	// r_fbo: the frame is already in a texture, R_PostFXPresent binds it
+	const GLuint offscreenProgram = R_PostFXPresent();
+
 	qglEnable(GL_VERTEX_PROGRAM_ARB);
 	qglBindProgramARB(GL_VERTEX_PROGRAM_ARB, tr.gammaVertexShader);
 	qglEnable(GL_FRAGMENT_PROGRAM_ARB);
-	qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, tr.gammaPixelShader);
+	qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, offscreenProgram ? offscreenProgram : tr.gammaPixelShader);
 
-	// sceneImage is allocated at the screen size (R_BindGlowImages), so update
-	// it in place instead of re-specifying the texture every frame
-	GL_SelectTexture(0);
-	qglEnable(GL_TEXTURE_RECTANGLE_ARB);
-	qglBindTexture(GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage);
-	qglCopyTexSubImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight);
-	qglDisable(GL_TEXTURE_RECTANGLE_ARB);
+	if (!offscreenProgram) {
+		// sceneImage is allocated at the screen size (R_BindGlowImages), so
+		// update it in place instead of re-specifying the texture every frame
+		GL_SelectTexture(0);
+		qglEnable(GL_TEXTURE_RECTANGLE_ARB);
+		qglBindTexture(GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage);
+		qglCopyTexSubImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight);
+		qglDisable(GL_TEXTURE_RECTANGLE_ARB);
+	}
 
 	GL_SelectTexture(1);
 	qglEnable(GL_TEXTURE_3D);
@@ -1674,7 +1697,7 @@ static void RB_BlurGlowTexture()
 
 			// Copy the current image over.
 			qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, uiTex );
-			qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+			R_PostFXCopyFrame( backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
 		}
 
 		// Draw the fullscreen quad.
@@ -1693,7 +1716,7 @@ static void RB_BlurGlowTexture()
 		qglEnd();
 
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
-		qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
+		R_PostFXCopyFrame( backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
 
 		// Increase the texel offsets.
 		// NOTE: This is possibly the most important input to the effect. Even by using an exponential function I've been able to

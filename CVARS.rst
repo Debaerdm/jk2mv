@@ -386,6 +386,58 @@ Client-Side
 
 ..
 
+:Name: r_fbo
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   Render each frame into an offscreen buffer (framebuffer object) and show
+   it through the post-process gamma pass. On its own it looks the same as 0;
+   ``r_hdr`` and ``r_bloom`` need it. Requires ``r_gammamethod 2`` and
+   vid_restart. With MSAA the offscreen buffer is multisampled.
+   ``r_measureOverdraw`` doesn't work with it.
+
+..
+
+:Name: r_hdr
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   With ``r_fbo``, render the 3D view in 16-bit floating point, so additive
+   light (sabers, blaster bolts, explosions, lights) keeps adding up past
+   full brightness. At the end of the view the highlights roll off smoothly
+   towards white instead of clipping; the HUD and menus are not affected.
+   Requires vid_restart.
+
+..
+
+:Name: r_exposure
+:Values: Float (0.25 - 4.0)
+:Default: "1"
+:Description:
+   Brightness of the 3D view before the highlight roll-off of ``r_hdr``.
+
+..
+
+:Name: r_bloom
+:Values: "0", "1", "2"
+:Default: "0"
+:Description:
+   With ``r_fbo``, bright parts of the 3D view glow softly into their
+   surroundings; with ``r_hdr`` the glow keeps their color. Requires
+   vid_restart.
+   | 2: debugging, blooms the whole frame including the HUD, at threshold 0.
+
+..
+
+:Name: r_bloomIntensity / r_bloomThreshold
+:Values: Float (0.0 - 4.0 / 0.0 - 1.0)
+:Default: "0.5" / "0.75"
+:Description:
+   Strength of the bloom, and the brightness (as a fraction of white) above
+   which parts of the view bloom.
+
+..
+
 :Name: r_environmentMapping
 :Values: "0", "1"
 :Default: "1"
@@ -823,6 +875,10 @@ Other Changes
   from ``cl_aviFrameRate``, the quality from ``cl_mp4Crf`` (default 18, lower
   is better, 0 - 51) and ``cl_mp4Preset`` (x264 preset, default "medium").
 * ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
+* ``testscene <map> [x y z [yaw [pitch]]] [dlight]`` draws a map from a fixed
+  camera while disconnected, without the game modules, to try renderer
+  settings (the renderer smoke test uses it); ``testscene off`` brings the
+  menu back.
 * ``benchmark <demo> [runs] [warmup] [tag]`` plays a demo in timedemo mode
   several times without the 1000 fps cap and prints the average fps, frame
   time percentiles and the 1% low per run and pooled; it writes every frame

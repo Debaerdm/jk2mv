@@ -1472,6 +1472,28 @@ void	R_InitFogTable( void );
 float	R_FogFactor( float s, float t );
 void	R_InitImages( void );
 void	R_UpdateImages( void );
+GLuint	R_AllocTextureName( void );
+bool	GL_CheckForExtension( const char *ext );
+
+//
+// tr_postfx.cpp: offscreen rendering, HDR and bloom (r_fbo)
+//
+extern cvar_t	*r_fbo;
+extern cvar_t	*r_hdr;
+extern cvar_t	*r_bloom;
+extern cvar_t	*r_bloomIntensity;
+extern cvar_t	*r_bloomThreshold;
+extern cvar_t	*r_exposure;
+
+void		R_InitPostFX( void );
+void		R_ShutdownPostFX( void );
+void		R_ResizePostFX( void );
+GLenum		R_PostFXSceneFormat( void );
+qboolean	R_PostFXBindScene( GLenum buffer );
+qboolean	R_PostFXPending( void );
+void		R_PostFXCopyFrame( int width, int height );
+void		R_PostFXEndView( int x, int y, int w, int h );
+GLuint		R_PostFXPresent( void );
 void	R_DeleteTextures( void );
 float	R_SumOfUsedImages( qboolean bUseFormat );
 void	R_InitSkins( void );

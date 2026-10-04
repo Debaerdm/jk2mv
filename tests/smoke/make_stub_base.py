@@ -24,8 +24,66 @@ def write(path, data):
         f.write(data)
 
 
+MST_PLANAR = 1
+LIGHTMAP_BY_VERTEX = -3
+LS_NORMAL, LS_NONE = 0, 0xff
+
+# visible surfaces for the renderer test (testscene ci_box -256 0 96):
+# shader, corners, vertex color. A room, a wall, a white lamp and two
+# overlapping red strips; the additive ones go over 1.0 in HDR and glow.
+SCENE_SURFACES = [
+    ('textures/ci/floor', [(-512, -512, 0), (512, -512, 0), (512, 512, 0), (-512, 512, 0)], (70, 70, 80)),
+    ('textures/ci/wall', [(448, -384, 0), (448, 384, 0), (448, 384, 384), (448, -384, 384)], (110, 110, 120)),
+    # dark room around it, so every pixel is drawn
+    ('textures/ci/wall', [(-512, -512, 512), (512, -512, 512), (512, 512, 512), (-512, 512, 512)], (20, 24, 40)),
+    ('textures/ci/wall', [(512, -512, 0), (512, 512, 0), (512, 512, 512), (512, -512, 512)], (30, 34, 50)),
+    ('textures/ci/wall', [(-512, -512, 0), (-512, 512, 0), (-512, 512, 512), (-512, -512, 512)], (30, 34, 50)),
+    ('textures/ci/wall', [(-512, 512, 0), (512, 512, 0), (512, 512, 512), (-512, 512, 512)], (36, 40, 56)),
+    ('textures/ci/wall', [(-512, -512, 0), (512, -512, 0), (512, -512, 512), (-512, -512, 512)], (36, 40, 56)),
+    ('textures/ci/lamp', [(440, -48, 160), (440, 48, 160), (440, 48, 256), (440, -48, 256)], (255, 255, 255)),
+    ('textures/ci/red', [(436, 160, 64), (436, 192, 64), (436, 192, 320), (436, 160, 320)], (255, 255, 255)),
+    ('textures/ci/red', [(432, 164, 64), (432, 196, 64), (432, 196, 320), (432, 164, 320)], (255, 255, 255)),
+]
+
+SCENE_SHADERS = (
+    'textures/ci/floor\n{\n\tcull none\n\t{\n\t\tmap $whiteimage\n\t\trgbGen vertex\n\t}\n}\n'
+    'textures/ci/wall\n{\n\tcull none\n\t{\n\t\tmap $whiteimage\n\t\trgbGen vertex\n\t}\n}\n'
+    'textures/ci/lamp\n{\n\tcull none\n\t{\n\t\tmap $whiteimage\n\t\tblendfunc GL_ONE GL_ONE\n'
+    '\t\trgbGen const ( 1 1 1 )\n\t\tglow\n\t}\n}\n'
+    'textures/ci/red\n{\n\tcull none\n\t{\n\t\tmap $whiteimage\n\t\tblendfunc GL_ONE GL_ONE\n'
+    '\t\trgbGen const ( 1 0.25 0.1 )\n\t\tglow\n\t}\n}\n'
+)
+
+
+def scene_lumps(first_shader):
+    """Shaders, vertexes, indexes and surfaces of SCENE_SURFACES."""
+    names = []
+    verts = indexes = surfaces = b''
+    for i, (shader, corners, rgb) in enumerate(SCENE_SURFACES):
+        if shader not in names:
+            names.append(shader)
+        e1 = [corners[1][k] - corners[0][k] for k in range(3)]
+        e2 = [corners[2][k] - corners[0][k] for k in range(3)]
+        normal = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]
+        length = sum(c * c for c in normal) ** 0.5
+        normal = [c / length for c in normal]
+        for j, xyz in enumerate(corners):
+            verts += struct.pack('3f2f8f3f16B', *xyz, j in (1, 2), j in (2, 3), *([0.0] * 8), *normal,
+                                 *rgb, 255, *([0] * 12))
+        indexes += struct.pack('6i', 0, 1, 2, 0, 2, 3)
+        surfaces += struct.pack('3i4i8B4i4i4i2i3f9f2i', first_shader + names.index(shader), -1, MST_PLANAR,
+                                i * 4, 4, i * 6, 6,
+                                LS_NONE, LS_NONE, LS_NONE, LS_NONE, LS_NORMAL, LS_NONE, LS_NONE, LS_NONE,
+                                LIGHTMAP_BY_VERTEX, LIGHTMAP_BY_VERTEX, LIGHTMAP_BY_VERTEX, LIGHTMAP_BY_VERTEX,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0, *normal, 0, 0)
+    shaders = b''.join(struct.pack('64sii', n.encode(), 0, 0) for n in names)
+    return shaders, verts, indexes, surfaces
+
+
 def make_box_bsp(path):
-    """Minimal RBSP v1 map: one solid floor brush, one node, two leafs."""
+    """Minimal RBSP v1 map: one solid floor brush, one node, two leafs, and
+    the visible SCENE_SURFACES in the open leaf."""
     size = 1024.0
     ents = (
         '{\n"classname" "worldspawn"\n}\n'
@@ -36,6 +94,9 @@ def make_box_bsp(path):
         ents += b'\0'
 
     shaders = struct.pack('64sii', b'textures/common/caulk', 0, 1)  # CONTENTS_SOLID
+    scene_shaders, verts, indexes, surfaces = scene_lumps(1)
+    shaders += scene_shaders
+    num_surfaces = len(SCENE_SURFACES)
 
     planes_def = [
         ((0, 0, 1), 0), ((0, 0, -1), 0),            # floor top
@@ -49,10 +110,11 @@ def make_box_bsp(path):
 
     b = int(size)
     nodes = struct.pack('3i3i3i', 0, -1, -2, -b, -b, -64, b, b, b)
-    leafs = (struct.pack('2i3i3i4i', 0, 0, -b, -b, 0, b, b, b, 0, 0, 0, 1) +
+    leafs = (struct.pack('2i3i3i4i', 0, 0, -b, -b, 0, b, b, b, 0, num_surfaces, 0, 1) +
              struct.pack('2i3i3i4i', 0, 0, -b, -b, -64, b, b, 0, 0, 0, 1, 1))
     leafbrushes = struct.pack('2i', 0, 0)
-    models = struct.pack('6f4i', -size, -size, -64, size, size, size, 0, 0, 0, 1)
+    leafsurfaces = struct.pack('%di' % num_surfaces, *range(num_surfaces))
+    models = struct.pack('6f4i', -size, -size, -64, size, size, size, 0, num_surfaces, 0, 1)
     brushes = struct.pack('3i', 0, 6, 0)
     brushsides = b''.join(struct.pack('3i', p, 0, 0) for p in (0, 2, 4, 6, 8, 10))
 
@@ -62,10 +124,14 @@ def make_box_bsp(path):
     lumps[2] = planes
     lumps[3] = nodes
     lumps[4] = leafs
+    lumps[5] = leafsurfaces
     lumps[6] = leafbrushes
     lumps[7] = models
     lumps[8] = brushes
     lumps[9] = brushsides
+    lumps[10] = verts
+    lumps[11] = indexes
+    lumps[13] = surfaces
 
     ofs = 8 + 18 * 8
     directory = b''
@@ -93,7 +159,7 @@ def main():
         z.writestr('stub.txt', 'jk2mv smoke test placeholder\n')
         z.writestr('shaders/stub.shader',
                    'white\n{\n\t{\n\t\tmap $whiteimage\n\t\tblendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA\n'
-                   '\t\trgbgen vertex\n\t\talphagen vertex\n\t}\n}\n')
+                   '\t\trgbgen vertex\n\t\talphagen vertex\n\t}\n}\n' + SCENE_SHADERS)
 
     write(os.path.join(base, 'mpdefault.cfg'), '// smoke test stub\n')
 

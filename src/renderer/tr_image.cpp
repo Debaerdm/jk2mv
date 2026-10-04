@@ -2889,10 +2889,10 @@ static void R_BindGlowImages( void ) {
 	}
 	if (tr.sceneImage) {
 		// Create the scene image. - AReis
-		// It only holds copies of the 8-bit framebuffer (glow and gamma passes),
-		// which update it in place with glCopyTexSubImage2D
+		// It only holds copies of the framebuffer (glow and gamma passes), which
+		// update it in place with glCopyTexSubImage2D: 8-bit, or float for r_hdr
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.sceneImage );
-		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA8, glConfig.vidWidth, glConfig.vidHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
+		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, R_PostFXSceneFormat(), glConfig.vidWidth, glConfig.vidHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP );
@@ -2985,6 +2985,13 @@ Update images when renderer size changes
 */
 void R_UpdateImages( void ) {
 	R_BindGlowImages();
+	R_ResizePostFX();
+}
+
+// texture name for objects outside the image list (render targets), in the
+// same range as the images so it can't collide with them
+GLuint R_AllocTextureName( void ) {
+	return 1024 + giTextureBindNum++;
 }
 
 /*

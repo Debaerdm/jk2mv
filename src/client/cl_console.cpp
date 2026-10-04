@@ -54,7 +54,7 @@ Con_ToggleConsole_f
 */
 void Con_ToggleConsole_f (void) {
 	// closing a full screen console restarts the demo loop
-	if ( cls.state == CA_DISCONNECTED && cls.keyCatchers == KEYCATCH_CONSOLE ) {
+	if ( cls.state == CA_DISCONNECTED && cls.keyCatchers == KEYCATCH_CONSOLE && !CL_TestSceneActive() ) {
 		CL_StartDemoLoop();
 		return;
 	}
@@ -896,8 +896,8 @@ void Con_DrawConsole( void ) {
 	// check for console width changes from a vid mode change
 	Con_CheckResize ();
 
-	// if disconnected, render console full screen
-	if ( cls.state == CA_DISCONNECTED ) {
+	// if disconnected, render console full screen (but not over testscene)
+	if ( cls.state == CA_DISCONNECTED && !CL_TestSceneActive() ) {
 		if ( !( cls.keyCatchers & (KEYCATCH_UI | KEYCATCH_CGAME)) ) {
 			Con_DrawSolidConsole( 1.0 );
 			return;

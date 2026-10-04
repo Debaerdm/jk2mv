@@ -556,6 +556,10 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 			SCR_DrawCinematic();
 			break;
 		case CA_DISCONNECTED:
+			if ( CL_TestSceneActive() ) {
+				CL_DrawTestScene();
+				break;
+			}
 			// force menu up
 			S_StopAllSounds();
 			VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN);

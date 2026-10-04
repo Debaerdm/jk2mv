@@ -27,6 +27,9 @@ static const char * const presetCvarNames[] = {
 	"r_DynamicGlowHeight",
 	"r_subdivisions",
 	"r_lodCurveError",
+	"r_fbo",
+	"r_hdr",
+	"r_bloom",
 	"cl_autolodscale",
 	"r_swapInterval",
 	"cl_aviFrameRate",
@@ -47,9 +50,14 @@ static const presetCvar_t presetEnhancedCvars[] = {
 	{ NULL, NULL }
 };
 
+// offscreen rendering with HDR and bloom: sabers, blasters and lights
+// bloom and stay colored instead of clipping to white
 static const presetCvar_t presetUltraCvars[] = {
 	{ "r_ext_multisample", "8" },
 	{ "cl_autolodscale", "0" },						// full model detail with many players
+	{ "r_fbo", "1" },
+	{ "r_hdr", "1" },
+	{ "r_bloom", "1" },
 	{ NULL, NULL }
 };
 
@@ -62,6 +70,9 @@ static const presetCvar_t presetCompetitiveCvars[] = {
 static const presetCvar_t presetMovieCvars[] = {
 	{ "cl_aviFrameRate", "60" },
 	{ "cl_aviMotionJpegQuality", "95" },
+	{ "r_fbo", "1" },
+	{ "r_hdr", "1" },
+	{ "r_bloom", "1" },
 	{ NULL, NULL }
 };
 
@@ -70,9 +81,9 @@ static const preset_t presetEnhanced = { "enhanced", "anisotropic 16x, MSAA 4x, 
 static const preset_t presets[] = {
 	{ "classic", "the original look (resets every preset cvar)", NULL, NULL },
 	presetEnhanced,
-	{ "ultra", "enhanced with MSAA 8x and full model detail (CPU heavy in big fights)", &presetEnhanced, presetUltraCvars },
+	{ "ultra", "enhanced with MSAA 8x, HDR, bloom and full model detail (CPU heavy in big fights)", &presetEnhanced, presetUltraCvars },
 	{ "competitive", "no glow, no vsync", NULL, presetCompetitiveCvars },
-	{ "movie", "enhanced with 60 fps, high quality video capture", &presetEnhanced, presetMovieCvars },
+	{ "movie", "enhanced with HDR, bloom, 60 fps and high quality video capture", &presetEnhanced, presetMovieCvars },
 };
 
 static const char * const presetNames[] = { "classic", "enhanced", "ultra", "competitive", "movie" };

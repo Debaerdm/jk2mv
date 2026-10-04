@@ -127,6 +127,7 @@ jobs:
         path: |
           ${{ env.BUILD_DIR }}/tests/smoke/*/server.log
           ${{ env.BUILD_DIR }}/tests/smoke/*/client.log
+          ${{ env.BUILD_DIR }}/tests/smoke/*/render_*.log
           ${{ env.BUILD_DIR }}/tests/smoke/*/base/screenshots/*.tga
 
   test-results:

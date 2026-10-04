@@ -132,6 +132,16 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 | VQ-11 | flou de mouvement accumulé dans un FBO flottant | M | O |
 | VQ-2b | étalonnage appliqué avant le HUD (la v1 teinte aussi le HUD, cl_scrn.cpp:503) | S | O |
 
+**Avancement.**
+- **VQ-5 et VQ-6 sont livrés :** `r_fbo`, `r_hdr`, `r_bloom`, `r_exposure` (src/renderer/tr_postfx.cpp), dans les presets `ultra` et `movie`.
+- **`r_fbo 1` :** il supprime la copie plein écran de la passe gamma. Le glow garde encore ses copies, qui restent à porter sur des FBO.
+- **Tonemapping :** c'est une épaule exponentielle au-dessus de 0,8 × blanc, appliquée à la fin de la vue 3D, avant le HUD. Je l'ai préférée à ACES pour que l'image d'origine reste intacte sous le genou.
+- **Banc d'essai sans assets :** la commande `testscene` et la salle de test de ci_box. Le test CI `smoke_render` vérifie :
+  - `r_fbo 1` identique au pixel près, avec et sans glow ;
+  - le halo du bloom ;
+  - le halo resté rouge en HDR ;
+  - l'absence d'erreur GL avec tous les effets et le MSAA.
+
 **Critère de fin.**
 1. `r_fbo 0` reste identique bit à bit aux références de la phase 1. `r_fbo 1` sans effet est identique à la tolérance près, captures et AVI compris.
 2. Glow actif en 1440p : le temps GPU sur bench_duel est plus bas avec `r_fbo 1`.
