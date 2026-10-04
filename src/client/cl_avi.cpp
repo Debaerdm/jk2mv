@@ -20,6 +20,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 
+#include <atomic>
+#include <thread>
+
 #include "client.h"
 #include "snd_local.h"
 #include "cl_videoclock.h"
@@ -653,6 +656,60 @@ qboolean CL_OpenMP4ForWriting( const char *fileName )
 	return qtrue;
 }
 
+/*
+===============
+CL_WaitForFFmpeg
+
+Finishing a video can take a while: ffmpeg encodes the frames still in
+flight (long with a slow preset), then the whole sound track. It is waited
+for on a thread of its own, while the window keeps taking its messages
+(otherwise the system marks the game as not responding after 5 s and offers
+to kill it, which would leave the temporary files) and shows what goes on.
+Called between frames, or inside one when ffmpeg stops during a capture:
+it only draws in the first case.
+
+Closes the pipe and waits for its program, or runs argv; returns the exit
+code, or -1.
+===============
+*/
+static int CL_WaitForFFmpeg( sysPipe_t *pipe, const char * const *argv, const char *message )
+{
+	std::atomic<bool>	done( false );
+	int					code = -1;
+	const int			start = Sys_Milliseconds();
+	int					shown = -1;
+	std::thread			worker;
+
+	auto run = [&]() {
+		code = pipe ? Sys_PipeClose( pipe ) : Sys_RunProcess( argv, afd.logOS );
+		done = true;
+	};
+	try {
+		worker = std::thread( run );
+	} catch ( ... ) {
+		run();		// no thread: the wait blocks
+	}
+
+	while ( !done ) {
+		const int elapsed = Sys_Milliseconds() - start;
+
+		WIN_PumpEvents();
+		// once the wait shows, a count of the seconds
+		if ( elapsed >= 250 && elapsed / 1000 != shown ) {
+			if ( shown < 0 ) {
+				S_ClearSoundBuffer();	// the sound device would repeat its buffer
+			}
+			shown = elapsed / 1000;
+			SCR_UpdateBusyScreen( va( "%s %i s", message, shown ) );
+		}
+		Sys_Sleep( 10 );
+	}
+	if ( worker.joinable() ) {
+		worker.join();
+	}
+	return code;
+}
+
 static qboolean CL_CloseMP4( void )
 {
 	const int	frames = afd.numVideoFrames;
@@ -661,7 +718,7 @@ static qboolean CL_CloseMP4( void )
 	Com_Printf( "finishing %s...\n", afd.fileName );
 
 	// waits for ffmpeg to encode the frames still in flight
-	code = Sys_PipeClose( afd.mp4Pipe );
+	code = CL_WaitForFFmpeg( afd.mp4Pipe, NULL, "Finishing the video..." );
 	afd.mp4Pipe = NULL;
 	if( code != 0 && FS_ReadFile( afd.mp4VideoQ, NULL ) <= 0 )
 	{
@@ -687,7 +744,7 @@ static qboolean CL_CloseMP4( void )
 
 			// encodes the whole sound track: long recordings take a while
 			Com_Printf( "adding the sound, please wait...\n" );
-			code = Sys_RunProcess( argv, afd.logOS );
+			code = CL_WaitForFFmpeg( NULL, argv, "Adding the sound..." );
 			if( code == 0 )
 			{
 				FS_HomeRemove( afd.mp4VideoQ );

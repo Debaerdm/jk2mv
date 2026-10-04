@@ -650,17 +650,17 @@ This is called every frame, and can also be called explicitly to flush
 text to the screen.
 ==================
 */
-void SCR_UpdateScreen( void ) {
-	static int	recursive;
+static int	scr_updating;	// SCR_UpdateScreen is running
 
+void SCR_UpdateScreen( void ) {
 	if ( !scr_initialized ) {
 		return;				// not initialized yet
 	}
 
-	if ( ++recursive > 2 ) {
+	if ( ++scr_updating > 2 ) {
 		Com_Error( ERR_FATAL, "SCR_UpdateScreen: recursively called" );
 	}
-	recursive = 1;
+	scr_updating = 1;
 
 	SCR_RecordFrameTime();
 
@@ -673,7 +673,40 @@ void SCR_UpdateScreen( void ) {
 
 	SCR_SwapScreenBuffers();
 
-	recursive = 0;
+	scr_updating = 0;
+}
+
+static void SCR_DrawBusyField( stereoFrame_t stereoFrame, const char *message ) {
+	re.BeginFrame( stereoFrame, SCR_ShouldSkipBackend() );
+	SCR_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, colorBlack );
+	SCR_DrawBigString( ( SCREEN_WIDTH - SCR_GetBigStringWidth( message ) ) / 2, 232, message, 1.0f );
+	re.EndFrame();
+}
+
+/*
+==================
+SCR_UpdateBusyScreen
+
+While the engine waits on something long between frames (video_mp4
+finishing): the message alone on a black screen. No game module runs, so
+nothing can fail in the middle of the wait. Does nothing inside a frame.
+==================
+*/
+void SCR_UpdateBusyScreen( const char *message ) {
+	if ( !scr_initialized || !cls.rendererStarted || scr_updating ) {
+		return;
+	}
+	scr_updating = 1;
+
+	if ( cls.glconfig.stereoEnabled ) {
+		SCR_DrawBusyField( STEREO_LEFT, message );
+		SCR_DrawBusyField( STEREO_RIGHT, message );
+	} else {
+		SCR_DrawBusyField( STEREO_CENTER, message );
+	}
+	SCR_SwapScreenBuffers();
+
+	scr_updating = 0;
 }
 
 #define MAX_SCR_LINES		10

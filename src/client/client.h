@@ -618,6 +618,7 @@ void Con_Close( void );
 //
 void	SCR_Init (void);
 void	SCR_UpdateScreen (void);
+void	SCR_UpdateBusyScreen( const char *message );	// a long wait between frames
 
 void	SCR_DebugGraph (float value, int color);
 

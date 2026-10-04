@@ -965,7 +965,8 @@ Other Changes
   ffmpeg, which must be in the PATH, next to the game on Windows, or in the
   game's directory, /usr/local/bin or /opt/homebrew/bin on Linux and macOS;
   ``stopvideo`` ends it (adding the sound to a long recording takes a
-  while). Names are up to 42 letters, digits, '_', '-' and '.'. When ffmpeg
+  while: the screen counts the seconds, and the window stays responsive).
+  Names are up to 42 letters, digits, '_', '-' and '.'. When ffmpeg
   fails, its messages are in videos/<name>.mp4.log. The frame rate comes
   from ``cl_aviFrameRate``, the quality from ``cl_mp4Crf`` (default 18, lower
   is better, 0 - 51) and ``cl_mp4Preset`` (x264 preset, default "medium").

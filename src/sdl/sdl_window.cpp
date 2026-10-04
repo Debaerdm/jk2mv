@@ -1175,6 +1175,17 @@ void *WIN_GL_GetProcAddress( const char *proc )
 	return SDL_GL_GetProcAddress( proc );
 }
 
+/*
+While the engine waits on something long between frames: the window keeps
+taking its messages, so the system doesn't mark it as not responding. The
+events are only queued, for IN_Frame to handle after the wait.
+*/
+void WIN_PumpEvents( void ) {
+	if ( SDL_WasInit( SDL_INIT_VIDEO ) ) {
+		SDL_PumpEvents();
+	}
+}
+
 void WIN_SetTaskbarState(tbstate_t state, uint64_t current, uint64_t total) {
 	SDL_SysWMinfo info;
 

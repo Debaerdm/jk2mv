@@ -202,6 +202,7 @@ void		WIN_Present( window_t *window );
 void		WIN_UpdateGLConfig( glconfig_t *glConfig );
 void		WIN_SetGamma( glconfig_t *glConfig, byte red[256], byte green[256], byte blue[256] );
 void		WIN_SetTaskbarState(tbstate_t state, uint64_t current, uint64_t total);
+void		WIN_PumpEvents( void );	// the window takes its messages; the events wait for IN_Frame
 void		WIN_Shutdown( void );
 void *		WIN_GL_GetProcAddress( const char *proc );
 void		GLimp_Minimize(void);
