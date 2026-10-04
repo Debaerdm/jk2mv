@@ -67,6 +67,10 @@ def scene_lumps(first_shader):
         normal = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]
         length = sum(c * c for c in normal) ** 0.5
         normal = [c / length for c in normal]
+        # facing into the room, as a compiler would write them (lighting uses them)
+        to_center = [(0, 0, 200)[k] - corners[0][k] for k in range(3)]
+        if sum(normal[k] * to_center[k] for k in range(3)) < 0:
+            normal = [-c for c in normal]
         for j, xyz in enumerate(corners):
             verts += struct.pack('3f2f8f3f16B', *xyz, j in (1, 2), j in (2, 3), *([0.0] * 8), *normal,
                                  *rgb, 255, *([0] * 12))

@@ -1485,6 +1485,11 @@ extern cvar_t	*r_bloomIntensity;
 extern cvar_t	*r_bloomThreshold;
 extern cvar_t	*r_exposure;
 
+// tr_shade.cpp: per-pixel dynamic lights (r_dlightMode 1)
+extern cvar_t	*r_dlightMode;
+void		R_InitDlightPrograms( void );
+void		R_ShutdownDlightPrograms( void );
+
 void		R_InitPostFX( void );
 void		R_ShutdownPostFX( void );
 void		R_ResizePostFX( void );

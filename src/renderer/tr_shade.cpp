@@ -543,6 +543,189 @@ static void NewProjectDlightTexture( void )
 
 /*
 ===================
+Per-pixel dynamic lights (r_dlightMode 1)
+
+The classic pass projects the light blob along the world Z axis and fades
+it per vertex, which smears on walls and shows the triangles of big
+surfaces. Here a fragment program works out the distance to the light for
+every pixel and gives the classic blob shape (full up to half its radius,
+then inverse square) as a round, smooth spot, times a facing term from the
+interpolated normal. The classic blob spans radius / 2 across the floor but
+ignores the height of the light, which only fades it past radius / 2: a
+blob of 3/4 of the radius keeps full brightness under a light a little
+above the floor and about the classic spot size. Same additive or
+modulating blend as the classic pass, so it adds to the existing lighting.
+===================
+*/
+cvar_t	*r_dlightMode;
+
+static GLuint	dlightVertexProgram, dlightFragmentProgram;
+
+// object space position and normal (sent as texture coordinates) for the
+// fragment program; position invariant so GL_EQUAL depth testing still
+// matches the surface pass
+static const char *dlightVP =
+	"!!ARBvp1.0\n"
+	"OPTION ARB_position_invariant;\n"
+	"MOV result.texcoord[0], vertex.position;\n"
+	"MOV result.texcoord[1], vertex.texcoord[0];\n"
+	"END\n";
+
+static const char *dlightFP =
+	"!!ARBfp1.0\n"
+	"PARAM light = program.env[0];\n"		// object space origin, 1 / blob radius
+	"PARAM color = program.env[1];\n"
+	"PARAM facing = program.env[2];\n"		// scale and bias of the facing term
+	"PARAM c = { 0.25, 4, 1, 0.0001 };\n"
+	"TEMP d, u2, a, w, n;\n"
+	"SUB d.xyz, light, fragment.texcoord[0];\n"
+	"MUL d.xyz, d, light.w;\n"				// to the light, in blob radii
+	"DP3 u2.x, d, d;\n"
+	"MAX u2.x, u2.x, c.w;\n"
+	"RCP a.x, u2.x;\n"
+	"MUL_SAT a.x, a.x, c.x;\n"				// min( 1, (0.5 / u)^2 )
+	"SUB w.x, c.z, u2.x;\n"
+	"MUL_SAT w.x, w.x, c.y;\n"				// fades out over the last 13% of the radius
+	"MUL a.x, a.x, w.x;\n"
+	"RSQ u2.x, u2.x;\n"
+	"MUL d.xyz, d, u2.x;\n"					// light direction
+	"DP3 n.w, fragment.texcoord[1], fragment.texcoord[1];\n"
+	"MAX n.w, n.w, c.w;\n"
+	"RSQ n.w, n.w;\n"
+	"MUL n.xyz, fragment.texcoord[1], n.w;\n"
+	"DP3 n.w, n, d;\n"
+	"MAD_SAT n.w, n.w, facing.x, facing.y;\n"
+	"MUL a.x, a.x, n.w;\n"
+	"MUL result.color.xyz, color, a.x;\n"
+	"MOV result.color.w, c.z;\n"
+	"END\n";
+
+static GLuint R_DlightProgram( GLenum target, const char *text ) {
+	GLuint	program = 0;
+	GLint	errorPos = -1;
+
+	qglGenProgramsARB( 1, &program );
+	qglBindProgramARB( target, program );
+	qglProgramStringARB( target, GL_PROGRAM_FORMAT_ASCII_ARB, (int)strlen( text ), text );
+	qglGetIntegerv( GL_PROGRAM_ERROR_POSITION_ARB, &errorPos );
+	if ( errorPos != -1 ) {
+		ri.Printf( PRINT_WARNING, "dynamic light program error at %i: %s\n", errorPos,
+			(const char *)qglGetString( GL_PROGRAM_ERROR_STRING_ARB ) );
+		qglDeleteProgramsARB( 1, &program );
+		return 0;
+	}
+	return program;
+}
+
+void R_InitDlightPrograms( void ) {
+	r_dlightMode = ri.Cvar_Get( "r_dlightMode", "0", CVAR_ARCHIVE | CVAR_GLOBAL );
+	dlightVertexProgram = dlightFragmentProgram = 0;
+
+	if ( !qglGenProgramsARB || !qglProgramEnvParameter4fARB || !GL_CheckForExtension( "GL_ARB_vertex_program" ) ) {
+		return;
+	}
+	dlightVertexProgram = R_DlightProgram( GL_VERTEX_PROGRAM_ARB, dlightVP );
+	dlightFragmentProgram = R_DlightProgram( GL_FRAGMENT_PROGRAM_ARB, dlightFP );
+	if ( !dlightVertexProgram || !dlightFragmentProgram ) {
+		R_ShutdownDlightPrograms();
+	}
+}
+
+void R_ShutdownDlightPrograms( void ) {
+	if ( dlightVertexProgram ) {
+		qglDeleteProgramsARB( 1, &dlightVertexProgram );
+	}
+	if ( dlightFragmentProgram ) {
+		qglDeleteProgramsARB( 1, &dlightFragmentProgram );
+	}
+	dlightVertexProgram = dlightFragmentProgram = 0;
+}
+
+static void PerPixelDlights( void ) {
+	byte		clipBits[SHADER_MAX_VERTEXES];
+	glIndex_t	hitIndexes[SHADER_MAX_INDEXES];
+	const qboolean backs = (qboolean)!!r_dlightBacks->integer;
+
+	// the normals go in the texture coordinate array
+	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglTexCoordPointer( 3, GL_FLOAT, sizeof( tess.normal[0] ), tess.normal );
+
+	qglEnable( GL_VERTEX_PROGRAM_ARB );
+	qglBindProgramARB( GL_VERTEX_PROGRAM_ARB, dlightVertexProgram );
+	qglEnable( GL_FRAGMENT_PROGRAM_ARB );
+	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, dlightFragmentProgram );
+	// with r_dlightBacks the light wraps around like the classic one,
+	// without it the side facing away gets nothing
+	if ( backs ) {
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, 0.5f, 0.5f, 0.0f, 0.0f );
+	} else {
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, 0.8f, 0.2f, 0.0f, 0.0f );
+	}
+
+	for ( int l = 0; l < backEnd.refdef.num_dlights; l++ ) {
+		const dlight_t	*dl = &backEnd.refdef.dlights[l];
+		const float		*origin = dl->transformed;
+		const float		radius = dl->radius * 0.75f;	// of the blob
+		int				numIndexes = 0;
+
+		if ( !( tess.dlightBits & ( 1 << l ) ) ) {
+			continue;	// this surface definately doesn't have any of this light
+		}
+
+		// only the triangles that touch the light's box, and face it
+		// without r_dlightBacks
+		for ( int i = 0; i < tess.numVertexes; i++ ) {
+			const float	*xyz = tess.xyz[i];
+			int			clip = 0;
+
+			for ( int j = 0; j < 3; j++ ) {
+				if ( xyz[j] < origin[j] - radius ) {
+					clip |= 1 << ( j * 2 );
+				} else if ( xyz[j] > origin[j] + radius ) {
+					clip |= 2 << ( j * 2 );
+				}
+			}
+			if ( !backs && ( origin[0] - xyz[0] ) * tess.normal[i][0] + ( origin[1] - xyz[1] ) * tess.normal[i][1] +
+				( origin[2] - xyz[2] ) * tess.normal[i][2] < 0.0f ) {
+				clip = 63;
+			}
+			clipBits[i] = clip;
+		}
+		for ( int i = 0; i < tess.numIndexes; i += 3 ) {
+			const glIndex_t a = tess.indexes[i], b = tess.indexes[i + 1], c = tess.indexes[i + 2];
+
+			if ( clipBits[a] & clipBits[b] & clipBits[c] ) {
+				continue;
+			}
+			hitIndexes[numIndexes] = a;
+			hitIndexes[numIndexes + 1] = b;
+			hitIndexes[numIndexes + 2] = c;
+			numIndexes += 3;
+		}
+		if ( !numIndexes ) {
+			continue;
+		}
+
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 0, origin[0], origin[1], origin[2], 1.0f / radius );
+		qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 1, dl->color[0], dl->color[1], dl->color[2], 1.0f );
+		// include GLS_DEPTHFUNC_EQUAL so alpha tested surfaces don't add light
+		// where they aren't rendered
+		if ( dl->additive ) {
+			GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
+		} else {
+			GL_State( GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
+		}
+		R_DrawElements( numIndexes, hitIndexes );
+		backEnd.pc.c_totalIndexes += numIndexes;
+		backEnd.pc.c_dlightIndexes += numIndexes;
+	}
+
+	qglDisable( GL_FRAGMENT_PROGRAM_ARB );
+	qglDisable( GL_VERTEX_PROGRAM_ARB );
+}
+
+/*
+===================
 ProjectDlightTexture
 
 Perform dynamic lighting with another rendering pass
@@ -563,6 +746,11 @@ static void ProjectDlightTexture( void ) {
 	vec3_t	floatColor;
 
 	if ( !backEnd.refdef.num_dlights ) {
+		return;
+	}
+
+	if ( r_dlightMode->integer == 1 && dlightFragmentProgram ) {
+		PerPixelDlights();
 		return;
 	}
 

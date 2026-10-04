@@ -1397,6 +1397,7 @@ void R_Init( void ) {
 	R_InitShaders();
 	R_InitSkins();
 	R_InitFonts();
+	R_InitDlightPrograms();
 	R_InitPostFX();
 #endif
 	R_ModelInit();
@@ -1440,6 +1441,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 
 #ifndef DEDICATED
 	R_ShutdownPostFX();
+	R_ShutdownDlightPrograms();
 
 	// whatever r_DynamicGlow is now: the glow images always exist and the
 	// cvar may have changed since the programs were made

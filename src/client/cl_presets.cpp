@@ -30,6 +30,7 @@ static const presetCvar_t presetDefaults[] = {
 	{ "r_DynamicGlowHeight", "240" },
 	{ "r_subdivisions", "4" },
 	{ "r_lodCurveError", "250" },
+	{ "r_dlightMode", "0" },
 	{ "r_fbo", "0" },
 	{ "r_hdr", "0" },
 	{ "r_bloom", "0" },
@@ -50,6 +51,7 @@ static const presetCvar_t presetEnhancedCvars[] = {
 	{ "r_DynamicGlowHeight", "0" },
 	{ "r_subdivisions", "2" },						// smoother curved surfaces
 	{ "r_lodCurveError", "1000" },					// keep them detailed farther away
+	{ "r_dlightMode", "1" },						// round, smooth dynamic lights
 	{ NULL, NULL }
 };
 
@@ -79,7 +81,7 @@ static const presetCvar_t presetMovieCvars[] = {
 	{ NULL, NULL }
 };
 
-static const preset_t presetEnhanced = { "enhanced", "anisotropic 16x, MSAA 4x, glow, sharper and smoother surfaces", NULL, presetEnhancedCvars };
+static const preset_t presetEnhanced = { "enhanced", "anisotropic 16x, MSAA 4x, glow, per-pixel dynamic lights, sharper and smoother surfaces", NULL, presetEnhancedCvars };
 
 static const preset_t presets[] = {
 	{ "classic", "the original look (every preset cvar at its default)", NULL, NULL },

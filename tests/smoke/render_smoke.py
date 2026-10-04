@@ -9,6 +9,8 @@ driver and software OpenGL, and checks the screenshots:
   - bloom brightens the wall around the lamp and leaves the rest alone
   - in HDR the bloom of the red strips stays red instead of washing out
   - every effect at once with MSAA runs without a GL error
+  - per-pixel dynamic lights (r_dlightMode 1) light the wall and floor near
+    the light without the classic vertical smear above it
 
 usage: render_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
@@ -25,6 +27,8 @@ from client_smoke import FATAL_MARKERS, exit_error, read_tga  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCENE = ['+testscene', 'ci_box', '-256', '0', '96']
+# close to the wall, with a dynamic light between the camera and the wall
+DLIGHT_SCENE = ['+testscene', 'ci_box', '200', '0', '96', '0', '0', 'dlight']
 
 RUNS = {
     'classic': [],
@@ -36,11 +40,21 @@ RUNS = {
     'all': ['+set', 'r_fbo', '1', '+set', 'r_hdr', '1', '+set', 'r_bloom', '1', '+set', 'r_DynamicGlow', '1',
             '+set', 'r_ext_multisample', '4'],
 }
+DLIGHT_RUNS = {
+    'nodlight': (['+testscene', 'ci_box', '200', '0', '96', '0', '0'], []),
+    'dlight_classic': (DLIGHT_SCENE, ['+set', 'r_dlightMode', '0']),
+    'dlight_pixel': (DLIGHT_SCENE, ['+set', 'r_dlightMode', '1']),
+}
 
 # 640x480 screen areas, top-down
 WALL_NEAR_LAMP = (350, 175, 375, 200)
 WALL_NEAR_RED = (205, 170, 222, 220)
 FLOOR = (100, 400, 540, 470)
+# in the dynamic light scene: the wall right behind the light, the wall far
+# above it (out of its radius), the floor under it
+WALL_AT_LIGHT = (312, 274, 328, 288)
+WALL_ABOVE_LIGHT = (312, 6, 328, 22)
+FLOOR_UNDER_LIGHT = (300, 440, 340, 470)
 
 
 class Shot:
@@ -75,7 +89,7 @@ def compare(a, b):
     return differing, largest
 
 
-def run(client, work, name, args):
+def run(client, work, name, args, scene=SCENE):
     env = dict(os.environ, SDL_VIDEODRIVER='offscreen', LIBGL_ALWAYS_SOFTWARE='1')
     for cfg in ('jk2mvconfig.cfg', 'jk2mvglobal.cfg'):   # archived r_ settings of the previous run
         path = os.path.join(work, 'base', cfg)
@@ -85,7 +99,7 @@ def run(client, work, name, args):
            '+set', 'r_allowsoftwaregl', '1', '+set', 'r_fullscreen', '0', '+set', 'r_mode', '3',
            '+set', 's_initsound', '0', '+set', 'com_introplayed', '1', '+set', 'con_notifytime', '0',
            '+set', 'r_ignoreGLErrors', '0'] + args + \
-          ['+wait', '60'] + SCENE + ['+wait', '30', '+screenshot_tga', 'render_' + name, '+wait', '5', '+quit']
+          ['+wait', '60'] + scene + ['+wait', '30', '+screenshot_tga', 'render_' + name, '+wait', '5', '+quit']
     try:
         proc = subprocess.run(cmd, cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               timeout=180)
@@ -121,8 +135,10 @@ def main():
         shutil.copy(lib, work)
 
     shots, errors, last_log = {}, [], ''
-    for name, args in RUNS.items():
-        shot, errs, log = run(client, work, name, args)
+    runs = [(name, args, SCENE) for name, args in RUNS.items()]
+    runs += [(name, args, scene) for name, (scene, args) in DLIGHT_RUNS.items()]
+    for name, args, scene in runs:
+        shot, errs, log = run(client, work, name, args, scene)
         errors += errs
         if errs:
             last_log = log
@@ -133,7 +149,7 @@ def main():
         if not condition:
             errors.append(message)
 
-    if len(shots) == len(RUNS):
+    if len(shots) == len(runs):
         for a, b in (('classic', 'fbo'), ('glow', 'glow_fbo')):
             differing, largest = compare(shots[a], shots[b])
             print('%s vs %s: %d pixels differ, by up to %d' % (a, b, differing, largest))
@@ -158,11 +174,25 @@ def main():
         glow, every = shots['glow'].mean(WALL_NEAR_LAMP), shots['all'].mean(WALL_NEAR_LAMP)
         check(every[0] > glow[0], 'glow + bloom is not brighter than glow alone')
 
+        # the light is blue: compare the blue channel with the unlit scene
+        unlit = shots['nodlight']
+        def gain(name, box):
+            return shots[name].mean(box)[2] - unlit.mean(box)[2]
+        print('dynamic light, blue gain at / above the light / floor: classic %.1f %.1f %.1f, per pixel %.1f %.1f %.1f'
+              % (gain('dlight_classic', WALL_AT_LIGHT), gain('dlight_classic', WALL_ABOVE_LIGHT),
+                 gain('dlight_classic', FLOOR_UNDER_LIGHT), gain('dlight_pixel', WALL_AT_LIGHT),
+                 gain('dlight_pixel', WALL_ABOVE_LIGHT), gain('dlight_pixel', FLOOR_UNDER_LIGHT)))
+        for name in ('dlight_classic', 'dlight_pixel'):
+            check(gain(name, WALL_AT_LIGHT) >= 30, '%s does not light the wall' % name)
+            check(gain(name, FLOOR_UNDER_LIGHT) >= 30, '%s does not light the floor' % name)
+        check(gain('dlight_classic', WALL_ABOVE_LIGHT) >= 10, 'the classic light no longer smears (test scene changed?)')
+        check(gain('dlight_pixel', WALL_ABOVE_LIGHT) <= 2, 'the per-pixel light reaches past its radius')
+
     if errors:
         print('\n'.join(last_log.splitlines()[-60:]))
         print('render smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
-    print('render smoke test passed: offscreen path identical, bloom and HDR visible, no GL error')
+    print('render smoke test passed: offscreen path identical, bloom, HDR and per-pixel lights visible, no GL error')
 
 
 if __name__ == '__main__':
