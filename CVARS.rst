@@ -949,12 +949,15 @@ Other Changes
   window shows the frames as they come). Needs ``r_fbo 1``; recording takes
   N times longer.
 * ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
-* ``testscene <map> [x y z [yaw [pitch]]] [dlight]`` draws a map from a fixed
-  camera while disconnected, in place of the main menu and without the game
-  modules, to try renderer settings (the renderer smoke test uses it);
-  ``testscene off`` or Escape brings the menu back. ``spin`` turns the
-  camera, and ``video`` and ``video_mp4`` work there too, to try the video
-  settings; the recording stops with the scene.
+* ``testscene <map> [x y z [yaw [pitch]]] [dlight | dlights] [spin]`` draws a
+  map from a fixed camera while disconnected, in place of the main menu and
+  without the game modules, to try renderer settings (the renderer smoke
+  test uses it); ``testscene off`` or Escape brings the menu back.
+  ``dlight`` adds a dynamic light in front of the camera; ``dlights`` adds it
+  after 40 others behind the camera, past the classic limit of 32 lights
+  (``r_dlightPriority``). ``spin`` turns the camera, and ``video`` and
+  ``video_mp4`` work there too, to try the video settings; the recording
+  stops with the scene.
 * ``benchmark <demo> [runs] [warmup] [tag]`` plays a demo in timedemo mode
   several times without the 1000 fps cap and prints the average fps, frame
   time percentiles and the 1% low per run and pooled; it writes every frame
