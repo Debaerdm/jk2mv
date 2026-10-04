@@ -1898,11 +1898,11 @@ Instrument SV_Frame (sv_main_frame.h:57-175) with us timestamps per stage:
 - SV_SendClientMessages, split into snapshot build and encode+send
 - timeouts and master heartbeats
 
-Keep a rolling window (60 s). Add:
-- `serverstats [reset]`: avg/p50/p95/p99/max per stage, % of frames over budget (1000/sv_fps ms), catch-up frames, bytes/s out, average entities per snapshot, humans and bots.
-- `sv_statsLog 1`: appends one CSV line per second to svstats.csv.
+Keep the last 8192 frames in a ring (409 s at sv_fps 20). Add:
+- `serverstats [seconds]` (60 by default): avg/p50/p95/p99/max per stage over the last N seconds, frames over budget (1000/sv_fps ms), catch-up frames (frames paced at sv_hibernateFps aside), full and fallback snapshots with their bytes, bytes/s out, average entities per snapshot, humans and bots.
+- `sv_statsLog 1`: appends one CSV line per second to svstats.csv in fs_homepath.
 
-Defaults off, and nothing changes on the wire.
+The statistics are always kept, for a few clock reads per frame; the log defaults off, and nothing changes on the wire.
 
 - **Player-visible effect:** None. Server admins get a real health readout.
 - **Expected gain:** Turns server load testing from guessing at CPU% into per-stage budgets. Verified that com_speeds reports 0 ms per frame here, so today there is no signal at all. Confidence: high.

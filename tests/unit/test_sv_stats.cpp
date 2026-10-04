@@ -23,7 +23,7 @@ protected:
 		scratch.assign( SVSTATS_HISTORY, 0 );
 	}
 
-	// records a frame whose stages took the given microseconds
+	// records a frame whose stages took the given microseconds, paced with flags
 	void Record( uint32_t endMsec, uint32_t packets, uint32_t pings, uint32_t botai, uint32_t game,
 				uint32_t build, uint32_t send, uint32_t other, int gameFrames = 1, int frameMsec = 50, int flags = 0 ) {
 		const uint32_t usec[SVSTAT_NUM_TIMED] = { packets, pings, botai, game, build, send, other };
@@ -31,7 +31,8 @@ protected:
 		for ( int i = 0; i < SVSTAT_NUM_TIMED; i++ ) {
 			pending.usec[i] += usec[i];
 		}
-		SVStats_Record( history.get(), &pending, endMsec, gameFrames, frameMsec, flags );
+		SVStats_SetPacing( &pending, flags );
+		SVStats_Record( history.get(), &pending, endMsec, gameFrames, frameMsec );
 	}
 
 	// a frame where only the game ran
@@ -178,8 +179,143 @@ TEST_F(SVStatsTest, CatchupFramesLeaveHibernationAside) {
 	const svStatsSummary_t s = SummarizeLatest( 5 );
 	EXPECT_EQ( s.gameFrames, 12 );
 	EXPECT_EQ( s.catchupFrames, 2 );
-	EXPECT_EQ( s.maxGameFrames, 5 );
+	EXPECT_EQ( s.maxGameFrames, 3 );	// the 5 of the hibernation period are no catch-up
 	EXPECT_EQ( s.hibernating, 1 );
+}
+
+// What SV_FrameMsec and SV_Frame do on a dedicated server at sv_fps 20 and
+// sv_hibernateFps 4 when a client joins an idle server, then leaves it.
+TEST_F(SVStatsTest, AClientJoiningDuringAHibernationWaitIsNoCatchup) {
+	// hibernating: a 250 ms wait, then 5 game frames
+	SVStats_SetPacing( &pending, SVSTAT_HIBERNATING );
+	SVStats_Record( history.get(), &pending, 1000, 5, 50 );
+
+	// the client connects during the next wait and ends hibernation, but the
+	// frame after the wait still runs the 5 game frames of the period
+	SVStats_SetPacing( &pending, SVSTAT_HIBERNATING );
+	SVStats_AddPacket( &pending, 400 );
+	SVStats_Record( history.get(), &pending, 1250, 5, 50 );
+
+	// paced at sv_fps from then on
+	SVStats_SetPacing( &pending, 0 );
+	SVStats_Record( history.get(), &pending, 1300, 1, 50 );
+
+	// the client leaves: the frame that switches to hibernation was paced at
+	// sv_fps, the next one at sv_hibernateFps
+	SVStats_SetPacing( &pending, 0 );
+	SVStats_Record( history.get(), &pending, 1350, 1, 50 );
+	SVStats_SetPacing( &pending, SVSTAT_HIBERNATING );
+	SVStats_Record( history.get(), &pending, 1600, 5, 50 );
+
+	const svStatsSummary_t s = SummarizeLatest( 5 );
+	EXPECT_EQ( s.frames, 5 );
+	EXPECT_EQ( s.gameFrames, 17 );
+	EXPECT_EQ( s.hibernating, 3 );
+	EXPECT_EQ( s.catchupFrames, 0 );
+	EXPECT_EQ( s.maxGameFrames, 1 );
+	EXPECT_EQ( s.overBudget, 0 );
+	EXPECT_EQ( s.packets, 1u );
+
+	const int flags[5] = { SVSTAT_HIBERNATING, SVSTAT_HIBERNATING, 0, 0, SVSTAT_HIBERNATING };
+	for ( int i = 0; i < 5; i++ ) {
+		EXPECT_EQ( history->frames[i].flags, flags[i] ) << "frame " << i;
+	}
+}
+
+TEST_F(SVStatsTest, RecordingClearsThePacing) {
+	SVStats_SetPacing( &pending, SVSTAT_HIBERNATING );
+	SVStats_Record( history.get(), &pending, 1000, 5, 50 );
+	EXPECT_EQ( pending.flags, 0u );
+
+	// a listen server: SV_FrameMsec does not pace it, so nothing sets the flags
+	SVStats_Record( history.get(), &pending, 1250, 5, 50 );
+
+	EXPECT_EQ( history->frames[0].flags, SVSTAT_HIBERNATING );
+	EXPECT_EQ( history->frames[1].flags, 0 );
+	const svStatsSummary_t s = SummarizeLatest( 2 );
+	EXPECT_EQ( s.hibernating, 1 );
+	EXPECT_EQ( s.catchupFrames, 1 );
+	EXPECT_EQ( s.maxGameFrames, 5 );
+}
+
+TEST_F(SVStatsTest, AFrameTakesTheLatestPacing) {
+	// an SV_Frame call that runs no game frame records nothing: its times
+	// wait for the next frame, whose own pacing replaces its flags
+	SVStats_SetPacing( &pending, SVSTAT_HIBERNATING );
+	pending.usec[SVSTAT_OTHER] += 30;
+	SVStats_SetPacing( &pending, 0 );
+	SVStats_Record( history.get(), &pending, 1000, 3, 50 );
+
+	SVStats_SetPacing( &pending, 0 );
+	SVStats_SetPacing( &pending, SVSTAT_HIBERNATING );
+	SVStats_Record( history.get(), &pending, 1250, 5, 50 );
+
+	EXPECT_EQ( history->frames[0].flags, 0 );
+	EXPECT_EQ( history->frames[0].usec[SVSTAT_OTHER], 30u );
+	EXPECT_EQ( history->frames[1].flags, SVSTAT_HIBERNATING );
+	const svStatsSummary_t s = SummarizeLatest( 2 );
+	EXPECT_EQ( s.catchupFrames, 1 );
+	EXPECT_EQ( s.hibernating, 1 );
+}
+
+TEST(SVStatsLog, ALinePerSecond) {
+	uint32_t next = 1000;		// the log opened at 0
+
+	EXPECT_FALSE( SVStats_LogDue( &next, 999 ) );
+	EXPECT_EQ( next, 1000u );
+	EXPECT_TRUE( SVStats_LogDue( &next, 1000 ) );
+	EXPECT_EQ( next, 2000u );
+	EXPECT_FALSE( SVStats_LogDue( &next, 1000 ) );
+	EXPECT_FALSE( SVStats_LogDue( &next, 1999 ) );
+	// a line that comes late does not delay the next ones
+	EXPECT_TRUE( SVStats_LogDue( &next, 2040 ) );
+	EXPECT_EQ( next, 3000u );
+	EXPECT_TRUE( SVStats_LogDue( &next, 3999 ) );
+	EXPECT_EQ( next, 4000u );
+}
+
+TEST(SVStatsLog, FramesOfAnyLengthGiveALinePerSecond) {
+	const uint32_t steps[] = { 25, 47, 50, 250, 333 };
+
+	for ( uint32_t step : steps ) {
+		uint32_t	next = 1000;
+		uint32_t	t = 0;
+		int			lines = 0;
+
+		for ( ; t < 60000; t += step ) {
+			lines += SVStats_LogDue( &next, t );
+		}
+		t -= step;	// the last frame
+		EXPECT_EQ( lines, (int)( t / 1000 ) ) << "frames every " << step << " ms";
+	}
+}
+
+TEST(SVStatsLog, AfterAHitchStartsAgainFromNow) {
+	uint32_t next = 2000;
+
+	EXPECT_TRUE( SVStats_LogDue( &next, 3500 ) );	// 1.5 s late: one line, not two
+	EXPECT_EQ( next, 4500u );
+	EXPECT_FALSE( SVStats_LogDue( &next, 4000 ) );
+	EXPECT_TRUE( SVStats_LogDue( &next, 4500 ) );
+	EXPECT_EQ( next, 5500u );
+	EXPECT_TRUE( SVStats_LogDue( &next, 6500 ) );	// exactly a second late
+	EXPECT_EQ( next, 7500u );
+}
+
+TEST(SVStatsLog, AcrossTheClockWrap) {
+	uint32_t next = 0xFFFFFF00u;
+
+	EXPECT_FALSE( SVStats_LogDue( &next, 0xFFFFFE00u ) );
+	EXPECT_TRUE( SVStats_LogDue( &next, 0xFFFFFF10u ) );
+	EXPECT_EQ( next, 744u );						// 0xFFFFFF00 + 1000, wrapped
+	EXPECT_FALSE( SVStats_LogDue( &next, 0xFFFFFFF0u ) );
+	EXPECT_FALSE( SVStats_LogDue( &next, 100u ) );
+	EXPECT_TRUE( SVStats_LogDue( &next, 744u ) );
+	EXPECT_EQ( next, 1744u );
+	// a hitch across the wrap
+	next = 0xFFFFFFF0u;
+	EXPECT_TRUE( SVStats_LogDue( &next, 2000u ) );
+	EXPECT_EQ( next, 3000u );
 }
 
 TEST_F(SVStatsTest, OverBudgetMeansLongerThanTheGameFrame) {
@@ -199,7 +335,8 @@ TEST_F(SVStatsTest, RecordSaturatesAndClearsPending) {
 	pending.packets = 70000;
 	pending.snapshots = 3;
 	pending.snapshotBytes = 6000000000ull;
-	SVStats_Record( history.get(), &pending, 1000, -3, 70000, 0 );
+	SVStats_SetPacing( &pending, SVSTAT_HIBERNATING );
+	SVStats_Record( history.get(), &pending, 1000, -3, 70000 );
 
 	const svStatsFrame_t &f = history->frames[0];
 	EXPECT_EQ( f.usec[SVSTAT_GAME], 0xFFFFFFFFu );
@@ -208,6 +345,7 @@ TEST_F(SVStatsTest, RecordSaturatesAndClearsPending) {
 	EXPECT_EQ( f.snapshotBytes, 0xFFFFFFFFu );
 	EXPECT_EQ( f.gameFrames, 0u );
 	EXPECT_EQ( f.frameMsec, 0xFFFFu );
+	EXPECT_EQ( f.flags, SVSTAT_HIBERNATING );
 
 	const svStatsPending_t zero = {};
 	EXPECT_EQ( memcmp( &pending, &zero, sizeof( zero ) ), 0 );
@@ -315,11 +453,11 @@ TEST_F(SVStatsTest, PacketsAndSnapshotsAreCounted) {
 	SVStats_AddSnapshot( &pending, SVSTAT_SNAP_DELTA, 300, 40 );
 	SVStats_AddSnapshot( &pending, SVSTAT_SNAP_FULL, 2000, 60 );
 	SVStats_AddSnapshot( &pending, SVSTAT_SNAP_FALLBACK, 2500, 70 );
-	SVStats_Record( history.get(), &pending, 1000, 1, 50, 0 );
+	SVStats_Record( history.get(), &pending, 1000, 1, 50 );
 
 	SVStats_AddSnapshot( &pending, SVSTAT_SNAP_DELTA, 200, 30 );
 	SVStats_AddPacket( &pending, 50 );
-	SVStats_Record( history.get(), &pending, 1050, 1, 50, 0 );
+	SVStats_Record( history.get(), &pending, 1050, 1, 50 );
 
 	const svStatsSummary_t s = SummarizeLatest( 2 );
 	EXPECT_EQ( s.packets, 4u );

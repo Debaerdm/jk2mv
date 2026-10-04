@@ -14,10 +14,14 @@ int SV_FrameMsec() {
 	if (sv_fps) {
 		int frameMsec;
 
+		// serverstats flags the frame from this pacing, not from the
+		// hibernation state at its end (sv_stats.h)
 		if ( svs.hibernation.enabled && svs.hibernation.disableUntil <= svs.time ) {
 			frameMsec = 1000.0f / (sv_hibernateFps->integer > 0 ? sv_hibernateFps->integer : 5);
+			SVStats_SetPacing( &svStats.pending, SVSTAT_HIBERNATING );
 		} else {
 			frameMsec = 1000.0f / sv_fps->value;
+			SVStats_SetPacing( &svStats.pending, 0 );
 		}
 
 		if (frameMsec < sv.timeResidual)
@@ -198,8 +202,7 @@ void SV_Frame( int msec ) {
 	SV_MasterHeartbeat();
 	lap = SV_StatsLap( SVSTAT_OTHER, lap );
 
-	SV_StatsEndFrame( lap, gameFrames, frameMsec,
-		svs.hibernation.enabled && svs.hibernation.disableUntil <= svs.time ? SVSTAT_HIBERNATING : 0 );
+	SV_StatsEndFrame( lap, gameFrames, frameMsec );
 }
 
 #endif // SV_MAIN_FRAME_H

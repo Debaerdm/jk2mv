@@ -1,10 +1,10 @@
 // sv_main_stats.h -- Server frame statistics: serverstats and sv_statsLog
 //
 // SV_Frame times its stages, Com_RunAndTimeServerPacket the packets handled
-// between frames and SV_SendClientSnapshot the snapshot building; the frames
-// that ran the game go into a history (sv_stats.cpp). Always on, as it only
-// costs two clock reads per packet and per snapshot built, and about ten per
-// frame.
+// between frames and SV_SendClientMessages the snapshot building; SV_FrameMsec
+// notes whether it paced the frame at sv_hibernateFps. The frames that ran
+// the game go into a history (sv_stats.cpp). Always on, as it only costs two
+// clock reads per packet and per snapshot built, and about ten per frame.
 
 #ifndef SV_MAIN_STATS_H
 #define SV_MAIN_STATS_H
@@ -111,13 +111,8 @@ static qboolean SV_StatsLog( uint32_t nowMsec ) {
 		return qtrue;
 	}
 
-	if ( (int32_t)( nowMsec - svStats.logNextMsec ) < 0 ) {
+	if ( !SVStats_LogDue( &svStats.logNextMsec, nowMsec ) ) {
 		return qfalse;
-	}
-	// a line per second on average; after a hitch, start again from now
-	svStats.logNextMsec += 1000;
-	if ( (int32_t)( nowMsec - svStats.logNextMsec ) >= 0 ) {
-		svStats.logNextMsec = nowMsec + 1000;
 	}
 
 	SVStats_Summarize( &svStats.history, SVStats_FramesSince( &svStats.history, svStats.logRecorded ),
@@ -134,15 +129,15 @@ static qboolean SV_StatsLog( uint32_t nowMsec ) {
 ==================
 SV_StatsEndFrame
 
-Records the frame if it ran the game; otherwise its times wait for the next
-one that does. Then the log.
+Records the frame if it ran the game, flagged as SV_FrameMsec paced it;
+otherwise its times wait for the next one that does. Then the log.
 ==================
 */
-static void SV_StatsEndFrame( int64_t now, int gameFrames, int frameMsec, int flags ) {
+static void SV_StatsEndFrame( int64_t now, int gameFrames, int frameMsec ) {
 	const uint32_t nowMsec = (uint32_t)( now / 1000 );
 
 	if ( gameFrames > 0 ) {
-		SVStats_Record( &svStats.history, &svStats.pending, nowMsec, gameFrames, frameMsec, flags );
+		SVStats_Record( &svStats.history, &svStats.pending, nowMsec, gameFrames, frameMsec );
 	}
 
 	if ( sv_statsLog->integer ) {

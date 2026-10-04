@@ -914,12 +914,15 @@ Server-Side
    statistics of the server frames of that second (see ``serverstats``): the
    wall time it covers, sv_fps, humans and bots, the frames, game frames,
    catch-up frames (several game frames at once because the server fell
-   behind), the frames that took longer than a game frame (1000 / sv_fps ms),
-   the packets received, the snapshots sent with their size in bytes and
-   their entities, the full ones (not delta compressed) and those of them sent
-   because the client's delta base was gone, then the average and the longest
-   time in microseconds of each stage. The first line of a new file names the
-   columns. The file grows by about 10 MB a day.
+   behind) and the most game frames in one, the frames that took longer than
+   a game frame (1000 / sv_fps ms), the frames paced at sv_hibernateFps (they
+   run several game frames on purpose, and the three counts before leave them
+   aside), the packets received, the snapshots sent with their size in bytes
+   (the snapshot data alone, without the reliable commands and download data
+   sent with it) and their entities, the full ones (not delta compressed) and
+   those of them sent because the client's delta base was gone, then the
+   average and the longest time in microseconds of each stage. The first line
+   of a new file names the columns. The file grows by about 10 MB a day.
 
 ..
 
@@ -1054,8 +1057,9 @@ Other Changes
   95th and 99th percentiles and maximum in milliseconds. Then the load (the
   share of the time the server was busy), the frames that took longer than a
   game frame (1000 / sv_fps ms), the catch-up frames (several game frames at
-  once because the server fell behind), the packets received, and the
-  snapshots sent with their size, their entities and how many were full
+  once because the server fell behind, as after a map load; the frames paced
+  at sv_hibernateFps count apart), the packets received, and the snapshots
+  sent with the size of their data, their entities and how many were full
   (not delta compressed), and of those, how many because the client's delta
   base was gone. A frame is one that ran the game, with the packets handled
   before it. ``sv_statsLog 1`` logs the same every second.

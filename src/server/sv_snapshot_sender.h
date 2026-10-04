@@ -90,22 +90,28 @@ void SV_SendMessageToClient( msg_t *msg, client_t *client ) {
 
 /*
 =======================
-SV_SendClientSnapshot
+SV_SendClientSnapshotTimed
 
-Also called by SV_FinalMessage
+timeBuild puts the building in the snapbuild stage of serverstats. Only
+SV_SendClientMessages asks for it: the other callers run inside a packet
+(SV_VerifyPaks_f), whose time includes the building, or at shutdown.
 =======================
 */
-void SV_SendClientSnapshot( client_t *client ) {
+static void SV_SendClientSnapshotTimed( client_t *client, qboolean timeBuild ) {
 	byte		msg_buf[MAX_MSGLEN];
 	msg_t		msg;
 	msg_t		msgBak;
-	int64_t		buildStart;
-	int			encoding, entities;
+	int			encoding, entities, snapshotBytes;
 
-	// build the snapshot, timed for serverstats
-	buildStart = Sys_Microseconds();
-	SV_BuildClientSnapshot( client );
-	SV_StatsLap( SVSTAT_SNAPBUILD, buildStart );
+	// build the snapshot
+	if ( timeBuild ) {
+		const int64_t buildStart = Sys_Microseconds();
+
+		SV_BuildClientSnapshot( client );
+		SV_StatsLap( SVSTAT_SNAPBUILD, buildStart );
+	} else {
+		SV_BuildClientSnapshot( client );
+	}
 
 	// bots need to have their snapshots build, but
 	// the query them directly without needing to be sent
@@ -135,6 +141,9 @@ void SV_SendClientSnapshot( client_t *client ) {
 	// and the playerState_t
 	encoding = SV_WriteSnapshotToClient( client, &msg );
 	entities = client->frames[client->netchan.outgoingSequence & PACKET_MASK].num_entities;
+	// serverstats counts the snapshot alone, without the reliable commands
+	// before it and the download data after it
+	snapshotBytes = msg.cursize - msgBak.cursize;
 
 	if ( sv_dynamicSnapshots->integer && msg.overflowed && !msgBak.overflowed ) {
 		// The entity states were too much and the message overflowed. So send
@@ -156,7 +165,7 @@ void SV_SendClientSnapshot( client_t *client ) {
 		// Downloads usually don't happen in situations that are likely to have
 		// message overflows, but let's make sure and apply the same logic we
 		// used for the entity states.
-		SVStats_AddSnapshot( &svStats.pending, encoding, msgBak.cursize, entities );
+		SVStats_AddSnapshot( &svStats.pending, encoding, snapshotBytes, entities );
 		SV_SendMessageToClient( &msgBak, client );
 		return;
 	}
@@ -166,10 +175,21 @@ void SV_SendClientSnapshot( client_t *client ) {
 		Com_Printf ("WARNING: msg overflowed for %s\n", client->name);
 		MSG_Clear (&msg);
 	} else {
-		SVStats_AddSnapshot( &svStats.pending, encoding, msg.cursize, entities );
+		SVStats_AddSnapshot( &svStats.pending, encoding, snapshotBytes, entities );
 	}
 
 	SV_SendMessageToClient( &msg, client );
+}
+
+/*
+=======================
+SV_SendClientSnapshot
+
+Also called by SV_FinalMessage, and by SV_VerifyPaks_f for an unpure client
+=======================
+*/
+void SV_SendClientSnapshot( client_t *client ) {
+	SV_SendClientSnapshotTimed( client, qfalse );
 }
 
 /*
@@ -205,7 +225,7 @@ void SV_SendClientMessages( void ) {
 		}
 
 		// generate and send a new message
-		SV_SendClientSnapshot( c );
+		SV_SendClientSnapshotTimed( c, qtrue );
 	}
 
 	if ( sv.vmPlayerSnapshots ) {

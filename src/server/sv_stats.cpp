@@ -77,8 +77,12 @@ void SVStats_AddSnapshot( svStatsPending_t *p, int type, int bytes, int entities
 	}
 }
 
+void SVStats_SetPacing( svStatsPending_t *p, int flags ) {
+	p->flags = (uint32_t)flags;
+}
+
 void SVStats_Record( svStatsHistory_t *h, svStatsPending_t *p, uint32_t endMsec,
-					int gameFrames, int frameMsec, int flags ) {
+					int gameFrames, int frameMsec ) {
 	svStatsFrame_t *f = &h->frames[h->head];
 
 	f->endMsec = endMsec;
@@ -94,7 +98,7 @@ void SVStats_Record( svStatsHistory_t *h, svStatsPending_t *p, uint32_t endMsec,
 	f->snapshots = SVStats_Sat16( (uint64_t)p->snapshots );
 	f->fullSnapshots = SVStats_Sat16( (uint64_t)p->fullSnapshots );
 	f->fallbackSnapshots = SVStats_Sat16( (uint64_t)p->fallbackSnapshots );
-	f->flags = SVStats_Sat16( flags );
+	f->flags = (uint16_t)p->flags;
 
 	h->head = ( h->head + 1 ) % SVSTATS_HISTORY;
 	if ( h->count < SVSTATS_HISTORY ) {
@@ -123,6 +127,17 @@ int SVStats_FramesSince( const svStatsHistory_t *h, uint32_t recorded ) {
 	const uint32_t n = h->recorded - recorded;
 
 	return n > (uint32_t)h->count ? h->count : (int)n;
+}
+
+bool SVStats_LogDue( uint32_t *nextMsec, uint32_t nowMsec ) {
+	if ( (int32_t)( nowMsec - *nextMsec ) < 0 ) {
+		return false;
+	}
+	*nextMsec += 1000;
+	if ( (int32_t)( nowMsec - *nextMsec ) >= 0 ) {
+		*nextMsec = nowMsec + 1000;
+	}
+	return true;
 }
 
 uint32_t SVStats_Percentile( const uint32_t *sorted, int count, int percent ) {
@@ -156,16 +171,16 @@ void SVStats_Summarize( const svStatsHistory_t *h, int numFrames, uint32_t *scra
 
 		out->busyUsec += total;
 		out->gameFrames += f->gameFrames;
-		if ( f->gameFrames > out->maxGameFrames ) {
-			out->maxGameFrames = f->gameFrames;
-		}
-		// hibernation runs several game frames per server frame on purpose,
-		// with that much more time for them
+		// a frame paced at sv_hibernateFps runs several game frames on
+		// purpose, with that much more time for them
 		if ( f->flags & SVSTAT_HIBERNATING ) {
 			out->hibernating++;
 		} else {
 			if ( f->gameFrames > 1 ) {
 				out->catchupFrames++;
+			}
+			if ( f->gameFrames > out->maxGameFrames ) {
+				out->maxGameFrames = f->gameFrames;
 			}
 			if ( total > (uint64_t)f->frameMsec * 1000 ) {
 				out->overBudget++;
