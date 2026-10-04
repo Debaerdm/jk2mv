@@ -191,8 +191,12 @@ static void CL_Preset_f( void ) {
 	}
 
 	if ( restart ) {
+		// right after this command, not after the rest of the script, bind
+		// or command line: what follows (a wait and a screenshot, another
+		// preset, a quit) runs with the preset applied. Restarts can't pile
+		// up this way, each one runs before the next preset can.
 		Com_Printf( "restarting the renderer to apply the preset\n" );
-		Cbuf_AddText( "vid_restart\n" );
+		Cbuf_ExecuteText( EXEC_INSERT, "vid_restart" );
 	}
 }
 

@@ -994,7 +994,9 @@ Other Changes
 * ``r_speeds 8`` prints the draw calls, texture binds and state changes of
   each frame.
 * New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
-  of visual cvars in one go and restarts the renderer if needed. Every preset
+  of visual cvars in one go and restarts the renderer if needed, right away:
+  the commands after it in a script or bind run with the preset applied, and
+  each preset of a chain restarts the renderer in turn. Every preset
   sets the whole group (what it doesn't change goes back to the default), so
   ``preset classic`` is the original look. It works in autoexec.cfg too.
   ``preset`` alone lists them.
