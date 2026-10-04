@@ -1796,6 +1796,7 @@ CRenderableSurface():
 
 void R_AddGhoulSurfaces( trRefEntity_t *ent );
 void RB_SurfaceGhoul( CRenderableSurface *surface );
+void R_ResetRenderableSurfaces( void );
 /*
 Ghoul2 Insert End
 */

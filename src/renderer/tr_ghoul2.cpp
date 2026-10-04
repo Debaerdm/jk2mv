@@ -1279,6 +1279,26 @@ void G2_ProcessGeneratedSurfaceBolts(CGhoul2Info &ghoul2, mdxaBone_v &bonePtr, m
 }
 
 #ifndef DEDICATED
+// Ghoul2 surfaces of the frame. Drawsurfs point at them until the back end
+// has drawn every view of the frame, the glow pass included, so they live
+// until the next frame starts (R_ResetRenderableSurfaces in RE_BeginFrame)
+// instead of each being allocated and deleted: no allocations in the hot
+// path, and no leak when the glow pass that deleted glowing surfaces is
+// skipped (RDF_NOWORLDMODEL scenes) or a drawsurf is dropped.
+static CRenderableSurface	renderableSurfaces[MAX_DRAWSURFS];
+static int					numRenderableSurfaces;
+
+static CRenderableSurface *R_AllocRenderableSurface( void ) {
+	if ( numRenderableSurfaces >= MAX_DRAWSURFS ) {
+		return NULL;
+	}
+	return &renderableSurfaces[numRenderableSurfaces++];
+}
+
+void R_ResetRenderableSurfaces( void ) {
+	numRenderableSurfaces = 0;
+}
+
 // set up each surface ready for rendering in the back end
 void RenderSurfaces(CRenderSurface &RS)
 {
@@ -1339,7 +1359,10 @@ void RenderSurfaces(CRenderSurface &RS)
 			&& !(RS.renderfx & ( RF_NOSHADOW | RF_DEPTHHACK ) )
 			&& shader->sort == SS_OPAQUE )
 		{		// set the surface info to point at the where the transformed bone list is going to be for when the surface gets rendered out
-			CRenderableSurface *newSurf = new CRenderableSurface;
+			CRenderableSurface *newSurf = R_AllocRenderableSurface();
+			if ( !newSurf ) {
+				return;		// more surfaces than drawsurfs in the frame
+			}
 			newSurf->surfaceData = surface;
 			newSurf->boneList = &RS.bonePtr;
 			R_AddDrawSurf( (surfaceType_t *)newSurf, tr.shadowShader, 0, qfalse );
@@ -1351,7 +1374,10 @@ void RenderSurfaces(CRenderSurface &RS)
 			&& (RS.renderfx & RF_SHADOW_PLANE )
 			&& shader->sort == SS_OPAQUE )
 		{		// set the surface info to point at the where the transformed bone list is going to be for when the surface gets rendered out
-			CRenderableSurface *newSurf = new CRenderableSurface;
+			CRenderableSurface *newSurf = R_AllocRenderableSurface();
+			if ( !newSurf ) {
+				return;		// more surfaces than drawsurfs in the frame
+			}
 			newSurf->surfaceData = surface;
 			newSurf->boneList = &RS.bonePtr;
 			R_AddDrawSurf( (surfaceType_t *)newSurf, tr.projectionShadowShader, 0, qfalse );
@@ -1360,7 +1386,10 @@ void RenderSurfaces(CRenderSurface &RS)
 		// don't add third_person objects if not viewing through a portal
 		if ( !RS.personalModel )
 		{		// set the surface info to point at the where the transformed bone list is going to be for when the surface gets rendered out
-			CRenderableSurface *newSurf = new CRenderableSurface;
+			CRenderableSurface *newSurf = R_AllocRenderableSurface();
+			if ( !newSurf ) {
+				return;		// more surfaces than drawsurfs in the frame
+			}
 			newSurf->surfaceData = surface;
 			newSurf->boneList = &RS.bonePtr;
 			R_AddDrawSurf( (surfaceType_t *)newSurf, shader, RS.fogNum, qfalse );
@@ -2149,14 +2178,8 @@ void RB_SurfaceGhoul( CRenderableSurface *surf ) {
 	// point us at the bone structure that should have been pre-computed
 	mdxaBone_v &bonePtr = *((mdxaBone_v *)surf->boneList);
 
-	// NOTE: This is required because a ghoul model might need to be rendered twice a frame (don't cringe,
-	// it's not THAT bad), so we only delete it when doing the glow pass. Warning though, this assumes that
-	// the glow is rendered _second_!!! If that changes, change this!
-	extern bool g_bRenderGlowingObjects;
-	extern bool g_bDynamicGlowSupported;
-	if ( !tess.shader->hasGlow || g_bRenderGlowingObjects || !g_bDynamicGlowSupported || !r_DynamicGlow->integer ) {
-		delete surf;
-	}
+	// surf lives in the frame's arena (R_AllocRenderableSurface): a surface
+	// can be drawn several times in a frame (glow pass, mirrors)
 
 	//
 	// deform the vertexes by the lerped bones

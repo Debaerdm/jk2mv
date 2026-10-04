@@ -321,6 +321,11 @@ for each RE_EndFrame
 ====================
 */
 void RE_BeginFrame( stereoFrame_t stereoFrame, qboolean skipBackend ) {
+	// the second eye draws the same frame: its surfaces must stay
+	if ( stereoFrame != STEREO_RIGHT ) {
+		R_ResetRenderableSurfaces();
+	}
+
 	drawBufferCommand_t	*cmd;
 
 	if ( !tr.registered ) {
