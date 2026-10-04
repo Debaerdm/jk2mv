@@ -344,6 +344,13 @@ void RE_BeginFrame( stereoFrame_t stereoFrame, qboolean skipBackend ) {
 			ri.Cvar_Set( "r_measureOverdraw", "0" );
 			r_measureOverdraw->modified = qfalse;
 		}
+		else if ( R_PostFXActive() )
+		{
+			// the scene's stencil is in the offscreen target
+			ri.Printf( PRINT_ALL, "Warning: r_measureOverdraw doesn't work with r_fbo\n" );
+			ri.Cvar_Set( "r_measureOverdraw", "0" );
+			r_measureOverdraw->modified = qfalse;
+		}
 		else if ( r_shadows->integer == 2 )
 		{
 			ri.Printf( PRINT_ALL, "Warning: stencil shadows and overdraw measurement are mutually exclusive\n" );

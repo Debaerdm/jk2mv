@@ -88,6 +88,7 @@ static const char *pfxTapFP =
 	"!!ARBfp1.0\n"
 	"PARAM off = program.env[0];\n"		// (dx, dy, -dx, -dy) in source texels
 	"PARAM ts = program.env[1];\n"		// (threshold, scale, 0, 0)
+	"PARAM area = program.env[2];\n"	// source texels written this frame: min s t, max s t
 	"PARAM quarter = { 0.25, 0.25, 0.25, 0.25 };\n"
 	"PARAM zero = { 0, 0, 0, 0 };\n"
 	"PARAM one = { 1, 1, 1, 1 };\n"
@@ -96,6 +97,14 @@ static const char *pfxTapFP =
 	"ADD t1.xy, fragment.texcoord[0], off.zwzz;\n"
 	"ADD t2.xy, fragment.texcoord[0], off.xwxx;\n"
 	"ADD t3.xy, fragment.texcoord[0], off.zyzz;\n"
+	"MAX t0.xy, t0, area.xyxx;\n"
+	"MAX t1.xy, t1, area.xyxx;\n"
+	"MAX t2.xy, t2, area.xyxx;\n"
+	"MAX t3.xy, t3, area.xyxx;\n"
+	"MIN t0.xy, t0, area.zwzz;\n"
+	"MIN t1.xy, t1, area.zwzz;\n"
+	"MIN t2.xy, t2, area.zwzz;\n"
+	"MIN t3.xy, t3, area.zwzz;\n"
 	"TEX t0, t0, texture[0], RECT;\n"
 	"TEX t1, t1, texture[0], RECT;\n"
 	"TEX t2, t2, texture[0], RECT;\n"
@@ -134,12 +143,15 @@ static const char *pfxToneMapFP =
 	"PARAM tm = program.env[0];\n"		// (knee, white - knee, log2(e) / (white - knee), exposure)
 	"PARAM bl = program.env[1];\n"		// (bloom scale, 0, 0, 0)
 	"PARAM bc = program.env[2];\n"		// bloom texcoord = (texcoord - bc.xy) * bc.zw
+	"PARAM area = program.env[3];\n"	// bloom texels written this frame
 	"PARAM zero = { 0, 0, 0, 0 };\n"
 	"PARAM one = { 1, 1, 1, 1 };\n"
 	"TEMP c, b, d, e, s;\n"
 	"TEX c, fragment.texcoord[0], texture[0], RECT;\n"
 	"SUB b.xy, fragment.texcoord[0], bc;\n"
 	"MUL b.xy, b, bc.zwzz;\n"
+	"MAX b.xy, b, area.xyxx;\n"
+	"MIN b.xy, b, area.zwzz;\n"
 	"TEX b, b, texture[1], RECT;\n"
 	"MUL c.xyz, c, tm.w;\n"
 	"MAD c.xyz, b, bl.x, c;\n"
@@ -154,6 +166,19 @@ static const char *pfxToneMapFP =
 	"CMP result.color.xyz, d, c, s;\n"
 	"MOV result.color.w, c.w;\n"
 	"END\n";
+
+// a packed depth stencil renderbuffer, attached the way both
+// ARB_framebuffer_object and EXT_packed_depth_stencil accept
+static void R_AttachDepthStencil( GLuint renderbuffer ) {
+	qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderbuffer );
+	qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, renderbuffer );
+}
+
+// a failed creation attempt leaves GL errors that a retry must not inherit
+static void R_ClearGLErrors( void ) {
+	for ( int i = 0; i < 16 && qglGetError() != GL_NO_ERROR; i++ ) {
+	}
+}
 
 static GLuint R_PostFXProgram( const char *text ) {
 	GLuint	program = 0;
@@ -179,7 +204,7 @@ static qboolean R_CreateTarget( renderTarget_t *rt, int width, int height, GLenu
 
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, rt->texture );
 	qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, format, width, height, 0, GL_RGBA,
-		( format == GL_RGBA16F || format == GL_RGB16F ) ? GL_HALF_FLOAT : GL_UNSIGNED_BYTE, NULL );
+		( format == GL_RGBA16F || format == GL_RGB16F ) ? GL_FLOAT : GL_UNSIGNED_BYTE, NULL );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
@@ -189,7 +214,7 @@ static qboolean R_CreateTarget( renderTarget_t *rt, int width, int height, GLenu
 	qglBindFramebuffer( GL_FRAMEBUFFER, rt->fbo );
 	qglFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, rt->texture, 0 );
 	if ( depth ) {
-		qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depth );
+		R_AttachDepthStencil( depth );
 	}
 	return (qboolean)( qglCheckFramebufferStatus( GL_FRAMEBUFFER ) == GL_FRAMEBUFFER_COMPLETE );
 }
@@ -275,7 +300,7 @@ static qboolean R_CreateTargetsFormat( GLenum format ) {
 		qglGenFramebuffers( 1, &pfx.msaaFbo );
 		qglBindFramebuffer( GL_FRAMEBUFFER, pfx.msaaFbo );
 		qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, pfx.msaaColor );
-		qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, pfx.msaaDepth );
+		R_AttachDepthStencil( pfx.msaaDepth );
 		if ( qglCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE ) {
 			return qfalse;
 		}
@@ -333,6 +358,7 @@ static qboolean R_CreateTargets( void ) {
 		return qtrue;
 	}
 	R_DestroyTargets();
+	R_ClearGLErrors();
 	if ( preferred == GL_RGB16F || preferred == GL_RGB8 ) {
 		return R_CreateTargetsFormat( pfx.hdr ? GL_RGBA16F : GL_RGBA8 );
 	}
@@ -399,7 +425,10 @@ void R_InitPostFX( void ) {
 	}
 	pfx.available = qtrue;
 
-	pfx.floatTextures = (qboolean)( GL_CheckForExtension( "GL_ARB_texture_float" ) || GL_CheckForExtension( "GL_ARB_half_float_pixel" ) );
+	int major = 1;
+	sscanf( glConfig.version_string, "%d", &major );
+	// the RGBA16F formats come with ARB_texture_float or GL 3.0
+	pfx.floatTextures = (qboolean)( GL_CheckForExtension( "GL_ARB_texture_float" ) || major >= 3 );
 	pfx.hdr = (qboolean)( r_hdr->integer && pfx.floatTextures );
 	if ( r_hdr->integer && !pfx.hdr ) {
 		ri.Printf( PRINT_WARNING, "r_hdr: float textures are not supported\n" );
@@ -419,12 +448,14 @@ void R_InitPostFX( void ) {
 	if ( !created && pfx.hdr ) {
 		ri.Printf( PRINT_WARNING, "r_hdr: can't render to float textures\n" );
 		R_DestroyTargets();
+		R_ClearGLErrors();
 		pfx.hdr = qfalse;
 		created = R_CreateTargets();
 	}
 	if ( !created ) {
 		ri.Printf( PRINT_WARNING, "r_fbo: couldn't create the render targets\n" );
 		R_DestroyTargets();
+		R_ClearGLErrors();
 		qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
 		return;
 	}
@@ -485,6 +516,10 @@ qboolean R_PostFXGradesView( void ) {
 	return pfx.active;
 }
 
+qboolean R_PostFXActive( void ) {
+	return pfx.active;
+}
+
 // format of tr.sceneImage, which the glow pass fills with copies of the scene
 GLenum R_PostFXSceneFormat( void ) {
 	return pfx.active && pfx.hdr ? GL_RGBA16F : GL_RGBA8;
@@ -536,7 +571,7 @@ static qboolean R_CreateGlowTargets( void ) {
 	} else {
 		qglFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow, 0 );
 	}
-	qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depth );
+	R_AttachDepthStencil( depth );
 	if ( !R_FramebufferComplete() ) {
 		return qfalse;
 	}
@@ -678,6 +713,9 @@ static void R_TapPass( GLuint source, float s0, float t0, float s1, float t1, fl
 	backEnd.pc.c_binds++;
 	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 0, offset, offset, -offset, -offset );
 	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 1, threshold, scale, 0.0f, 0.0f );
+	// the taps stay inside the source rectangle: the rest of the texture
+	// may hold an older, larger view
+	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, s0 + 0.5f, t0 + 0.5f, s1 - 0.5f, t1 - 0.5f );
 	R_DrawQuad( s0, t0, s1, t1 );
 }
 
@@ -816,6 +854,7 @@ void R_PostFXEndView( int x, int y, int w, int h ) {
 	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 1,
 		bloom ? Com_Clamp( 0.0f, 4.0f, r_bloomIntensity->value ) / BLOOM_LEVELS : 0.0f, 0.0f, 0.0f, 0.0f );
 	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 2, x, y, bloom ? bloomW / (float)w : 0.0f, bloom ? bloomH / (float)h : 0.0f );
+	qglProgramEnvParameter4fARB( GL_FRAGMENT_PROGRAM_ARB, 3, 0.5f, 0.5f, MAX( 0.5f, bloomW - 0.5f ), MAX( 0.5f, bloomH - 0.5f ) );
 	GL_SelectTexture( 1 );
 	qglEnable( GL_TEXTURE_RECTANGLE_ARB );
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, bloom ? pfx.blur[0].texture : pfx.scene.texture );

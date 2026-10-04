@@ -446,7 +446,7 @@ Client-Side
    and the dynamic glow gets faster (no screen copies, finer blur);
    ``r_hdr`` and ``r_bloom`` need it. Requires ``r_gammamethod 2`` and
    vid_restart. With MSAA the offscreen buffer is multisampled.
-   ``r_measureOverdraw`` doesn't work with it.
+   ``r_measureOverdraw`` is turned off with it.
 
 ..
 

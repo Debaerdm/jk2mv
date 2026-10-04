@@ -1517,6 +1517,7 @@ void		R_ShutdownPostFX( void );
 void		R_ResizePostFX( void );
 GLenum		R_PostFXSceneFormat( void );
 qboolean	R_PostFXGradesView( void );
+qboolean	R_PostFXActive( void );
 qboolean	R_PostFXCanBlendFrames( void );
 void		R_PostFXBlendFrame( int subframe, int subframes );
 qboolean	RE_SetFrameBlend( int subframe, int subframes );
