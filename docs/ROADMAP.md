@@ -202,6 +202,9 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 
 **Après la phase 4, à la carte** selon les réactions de la communauté : météo modernisée (FE-13), flares par occlusion queries (FE-12), recherche dans les démos (PX-8, puis PX-20 et PX-22), manettes et gyro avec mise à jour de SDL (PX-15), liens `jk2mv://` (PX-18), particules douces (VQ-12), packs HD (VQ-14).
 
+### Piste 1.05 (à part, au choix du serveur)
+Un protocole 17 négocié, aux limites relevées (64 joueurs, plus d'entités, de modèles et de sons). Il demande un fork de mvsdk et laisse les 1.02-1.04 intactes. La conception, les étapes et les questions ouvertes sont dans [PROTOCOL-1.05.md](PROTOCOL-1.05.md).
+
 ## 4. Premier jalon concret
 
 Avant tout code (toi, un week-end) : BM-3 et BM-4, décrits au §5.
