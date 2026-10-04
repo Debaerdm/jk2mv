@@ -85,10 +85,15 @@ def main():
     if os.path.isdir(out):
         shutil.rmtree(out)
 
-    # FS_Startup only checks that assets5.pk3 exists
+    # FS_Startup only checks that assets5.pk3 exists. The "white" shader of the
+    # retail scripts is used for every colored 2D fill; without it the
+    # implicit shader ignores the color.
     os.makedirs(base)
     with zipfile.ZipFile(os.path.join(base, 'assets5.pk3'), 'w') as z:
         z.writestr('stub.txt', 'jk2mv smoke test placeholder\n')
+        z.writestr('shaders/stub.shader',
+                   'white\n{\n\t{\n\t\tmap $whiteimage\n\t\tblendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA\n'
+                   '\t\trgbgen vertex\n\t\talphagen vertex\n\t}\n}\n')
 
     write(os.path.join(base, 'mpdefault.cfg'), '// smoke test stub\n')
 
