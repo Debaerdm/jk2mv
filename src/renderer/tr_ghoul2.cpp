@@ -1288,11 +1288,19 @@ void G2_ProcessGeneratedSurfaceBolts(CGhoul2Info &ghoul2, mdxaBone_v &bonePtr, m
 static CRenderableSurface	renderableSurfaces[MAX_DRAWSURFS];
 static int					numRenderableSurfaces;
 
-static CRenderableSurface *R_AllocRenderableSurface( void ) {
+// a drawsurf for a Ghoul2 surface, pointing at the bones transformed for it.
+// Past MAX_DRAWSURFS of them in a frame (the drawsurf ring has wrapped by
+// then anyway) only the drawsurf is dropped: the caller still processes the
+// surface's bolts and its children.
+static void R_AddGhoulDrawSurf( mdxmSurface_t *surface, void *boneList, shader_t *shader, int fogNum ) {
 	if ( numRenderableSurfaces >= MAX_DRAWSURFS ) {
-		return NULL;
+		return;
 	}
-	return &renderableSurfaces[numRenderableSurfaces++];
+	CRenderableSurface *newSurf = &renderableSurfaces[numRenderableSurfaces++];
+
+	newSurf->surfaceData = surface;
+	newSurf->boneList = boneList;
+	R_AddDrawSurf( (surfaceType_t *)newSurf, shader, fogNum, qfalse );
 }
 
 void R_ResetRenderableSurfaces( void ) {
@@ -1359,13 +1367,7 @@ void RenderSurfaces(CRenderSurface &RS)
 			&& !(RS.renderfx & ( RF_NOSHADOW | RF_DEPTHHACK ) )
 			&& shader->sort == SS_OPAQUE )
 		{		// set the surface info to point at the where the transformed bone list is going to be for when the surface gets rendered out
-			CRenderableSurface *newSurf = R_AllocRenderableSurface();
-			if ( !newSurf ) {
-				return;		// more surfaces than drawsurfs in the frame
-			}
-			newSurf->surfaceData = surface;
-			newSurf->boneList = &RS.bonePtr;
-			R_AddDrawSurf( (surfaceType_t *)newSurf, tr.shadowShader, 0, qfalse );
+			R_AddGhoulDrawSurf( surface, &RS.bonePtr, tr.shadowShader, 0 );
 		}
 
 		// projection shadows work fine with personal models
@@ -1374,25 +1376,13 @@ void RenderSurfaces(CRenderSurface &RS)
 			&& (RS.renderfx & RF_SHADOW_PLANE )
 			&& shader->sort == SS_OPAQUE )
 		{		// set the surface info to point at the where the transformed bone list is going to be for when the surface gets rendered out
-			CRenderableSurface *newSurf = R_AllocRenderableSurface();
-			if ( !newSurf ) {
-				return;		// more surfaces than drawsurfs in the frame
-			}
-			newSurf->surfaceData = surface;
-			newSurf->boneList = &RS.bonePtr;
-			R_AddDrawSurf( (surfaceType_t *)newSurf, tr.projectionShadowShader, 0, qfalse );
+			R_AddGhoulDrawSurf( surface, &RS.bonePtr, tr.projectionShadowShader, 0 );
 		}
 
 		// don't add third_person objects if not viewing through a portal
 		if ( !RS.personalModel )
 		{		// set the surface info to point at the where the transformed bone list is going to be for when the surface gets rendered out
-			CRenderableSurface *newSurf = R_AllocRenderableSurface();
-			if ( !newSurf ) {
-				return;		// more surfaces than drawsurfs in the frame
-			}
-			newSurf->surfaceData = surface;
-			newSurf->boneList = &RS.bonePtr;
-			R_AddDrawSurf( (surfaceType_t *)newSurf, shader, RS.fogNum, qfalse );
+			R_AddGhoulDrawSurf( surface, &RS.bonePtr, shader, RS.fogNum );
 		}
 	}
 
@@ -2178,7 +2168,7 @@ void RB_SurfaceGhoul( CRenderableSurface *surf ) {
 	// point us at the bone structure that should have been pre-computed
 	mdxaBone_v &bonePtr = *((mdxaBone_v *)surf->boneList);
 
-	// surf lives in the frame's arena (R_AllocRenderableSurface): a surface
+	// surf lives in the frame's arena (R_AddGhoulDrawSurf): a surface
 	// can be drawn several times in a frame (glow pass, mirrors)
 
 	//
