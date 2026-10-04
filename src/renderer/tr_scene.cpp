@@ -319,6 +319,11 @@ explosions): keep the MAX_DLIGHTS that matter most for this view at the
 start of the scene's list (tr_dlightselect.cpp). The 3D view remembers what
 it kept, so the lights near the cutoff don't flicker as their radius jitters;
 scenes without a world (menus, HUD models) don't use or change that memory.
+
+Mirror and portal views drawn inside the scene use the same lights: with a
+portal surface entity in the scene, lights behind the viewer aren't dropped
+(a mirror may show them), and lights near a portal camera rank by their
+distance to it.
 =====================
 */
 static_assert( MAX_DLIGHT_POOL <= DLSEL_MAX_LIGHTS && MAX_DLIGHTS <= DLSEL_MAX_KEEP, "dynamic light selection limits" );
@@ -328,6 +333,8 @@ static void R_SelectDlights( const refdef_t *fd ) {
 	dlselHistory_t	*history = r_dlightPriority->integer && !( fd->rdflags & RDF_NOWORLDMODEL ) ? &worldHistory : NULL;
 	const int		count = tr.refdef.num_dlights;
 	dlselLight_t	lights[MAX_DLIGHT_POOL];
+	dlselView_t		views[DLSEL_MAX_VIEWS];
+	int				numViews = 1;
 	int				chosen[MAX_DLIGHTS];
 	dlight_t		keep[MAX_DLIGHTS];
 
@@ -341,7 +348,30 @@ static void R_SelectDlights( const refdef_t *fd ) {
 		lights[i].radius = dl->radius;
 		lights[i].brightness = MAX( dl->color[0], MAX( dl->color[1], dl->color[2] ) );
 	}
-	const int numKept = R_DlightSelect( lights, count, MAX_DLIGHTS, fd->vieworg, fd->viewaxis[0], history, chosen );
+
+	VectorCopy( fd->vieworg, views[0].origin );
+	VectorCopy( fd->viewaxis[0], views[0].forward );
+	views[0].cullBehind = true;
+	// R_MirrorViewBySurface draws them only with these settings
+	if ( count > MAX_DLIGHTS && !( fd->rdflags & RDF_NOWORLDMODEL ) && !r_noportals->integer && r_fastsky->integer != 1 ) {
+		for ( int i = 0; i < tr.refdef.num_entities; i++ ) {
+			const refEntity_t	*ent = &tr.refdef.entities[i].e;
+
+			if ( ent->reType != RT_PORTALSURFACE ) {
+				continue;
+			}
+			views[0].cullBehind = false;
+			// a portal camera, not a mirror (R_GetPortalOrientations)
+			if ( !VectorCompare( ent->oldorigin, ent->origin ) && numViews < DLSEL_MAX_VIEWS ) {
+				VectorCopy( ent->oldorigin, views[numViews].origin );
+				VectorClear( views[numViews].forward );
+				views[numViews].cullBehind = false;
+				numViews++;
+			}
+		}
+	}
+
+	const int numKept = R_DlightSelect( lights, count, MAX_DLIGHTS, views, numViews, history, chosen );
 	if ( numKept < count ) {
 		for ( int i = 0; i < numKept; i++ ) {
 			keep[i] = tr.refdef.dlights[chosen[i]];

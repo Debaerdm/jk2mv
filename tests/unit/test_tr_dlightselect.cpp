@@ -16,17 +16,23 @@
 namespace {
 
 const int kMaxDlights = 32;		// MAX_DLIGHTS
-const float kViewOrigin[3] = { 0.0f, 0.0f, 0.0f };
-const float kViewForward[3] = { 1.0f, 0.0f, 0.0f };
+
+// the scene's view, at the origin looking along +x
+dlselView_t View( bool cullBehind = true ) {
+	dlselView_t view = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, cullBehind };
+	return view;
+}
 
 dlselLight_t Light( float x, float y, float z, float radius, float brightness = 1.0f ) {
 	dlselLight_t dl = { { x, y, z }, radius, brightness };
 	return dl;
 }
 
-std::vector<int> Select( const std::vector<dlselLight_t> &lights, dlselHistory_t *history = nullptr, int keep = kMaxDlights ) {
+std::vector<int> Select( const std::vector<dlselLight_t> &lights, dlselHistory_t *history = nullptr,
+	const std::vector<dlselView_t> &views = std::vector<dlselView_t>( 1, View() ) ) {
 	std::vector<int> chosen( DLSEL_MAX_KEEP, -1 );
-	const int n = R_DlightSelect( lights.data(), (int)lights.size(), keep, kViewOrigin, kViewForward, history, chosen.data() );
+	const int n = R_DlightSelect( lights.data(), (int)lights.size(), kMaxDlights, views.data(), (int)views.size(),
+		history, chosen.data() );
 	chosen.resize( n );
 	return chosen;
 }
@@ -312,4 +318,51 @@ TEST(DlightSelect, KeptLightThatMovedAwayLosesItsPlace) {
 	const std::set<int> kept( chosen.begin(), chosen.end() );
 	EXPECT_EQ( kept.count( 31 ), 0u );
 	EXPECT_EQ( kept.count( 32 ), 1u );
+}
+
+// With a mirror in the scene the main view no longer culls: the mirror can
+// show what is behind the viewer.
+TEST(DlightSelect, MirrorKeepsLightsBehindTheViewer) {
+	// 32 lights in front, 1000 units and more away, and a close one behind
+	std::vector<dlselLight_t> lights;
+	for ( int i = 0; i < 32; i++ ) {
+		lights.push_back( Light( 1000.0f + 20.0f * i, 0.0f, 0.0f, 100.0f ) );
+	}
+	lights.push_back( Light( -200.0f, 0.0f, 0.0f, 100.0f ) );
+	std::set<int> kept;
+	for ( int i : Select( lights ) ) {
+		kept.insert( i );
+	}
+	EXPECT_EQ( kept.count( 32 ), 0u ) << "behind the viewer, out of its radius";
+	kept.clear();
+	for ( int i : Select( lights, nullptr, std::vector<dlselView_t>( 1, View( false ) ) ) ) {
+		kept.insert( i );
+	}
+	EXPECT_EQ( kept.count( 32 ), 1u ) << "a mirror may show it";
+	EXPECT_EQ( kept.count( 31 ), 0u ) << "the farthest light makes room";
+}
+
+// A portal shows the area around its camera, maybe far from the viewer.
+TEST(DlightSelect, PortalCameraRanksTheLightsNearIt) {
+	// 32 lights around the viewer, and one next to a camera 3000 units away
+	std::vector<dlselLight_t> lights;
+	for ( int i = 0; i < 32; i++ ) {
+		lights.push_back( Light( 300.0f + 10.0f * i, 100.0f, 0.0f, 100.0f ) );
+	}
+	lights.push_back( Light( 3000.0f, 3000.0f, 0.0f, 100.0f ) );
+	std::set<int> kept;
+	for ( int i : Select( lights ) ) {
+		kept.insert( i );
+	}
+	EXPECT_EQ( kept.count( 32 ), 0u );
+
+	dlselView_t camera = { { 3050.0f, 3000.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, false };
+	std::vector<dlselView_t> views( 1, View( false ) );
+	views.push_back( camera );
+	kept.clear();
+	for ( int i : Select( lights, nullptr, views ) ) {
+		kept.insert( i );
+	}
+	EXPECT_EQ( kept.count( 32 ), 1u ) << "next to the portal camera";
+	EXPECT_EQ( kept.count( 31 ), 0u ) << "the farthest light from both views makes room";
 }

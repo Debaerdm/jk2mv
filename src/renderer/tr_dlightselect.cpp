@@ -11,7 +11,7 @@
 // light within DLSEL_SAME_LIGHT units of one kept last time (lights move a
 // few units per frame) is taken for that light: its score counts
 // DLSEL_KEPT_BONUS times, so another light has to matter that much more to
-// replace it, and it is culled only that many radii behind the viewer.
+// replace it, and it is culled only that many radii behind a view.
 #define DLSEL_SAME_LIGHT	32.0f
 #define DLSEL_KEPT_BONUS	1.5f
 
@@ -19,15 +19,22 @@ static float Dot( const float a[3], const float b[3] ) {
 	return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-static float R_DlightScore( const dlselLight_t *dl, const float origin[3], const float forward[3], float bonus ) {
-	const float	delta[3] = { dl->origin[0] - origin[0], dl->origin[1] - origin[1], dl->origin[2] - origin[2] };
+// the best score from the views, -1 when every view culls the light
+static float R_DlightScore( const dlselLight_t *dl, const dlselView_t *views, int numViews, float bonus ) {
+	const float	brightness = bonus * dl->brightness * dl->radius * dl->radius;
+	float		best = -1.0f;
 
-	if ( Dot( delta, forward ) < -dl->radius * bonus ) {
-		return -1.0f;
+	for ( int v = 0; v < numViews; v++ ) {
+		const float	*origin = views[v].origin;
+		const float	delta[3] = { dl->origin[0] - origin[0], dl->origin[1] - origin[1], dl->origin[2] - origin[2] };
+
+		if ( views[v].cullBehind && Dot( delta, views[v].forward ) < -dl->radius * bonus ) {
+			continue;
+		}
+		const float dist2 = std::max( Dot( delta, delta ), 0.25f * dl->radius * dl->radius );
+		best = std::max( best, brightness / std::max( dist2, 1.0f ) );
 	}
-	const float brightness = dl->brightness * dl->radius * dl->radius;
-	const float dist2 = std::max( Dot( delta, delta ), 0.25f * dl->radius * dl->radius );
-	return bonus * brightness / std::max( dist2, 1.0f );
+	return best;
 }
 
 // flags, for each light kept last time, the light now nearest to it if close
@@ -59,9 +66,10 @@ static void R_DlightsKeptBefore( const dlselLight_t *lights, int count, const dl
 }
 
 int R_DlightSelect( const dlselLight_t *lights, int count, int keep,
-	const float origin[3], const float forward[3], dlselHistory_t *history, int *chosen ) {
+	const dlselView_t *views, int numViews, dlselHistory_t *history, int *chosen ) {
 	count = std::min( std::max( count, 0 ), DLSEL_MAX_LIGHTS );
 	keep = std::min( std::max( keep, 0 ), DLSEL_MAX_KEEP );
+	numViews = std::min( std::max( numViews, 0 ), DLSEL_MAX_VIEWS );
 
 	int numChosen = 0;
 	if ( count <= keep ) {
@@ -76,7 +84,7 @@ int R_DlightSelect( const dlselLight_t *lights, int count, int keep,
 		R_DlightsKeptBefore( lights, count, history, wasKept );
 		for ( int i = 0; i < count; i++ ) {
 			order[i] = i;
-			score[i] = R_DlightScore( &lights[i], origin, forward, wasKept[i] ? DLSEL_KEPT_BONUS : 1.0f );
+			score[i] = R_DlightScore( &lights[i], views, numViews, wasKept[i] ? DLSEL_KEPT_BONUS : 1.0f );
 		}
 		// stable, so lights with equal scores keep the one added first
 		std::stable_sort( order, order + count, [&score]( int a, int b ) { return score[a] > score[b]; } );
