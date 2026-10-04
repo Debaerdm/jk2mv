@@ -184,8 +184,22 @@ Client-Side
    horizontal fov on any screen, so 16:9 and 21:9 screens see less at the
    top and bottom than 4:3. With 1, ``cg_fov`` counts as a 4:3 value and
    wide screens see the same height plus more on the sides ("Hor+"), zoom
-   scopes included. Off when the server fixes the fov (dmflags 16) or when
-   the mod corrects it itself (``cg_fovAspectAdjust``).
+   scopes included. It does nothing on screens up to 4:3 or when the server
+   fixes the fov (dmflags 16).
+
+   | 0: the fov is left to the mod: the original view, unless you turned on
+     the mod's own ``cg_fovAspectAdjust``.
+   | 1, with a mod that has ``cg_fovAspectAdjust`` (MVSDK mods, including
+     jk2mv's own base modules): the mod widens the view as with
+     ``cg_fovAspectAdjust 1`` and places the dynamic crosshair, the rocket
+     lock box and the saber clash flares for that wider view.
+     ``cg_fovAspectAdjust`` and the config keep your own value.
+   | 1, with other mods (the original 1.02 to 1.04 modules, also used on pure
+     servers without jk2mv's modules): the engine widens the view, whatever
+     ``cg_fovAspectAdjust`` holds. What the mod draws over points of the
+     world away from the screen center (dynamic crosshair, rocket lock box,
+     saber clash flares) then drifts off target; with
+     ``cg_dynamicCrosshair 0`` the crosshair stays fixed in the center.
 
 ..
 

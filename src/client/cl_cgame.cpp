@@ -43,6 +43,10 @@ extern qboolean getCameraInfo(int time, vec3_t *origin, vec3_t *angles);
 
 void FX_FeedTrail(const effectTrailArgStruct_t *a);
 
+// cvar handle of the running cgame's cg_fovAspectAdjust, -1 when it has none
+// (see CL_FovAspectFix)
+static int cl_cgameFovAdjust = -1;
+
 /*
 ====================
 CL_GetGameState
@@ -597,6 +601,7 @@ CL_ShutdonwCGame
 void CL_ShutdownCGame( void ) {
 	cls.keyCatchers &= ~KEYCATCH_CGAME;
 	cls.cgameStarted = qfalse;
+	cl_cgameFovAdjust = -1;
 	if ( !cgvm ) {
 		return;
 	}
@@ -671,28 +676,71 @@ qboolean CL_DemoHideHud( void ) {
 
 /*
 ====================
-CL_FovAspectFix
+Widescreen field of view (cl_fovAspectFix)
 
-cl_fovAspectFix 1: the base cgame keeps fov_x on any screen, so wide screens
-lose view at the top and bottom ("Vert-"). This takes fov_x as meant for a
-4:3 screen and widens the scene to the real aspect, keeping the 4:3
-vertical view ("Hor+"), the way MVSDK's cg_fovAspectAdjust does. Only world
-scenes wider than 4:3, never when the server fixes the fov (DF_FIXED_FOV)
-or when the mod already corrects it.
+The base cgame keeps cg_fov as the horizontal fov on any screen, so wide
+screens lose view at the top and bottom ("Vert-"). cl_fovAspectFix 1 takes
+it as meant for a 4:3 screen and widens the view to the real aspect,
+keeping the 4:3 vertical view ("Hor+"), unless the server fixes the fov
+(DF_FIXED_FOV).
+
+A cgame with its own correction, cg_fovAspectAdjust (MVSDK mods, jk2mv's
+base modules among them), widens its view itself: while cl_fovAspectFix
+applies, it reads that cvar as on, so it projects the marks it draws on the
+world (dynamic crosshair, rocket lock box, saber clash flares) with the fov
+it renders with. The cvar itself, and so the config, keeps the player's
+value. The engine widens the world scenes of other cgames, whose marks then
+drift off target away from the screen center.
 ====================
 */
 #define DF_FIXED_FOV	16
 
-qboolean CL_FovAspectFix( const refdef_t *fd, refdef_t *out ) {
-	if ( !cl_fovAspectFix->integer || ( fd->rdflags & RDF_NOWORLDMODEL ) || fd->width * 3 <= fd->height * 4 ||
-		fd->fov_x <= 0.0f || fd->fov_x >= 180.0f ) {
-		return qfalse;
-	}
-	if ( Cvar_VariableIntegerValue( "cg_fovAspectAdjust" ) ) {
+// cl_fovAspectFix is on and the server doesn't fix the fov
+static qboolean CL_FovAspectFixOn( void ) {
+	if ( !cl_fovAspectFix->integer ) {
 		return qfalse;
 	}
 	const char *info = cl.gameState.stringData + cl.gameState.stringOffsets[CS_SERVERINFO];
-	if ( atoi( Info_ValueForKey( info, "dmflags" ) ) & DF_FIXED_FOV ) {
+	return (qboolean)!( atoi( Info_ValueForKey( info, "dmflags" ) ) & DF_FIXED_FOV );
+}
+
+// CG_CVAR_UPDATE: the cgame's cg_fovAspectAdjust reads as on while
+// cl_fovAspectFix applies, whatever the cvar holds
+static void CL_CgameCvarUpdate( vmCvar_t *vmCvar ) {
+	if ( cl_cgameFovAdjust < 0 || vmCvar->handle != cl_cgameFovAdjust ) {
+		Cvar_Update( vmCvar );
+		return;
+	}
+	vmCvar->modificationCount = -1;		// copy it every time: cl_fovAspectFix may have changed, not the cvar
+	Cvar_Update( vmCvar );
+	if ( !vmCvar->integer && CL_FovAspectFixOn() ) {
+		Q_strncpyz( vmCvar->string, "1", sizeof( vmCvar->string ) );
+		vmCvar->value = 1.0f;
+		vmCvar->integer = 1;
+	}
+}
+
+// CG_CVAR_REGISTER, noting whether the cgame has cg_fovAspectAdjust
+static void CL_CgameCvarRegister( vmCvar_t *vmCvar, const char *name, const char *defaultValue, int flags ) {
+	Cvar_Register( vmCvar, name, defaultValue, flags );
+	if ( vmCvar && !Q_stricmp( name, "cg_fovAspectAdjust" ) ) {
+		cl_cgameFovAdjust = vmCvar->handle;
+		CL_CgameCvarUpdate( vmCvar );
+	}
+}
+
+/*
+====================
+CL_FovAspectFix
+
+The engine's Hor+ for the world scenes of a cgame without
+cg_fovAspectAdjust: fov_x is taken as meant for a 4:3 screen and the scene
+widened to the real aspect, the way MVSDK's cg_fovAspectAdjust does it.
+====================
+*/
+qboolean CL_FovAspectFix( const refdef_t *fd, refdef_t *out ) {
+	if ( cl_cgameFovAdjust >= 0 || ( fd->rdflags & RDF_NOWORLDMODEL ) || fd->width * 3 <= fd->height * 4 ||
+		fd->fov_x <= 0.0f || fd->fov_x >= 180.0f || !CL_FovAspectFixOn() ) {
 		return qfalse;
 	}
 
@@ -737,10 +785,10 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	case CG_MILLISECONDS:
 		return Sys_Milliseconds();
 	case CG_CVAR_REGISTER:
-		Cvar_Register( VMAV(1, vmCvar_t), VMAS(2), VMAS(3), args[4] );
+		CL_CgameCvarRegister( VMAV(1, vmCvar_t), VMAS(2), VMAS(3), args[4] );
 		return 0;
 	case CG_CVAR_UPDATE:
-		Cvar_Update( VMAV(1, vmCvar_t) );
+		CL_CgameCvarUpdate( VMAV(1, vmCvar_t) );
 		return 0;
 	case CG_CVAR_SET:
 		Cvar_Set2( VMAS(1), VMAS(2), qtrue, qtrue );
@@ -1458,6 +1506,7 @@ void CL_InitCGame( void ) {
 		Com_Error( ERR_DROP, "VM_Create on cgame failed" );
 	}
 	cls.state = CA_LOADING;
+	cl_cgameFovAdjust = -1;		// until this cgame registers its own
 
 	// init for this gamestate
 	// use the lastExecutedServerCommand instead of the serverCommandSequence
