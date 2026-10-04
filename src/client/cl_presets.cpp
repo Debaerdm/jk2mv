@@ -31,6 +31,7 @@ static const presetCvar_t presetDefaults[] = {
 	{ "r_subdivisions", "4" },
 	{ "r_lodCurveError", "250" },
 	{ "r_dlightMode", "0" },
+	{ "r_dlightPriority", "0" },
 	{ "r_fbo", "0" },
 	{ "r_hdr", "0" },
 	{ "r_bloom", "0" },
@@ -55,6 +56,7 @@ static const presetCvar_t presetEnhancedCvars[] = {
 	{ "r_subdivisions", "2" },						// smoother curved surfaces
 	{ "r_lodCurveError", "1000" },					// keep them detailed farther away
 	{ "r_dlightMode", "1" },						// round, smooth dynamic lights
+	{ "r_dlightPriority", "1" },					// past 32 lights, the ones that matter for the view
 	{ "cl_fovAspectFix", "1" },						// wide screens see more, not less
 	{ NULL, NULL }
 };
@@ -74,6 +76,7 @@ static const presetCvar_t presetCompetitiveCvars[] = {
 	{ "r_DynamicGlow", "0" },
 	{ "r_swapInterval", "0" },
 	{ "r_maxFrameLatency", "1" },					// no frames queued ahead of the GPU
+	{ "r_dlightPriority", "1" },					// the lights near the player in big fights
 	{ NULL, NULL }
 };
 
@@ -93,7 +96,7 @@ static const preset_t presets[] = {
 	{ "classic", "the original look (every preset cvar at its default)", NULL, NULL },
 	presetEnhanced,
 	{ "ultra", "enhanced with MSAA 8x, HDR, bloom and full model detail (CPU heavy in big fights)", &presetEnhanced, presetUltraCvars },
-	{ "competitive", "the original look without glow and vsync, lowest input lag", NULL, presetCompetitiveCvars },
+	{ "competitive", "the original look without glow and vsync, lowest input lag, nearby lights first in big fights", NULL, presetCompetitiveCvars },
 	{ "movie", "enhanced with HDR, bloom, 60 fps video capture with motion blur", &presetEnhanced, presetMovieCvars },
 };
 

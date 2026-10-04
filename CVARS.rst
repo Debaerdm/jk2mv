@@ -427,13 +427,14 @@ Client-Side
 
 :Name: r_dlightPriority
 :Values: "0", "1"
-:Default: "1"
+:Default: "0"
 :Description:
    Surfaces can take 32 dynamic lights per scene. With more (big fights:
    sabers, shots, explosions), 0 keeps the first 32 added, whatever they
    are; 1 collects up to 256 and keeps the 32 that matter most for the view:
    lights entirely behind the viewer are dropped, the others rank by
-   brightness and distance. No difference with 32 lights or fewer.
+   brightness and distance. No difference with 32 lights or fewer. The
+   enhanced, ultra, competitive and movie presets set 1.
 
 ..
 
