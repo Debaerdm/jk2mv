@@ -47,13 +47,16 @@ static void AppendArgument( std::string &cmd, const char *arg ) {
 	cmd += '"';
 }
 
-static HANDLE Spawn( const char * const *argv, HANDLE input ) {
+static HANDLE Spawn( const char * const *argv, HANDLE input, const char *logPath ) {
 	std::string			cmd;
 	SECURITY_ATTRIBUTES	sa = { sizeof( sa ), NULL, TRUE };
 	STARTUPINFOA		si;
 	PROCESS_INFORMATION	pi;
 	HANDLE				nul = CreateFileA( "NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
 							&sa, OPEN_EXISTING, 0, NULL );
+	HANDLE				log = logPath ? CreateFileA( logPath, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS,
+							FILE_ATTRIBUTE_NORMAL, NULL ) : INVALID_HANDLE_VALUE;
+	HANDLE				output = log != INVALID_HANDLE_VALUE ? log : nul;
 
 	for ( int i = 0; argv[i]; i++ ) {
 		AppendArgument( cmd, argv[i] );
@@ -63,14 +66,17 @@ static HANDLE Spawn( const char * const *argv, HANDLE input ) {
 	si.cb = sizeof( si );
 	si.dwFlags = STARTF_USESTDHANDLES;
 	si.hStdInput = input ? input : nul;
-	si.hStdOutput = nul;
-	si.hStdError = nul;
+	si.hStdOutput = output;
+	si.hStdError = output;
 
 	std::string	writable( cmd );
 	const BOOL	ok = CreateProcessA( NULL, &writable[0], NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi );
 
 	if ( nul != INVALID_HANDLE_VALUE ) {
 		CloseHandle( nul );
+	}
+	if ( log != INVALID_HANDLE_VALUE ) {
+		CloseHandle( log );
 	}
 	if ( !ok ) {
 		return NULL;
@@ -90,7 +96,7 @@ static int Wait( HANDLE process ) {
 	return (int)code;
 }
 
-sysPipe_t *Sys_SpawnPipe( const char * const *argv ) {
+sysPipe_t *Sys_SpawnPipe( const char * const *argv, const char *logPath ) {
 	SECURITY_ATTRIBUTES	sa = { sizeof( sa ), NULL, TRUE };
 	HANDLE				readEnd, writeEnd;
 
@@ -100,7 +106,7 @@ sysPipe_t *Sys_SpawnPipe( const char * const *argv ) {
 	// only the child's end is inherited
 	SetHandleInformation( writeEnd, HANDLE_FLAG_INHERIT, 0 );
 
-	HANDLE process = Spawn( argv, readEnd );
+	HANDLE process = Spawn( argv, readEnd, logPath );
 	CloseHandle( readEnd );
 	if ( !process ) {
 		CloseHandle( writeEnd );
@@ -135,8 +141,8 @@ int Sys_PipeClose( sysPipe_t *pipe ) {
 	return code;
 }
 
-int Sys_RunProcess( const char * const *argv ) {
-	HANDLE process = Spawn( argv, NULL );
+int Sys_RunProcess( const char * const *argv, const char *logPath ) {
+	HANDLE process = Spawn( argv, NULL, logPath );
 
 	return process ? Wait( process ) : -1;
 }
@@ -157,21 +163,45 @@ struct sysPipe_s {
 	int		input;
 };
 
-static bool Spawn( const char * const *argv, const int pipeFds[2], pid_t *pid ) {
-	posix_spawn_file_actions_t actions;
+static bool Spawn( const char * const *argv, const int pipeFds[2], const char *logPath, pid_t *pid ) {
+	posix_spawn_file_actions_t	actions;
+	posix_spawnattr_t			attr;
+	sigset_t					defaults;
+	short						flags = POSIX_SPAWN_SETSIGDEF;
 
 	posix_spawn_file_actions_init( &actions );
 	if ( pipeFds ) {
 		posix_spawn_file_actions_adddup2( &actions, pipeFds[0], STDIN_FILENO );
-		posix_spawn_file_actions_addclose( &actions, pipeFds[0] );
+		// the read end may already be fd 0 when the game started without stdin
+		if ( pipeFds[0] != STDIN_FILENO ) {
+			posix_spawn_file_actions_addclose( &actions, pipeFds[0] );
+		}
 		posix_spawn_file_actions_addclose( &actions, pipeFds[1] );
 	} else {
 		posix_spawn_file_actions_addopen( &actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0 );
 	}
-	posix_spawn_file_actions_addopen( &actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0 );
-	posix_spawn_file_actions_addopen( &actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0 );
+	posix_spawn_file_actions_addopen( &actions, STDOUT_FILENO, logPath ? logPath : "/dev/null",
+		O_WRONLY | O_CREAT | O_TRUNC, 0644 );
+	posix_spawn_file_actions_adddup2( &actions, STDOUT_FILENO, STDERR_FILENO );
 
-	const int err = posix_spawnp( pid, argv[0], &actions, NULL, (char * const *)argv, environ );
+	// none of the game's other files and sockets (the UDP socket, pk3s, logs)
+#if defined( __APPLE__ )
+	flags |= POSIX_SPAWN_CLOEXEC_DEFAULT;
+#elif defined( __GLIBC__ ) && ( __GLIBC__ > 2 || ( __GLIBC__ == 2 && __GLIBC_MINOR__ >= 34 ) )
+	posix_spawn_file_actions_addclosefrom_np( &actions, STDERR_FILENO + 1 );
+#endif
+
+	// the signals the game ignores (SIGPIPE) are back to normal in the child
+	sigemptyset( &defaults );
+	sigaddset( &defaults, SIGPIPE );
+	sigaddset( &defaults, SIGTTIN );
+	sigaddset( &defaults, SIGTTOU );
+	posix_spawnattr_init( &attr );
+	posix_spawnattr_setsigdefault( &attr, &defaults );
+	posix_spawnattr_setflags( &attr, flags );
+
+	const int err = posix_spawnp( pid, argv[0], &actions, &attr, (char * const *)argv, environ );
+	posix_spawnattr_destroy( &attr );
 	posix_spawn_file_actions_destroy( &actions );
 	return err == 0;
 }
@@ -188,7 +218,7 @@ static int Wait( pid_t pid ) {
 	return WIFEXITED( status ) ? WEXITSTATUS( status ) : -1;
 }
 
-sysPipe_t *Sys_SpawnPipe( const char * const *argv ) {
+sysPipe_t *Sys_SpawnPipe( const char * const *argv, const char *logPath ) {
 	int		fds[2];
 	pid_t	pid;
 
@@ -200,7 +230,7 @@ sysPipe_t *Sys_SpawnPipe( const char * const *argv ) {
 	}
 	fcntl( fds[1], F_SETFD, FD_CLOEXEC );
 
-	if ( !Spawn( argv, fds, &pid ) ) {
+	if ( !Spawn( argv, fds, logPath, &pid ) ) {
 		close( fds[0] );
 		close( fds[1] );
 		return NULL;
@@ -238,10 +268,10 @@ int Sys_PipeClose( sysPipe_t *p ) {
 	return code;
 }
 
-int Sys_RunProcess( const char * const *argv ) {
+int Sys_RunProcess( const char * const *argv, const char *logPath ) {
 	pid_t pid;
 
-	if ( !Spawn( argv, NULL, &pid ) ) {
+	if ( !Spawn( argv, NULL, logPath, &pid ) ) {
 		return -1;
 	}
 	return Wait( pid );

@@ -85,3 +85,29 @@ TEST(SysSpawn, WritingToAnExitedProgramFailsWithoutKillingUs) {
 	EXPECT_TRUE( failed );
 	EXPECT_EQ( Sys_PipeClose( pipe ), 0 );
 }
+
+TEST(SysSpawn, OutputGoesToTheLog) {
+	const std::string log = TempPath( "out.log" );
+	const char *argv[] = { "sh", "-c", "echo out; echo err 1>&2", nullptr };
+	EXPECT_EQ( Sys_RunProcess( argv, log.c_str() ), 0 );
+	const std::string text = ReadFile( log );
+	EXPECT_NE( text.find( "out" ), std::string::npos ) << text;
+	EXPECT_NE( text.find( "err" ), std::string::npos ) << text;
+	remove( log.c_str() );
+}
+
+TEST(SysSpawn, ChildGetsOnlyTheStandardFiles) {
+#if !defined( __GLIBC__ ) || __GLIBC__ < 2 || ( __GLIBC__ == 2 && __GLIBC_MINOR__ < 34 ) || !defined( __linux__ )
+	GTEST_SKIP() << "needs posix_spawn_file_actions_addclosefrom_np and /proc";
+#endif
+	// a file the game has open must not leak into the program
+	FILE *open = tmpfile();
+	ASSERT_NE( open, nullptr );
+	const std::string log = TempPath( "fds.log" );
+	const char *argv[] = { "sh", "-c", "ls /proc/self/fd | wc -l", nullptr };
+	ASSERT_EQ( Sys_RunProcess( argv, log.c_str() ), 0 );
+	// 0, 1, 2 and the directory ls itself reads
+	EXPECT_LE( atoi( ReadFile( log ).c_str() ), 4 ) << ReadFile( log );
+	fclose( open );
+	remove( log.c_str() );
+}

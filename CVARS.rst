@@ -923,8 +923,12 @@ Other Changes
     restores everything.
 
 * ``video_mp4 [name]`` records the demo being played to videos/<name>.mp4
-  (H.264, AAC sound from the software mixer) through ffmpeg, which must be in
-  the PATH or next to the game; ``stopvideo`` ends it. The frame rate comes
+  (H.264 with BT.709 colors, AAC sound from the software mixer) through
+  ffmpeg, which must be in the PATH, next to the game on Windows, or in the
+  game's directory, /usr/local/bin or /opt/homebrew/bin on Linux and macOS;
+  ``stopvideo`` ends it (adding the sound to a long recording takes a
+  while). Names are up to 42 letters, digits, '_', '-' and '.'. When ffmpeg
+  fails, its messages are in videos/<name>.mp4.log. The frame rate comes
   from ``cl_aviFrameRate``, the quality from ``cl_mp4Crf`` (default 18, lower
   is better, 0 - 51) and ``cl_mp4Preset`` (x264 preset, default "medium").
 * ``cl_aviMotionBlur N`` (2 - 32, default 0): ``video`` and ``video_mp4`` run

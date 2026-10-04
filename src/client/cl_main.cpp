@@ -136,10 +136,32 @@ CL_VideoFileName
 videos/<name>.<ext>, or the first free videos/videoNNNN.<ext>
 ===============
 */
+// a plain file name: it reaches ffmpeg, so nothing that leaves videos/,
+// looks like an option or doesn't fit the temporary names (MAX_QPATH)
+static qboolean CL_ValidVideoName( const char *name )
+{
+	const size_t len = strlen( name );
+
+	if( !len || len > 42 || name[0] == '-' || name[0] == '.' || strstr( name, ".." ) )
+		return qfalse;
+	for( const char *p = name; *p; p++ )
+	{
+		if( !( ( *p >= 'a' && *p <= 'z' ) || ( *p >= 'A' && *p <= 'Z' ) || ( *p >= '0' && *p <= '9' ) ||
+			*p == '_' || *p == '-' || *p == '.' ) )
+			return qfalse;
+	}
+	return qtrue;
+}
+
 static qboolean CL_VideoFileName( char *filename, int size, const char *ext )
 {
 	if( Cmd_Argc( ) == 2 )
 	{
+		if( !CL_ValidVideoName( Cmd_Argv( 1 ) ) )
+		{
+			Com_Printf( S_COLOR_RED "video names: up to 42 letters, digits, '_', '-' and '.'\n" );
+			return qfalse;
+		}
 		Com_sprintf( filename, size, "videos/%s.%s", Cmd_Argv( 1 ), ext );
 		return qtrue;
 	}
@@ -166,7 +188,8 @@ void CL_VideoMP4_f( void )
 {
 	char filename[ MAX_OSPATH ];
 
-	if( !clc.demoplaying )
+	// also in testscene, to try the video settings offline
+	if( !clc.demoplaying && !CL_TestSceneActive() )
 	{
 		Com_Printf( "The video_mp4 command can only be used when playing back demos\n" );
 		return;
@@ -199,6 +222,11 @@ void CL_Video_f( void )
 	if( Cmd_Argc( ) == 2 )
 		{
 			// explicit filename
+			if( !CL_ValidVideoName( Cmd_Argv( 1 ) ) )
+				{
+					Com_Printf( S_COLOR_RED "video names: up to 42 letters, digits, '_', '-' and '.'\n" );
+					return;
+				}
 			Com_sprintf( filename, MAX_OSPATH, "videos/%s.avi", Cmd_Argv( 1 ) );
 		}
 	else

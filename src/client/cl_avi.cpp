@@ -36,7 +36,7 @@ typedef struct audioFormat_s
 	int bits;
 
 	int sampleSize;
-	int totalBytes;
+	int64_t totalBytes;
 } audioFormat_t;
 
 typedef struct aviFileData_s
@@ -77,6 +77,9 @@ typedef struct aviFileData_s
 	char			mp4VideoQ[MAX_QPATH];	// same, game path (temporary when there is audio)
 	char			wavName[MAX_QPATH];
 	fileHandle_t	wavF;
+	char			ffmpeg[MAX_OSPATH];		// the program that started
+	char			logName[MAX_QPATH];		// ffmpeg's messages, kept when it fails
+	char			logOS[MAX_OSPATH];
 
 	// cl_aviMotionBlur: engine frames blended into each video frame
 	int				blendFrames;
@@ -335,8 +338,8 @@ void CL_WriteAVIHeader( void )
 						WRITE_4BYTES( afd.a.sampleSize *
 							afd.a.rate );                   //dwDataRate
 						WRITE_4BYTES( 0 );                  //dwStartTime
-						WRITE_4BYTES( afd.a.totalBytes /
-							afd.a.sampleSize );             //dwDataLength
+						WRITE_4BYTES( (int32_t)( afd.a.totalBytes /
+							afd.a.sampleSize ) );           //dwDataLength
 
 						WRITE_4BYTES( 0 );                  //dwSuggestedBufferSize
 						WRITE_4BYTES( -1 );                 //dwQuality
@@ -387,7 +390,8 @@ static void CL_ChooseVideoAudio( void )
 	afd.a.bits = dma.samplebits;
 	afd.a.sampleSize = ( afd.a.bits / 8 ) * afd.a.channels;
 
-	if( afd.a.rate % afd.frameRate )
+	// the MP4 path carries the fractional samples over and stays in sync
+	if( afd.a.rate % afd.frameRate && !afd.mp4 )
 	{
 		int suggestRate = afd.frameRate;
 
@@ -509,11 +513,14 @@ static const char * const mp4Presets[] = {
 	"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow",
 };
 
-static void CL_WriteWAVHeader( int dataBytes )
+static void CL_WriteWAVHeader( int64_t dataBytes )
 {
+	// past 4 GB the sizes saturate, and ffmpeg reads the data to the end
+	const unsigned int data = dataBytes > 0xFFFFFFFFll - 36 ? 0xFFFFFFFFu - 36 : (unsigned int)dataBytes;
+
 	bufIndex = 0;
 	WRITE_STRING( "RIFF" );
-	WRITE_4BYTES( 36 + dataBytes );
+	WRITE_4BYTES( 36 + data );
 	WRITE_STRING( "WAVE" );
 	WRITE_STRING( "fmt " );
 	WRITE_4BYTES( 16 );
@@ -524,8 +531,43 @@ static void CL_WriteWAVHeader( int dataBytes )
 	WRITE_2BYTES( afd.a.sampleSize );
 	WRITE_2BYTES( afd.a.bits );
 	WRITE_STRING( "data" );
-	WRITE_4BYTES( dataBytes );
+	WRITE_4BYTES( data );
 	SafeFS_Write( buffer, bufIndex, afd.wavF );
+}
+
+/*
+===============
+CL_StartFFmpeg
+
+ffmpeg is always called ffmpeg: from the PATH, and on Linux and macOS also
+from the game's directory and the usual install places (an app started from
+the macOS Finder doesn't get the shell's PATH). Fixed, engine-built paths
+only: no cvar may choose a program to run.
+===============
+*/
+static sysPipe_t *CL_StartFFmpeg( const char **argv )
+{
+	char		paths[4][MAX_OSPATH];
+	int			count = 0;
+
+	Q_strncpyz( paths[count++], "ffmpeg", sizeof( paths[0] ) );
+#ifndef _WIN32
+	Com_sprintf( paths[count++], sizeof( paths[0] ), "%s/ffmpeg", Cvar_VariableString( "fs_basepath" ) );
+	Q_strncpyz( paths[count++], "/usr/local/bin/ffmpeg", sizeof( paths[0] ) );
+	Q_strncpyz( paths[count++], "/opt/homebrew/bin/ffmpeg", sizeof( paths[0] ) );
+#endif
+	for( int i = 0; i < count; i++ )
+	{
+		argv[0] = paths[i];
+
+		sysPipe_t *pipe = Sys_SpawnPipe( argv, afd.logOS );
+		if( pipe )
+		{
+			Q_strncpyz( afd.ffmpeg, paths[i], sizeof( afd.ffmpeg ) );
+			return pipe;
+		}
+	}
+	return NULL;
 }
 
 qboolean CL_OpenMP4ForWriting( const char *fileName )
@@ -566,18 +608,33 @@ qboolean CL_OpenMP4ForWriting( const char *fileName )
 	Q_strncpyz( afd.mp4Final, FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", fileName ), sizeof( afd.mp4Final ) );
 	Com_sprintf( afd.mp4VideoQ, sizeof( afd.mp4VideoQ ), afd.audio ? "%s.video.mp4" : "%s", fileName );
 	Q_strncpyz( afd.mp4Video, FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", afd.mp4VideoQ ), sizeof( afd.mp4Video ) );
-	FS_CreatePath( afd.mp4Final );
+	Com_sprintf( afd.logName, sizeof( afd.logName ), "%s.log", fileName );
+	Q_strncpyz( afd.logOS, FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", afd.logName ), sizeof( afd.logOS ) );
+	// refuses paths that leave the home directory
+	if( FS_CreatePath( afd.mp4Final ) )
+	{
+		Com_Printf( S_COLOR_RED "video_mp4: can't write %s\n", fileName );
+		return qfalse;
+	}
 
-	const char * const argv[] = {
+	// libx264 needs even sizes; BT.709 colors, tagged, as HD players expect
+	const char *argv[] = {
 		"ffmpeg", "-loglevel", "error", "-nostats", "-y",
 		"-f", "rawvideo", "-pix_fmt", "bgr24", "-s", size, "-r", rate, "-i", "-",
-		"-vf", "vflip", "-c:v", "libx264", "-preset", preset, "-crf", crf, "-pix_fmt", "yuv420p",
+		"-vf", "vflip,crop=trunc(iw/2)*2:trunc(ih/2)*2,scale=out_color_matrix=bt709:out_range=tv",
+		"-c:v", "libx264", "-preset", preset, "-crf", crf, "-pix_fmt", "yuv420p",
+		"-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
 		afd.mp4Video, NULL };
 
-	afd.mp4Pipe = Sys_SpawnPipe( argv );
+	afd.mp4Pipe = CL_StartFFmpeg( argv );
 	if( !afd.mp4Pipe )
 	{
-		Com_Printf( S_COLOR_RED "video_mp4: couldn't start ffmpeg. Install it in the PATH or put ffmpeg next to the game.\n" );
+#ifdef _WIN32
+		Com_Printf( S_COLOR_RED "video_mp4: couldn't start ffmpeg. Install it in the PATH or put ffmpeg.exe next to the game.\n" );
+#else
+		Com_Printf( S_COLOR_RED "video_mp4: couldn't start ffmpeg. Install it in the PATH or put it in %s.\n",
+			Cvar_VariableString( "fs_basepath" ) );
+#endif
 		return qfalse;
 	}
 
@@ -615,6 +672,10 @@ static qboolean CL_CloseMP4( void )
 	// waits for ffmpeg to encode the frames still in flight
 	code = Sys_PipeClose( afd.mp4Pipe );
 	afd.mp4Pipe = NULL;
+	if( code != 0 && FS_ReadFile( afd.mp4VideoQ, NULL ) <= 0 )
+	{
+		FS_HomeRemove( afd.mp4VideoQ );		// nothing in it
+	}
 
 	if( afd.wavF )
 	{
@@ -625,12 +686,17 @@ static qboolean CL_CloseMP4( void )
 
 		if( code == 0 )
 		{
-			const char * const argv[] = {
-				"ffmpeg", "-loglevel", "error", "-nostats", "-y",
-				"-i", afd.mp4Video, "-i", FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", afd.wavName ),
-				"-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", afd.mp4Final, NULL };
+			char wavOS[MAX_OSPATH];
 
-			code = Sys_RunProcess( argv );
+			Q_strncpyz( wavOS, FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", afd.wavName ), sizeof( wavOS ) );
+			const char * const argv[] = {
+				afd.ffmpeg, "-loglevel", "error", "-nostats", "-y",
+				"-i", afd.mp4Video, "-i", wavOS,
+				"-c:v", "copy", "-c:a", "aac", "-aac_coder", "fast", "-b:a", "192k", "-shortest", afd.mp4Final, NULL };
+
+			// encodes the whole sound track: long recordings take a while
+			Com_Printf( "adding the sound, please wait...\n" );
+			code = Sys_RunProcess( argv, afd.logOS );
 			if( code == 0 )
 			{
 				FS_HomeRemove( afd.mp4VideoQ );
@@ -641,9 +707,11 @@ static qboolean CL_CloseMP4( void )
 
 	if( code != 0 )
 	{
-		Com_Printf( S_COLOR_RED "video_mp4: ffmpeg failed (exit code %i), the temporary files are kept\n", code );
+		Com_Printf( S_COLOR_RED "video_mp4: ffmpeg failed (exit code %i), see %s; the temporary files are kept\n",
+			code, afd.logName );
 		return qfalse;
 	}
+	FS_HomeRemove( afd.logName );
 	Com_Printf( "Wrote %s, %i frames\n", afd.fileName, frames );
 	return qtrue;
 }
