@@ -174,9 +174,10 @@ jobs:
             }
           }
 
-  vs2019_xp:
-    name: Build VS 2019 (Portable - WinXP), ${{ matrix.build_type }}, ${{ matrix.arch }}
-    runs-on: windows-2019
+  vs2022_xp:
+    name: Build VS 2022 v141_xp (Portable - WinXP), ${{ matrix.build_type }}, ${{ matrix.arch }}
+    # windows-2019 runners are retired; VS 2022 can still install the v141_xp toolset
+    runs-on: windows-2022
     timeout-minutes: 60
     strategy:
       matrix:
@@ -193,7 +194,7 @@ jobs:
       shell: powershell
       run: |
         Set-Location "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\"
-        Start-Process -FilePath vs_installer.exe -ArgumentList "modify", "--installPath", "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Enterprise", "--add Microsoft.VisualStudio.Component.WinXP", "--quiet", "--norestart", "--nocache" -Wait -PassThru -WindowStyle Hidden
+        Start-Process -FilePath vs_installer.exe -ArgumentList "modify", "--installPath", "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise", "--add Microsoft.VisualStudio.Component.VC.v141.x86.x64", "--add Microsoft.VisualStudio.Component.WinXP", "--quiet", "--norestart", "--nocache" -Wait -PassThru -WindowStyle Hidden
 
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v2
@@ -260,13 +261,14 @@ jobs:
 
   macos:
     name: Build macOS (${{ matrix.portable }}), ${{ matrix.build_type }}, ${{ matrix.arch }}
-    runs-on: macos-12
+    # macos-12 runners are retired; macos-15 runs on Apple Silicon
+    runs-on: macos-15
     timeout-minutes: 45
     strategy:
       matrix:
         build_type: [Debug, Release]
         portable: [Portable, Non-Portable]
-        arch: [x86_64]
+        arch: [arm64]
 
     steps:
     - uses: actions/checkout@v4
