@@ -630,6 +630,8 @@ qboolean CL_OpenMP4ForWriting( const char *fileName )
 	afd.mp4Pipe = CL_StartFFmpeg( argv );
 	if( !afd.mp4Pipe )
 	{
+		// each attempt created the log, empty: nothing ran
+		FS_HomeRemove( afd.logName );
 #ifdef _WIN32
 		Com_Printf( S_COLOR_RED "video_mp4: couldn't start ffmpeg. Install it in the PATH or put ffmpeg.exe next to the game.\n" );
 #else
