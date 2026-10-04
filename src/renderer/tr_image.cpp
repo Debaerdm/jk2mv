@@ -3061,15 +3061,18 @@ static void R_GradeColor( const colorGrade_t *grade, const float in[3], float ou
 	}
 }
 
-static byte R_GammaByte( float c, float g, int shift ) {
-	int inf;
+// storage for a 64^3 lookup table of the post-process gamma pass
+static GLuint R_CreateGammaLUT( void ) {
+	const GLuint image = 1024 + giTextureBindNum++;
 
-	if ( g == 1.0f ) {
-		inf = (int)( c * 255.0f + 0.5f );
-	} else {
-		inf = (int)( 255.0f * powf( c, 1.0f / g ) + 0.5f );
-	}
-	return (byte)Com_Clampi( 0, 255, inf << shift );
+	qglBindTexture(GL_TEXTURE_3D, image);
+	qglTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 64, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	return image;
 }
 
 static void R_UploadGammaLUT( GLuint image, const byte *lutTable ) {
@@ -3128,6 +3131,10 @@ void R_SetColorMappings( void ) {
 	shift = tr.overbrightBits;
 
 	if (r_gammamethod->integer != GAMMA_POSTPROCESSING) {
+		if ( r_colorGrade->string[0] || r_saturation->value != 1.0f || r_contrast->value != 1.0f ||
+			r_vibrance->value != 0.0f || r_colorGradeSplit->integer ) {
+			ri.Printf( PRINT_WARNING, "color grading needs the post-process gamma (r_gammamethod 2), it's inactive\n" );
+		}
 		for (i = 0; i < 256; i++) {
 			if (g == 1) {
 				inf = i;
@@ -3173,22 +3180,29 @@ void R_SetColorMappings( void ) {
 
 		tr.gammaLUTSplit = (qboolean)( graded && r_colorGradeSplit->integer );
 		if ( tr.gammaLUTSplit ) {
-			// before/after comparison: the ungraded table for the left half
+			// before/after comparison: the ungraded table for the left half,
+			// created the first time it's needed
+			if ( !tr.gammaLUTClassicImage ) {
+				tr.gammaLUTClassicImage = R_CreateGammaLUT();
+			}
 			R_UploadGammaLUT( tr.gammaLUTClassicImage, lutTable );
 		}
 
 		if ( graded ) {
+			// grade what the classic table shows, after gamma and overbright,
+			// so contrast pivots and luma are those of the displayed image
+			// and a neutral grade gives back the classic table
 			write = lutTable;
 			for (int z = 0; z < 64; z++) {
 				for (int y = 0; y < 64; y++) {
 					for (int x = 0; x < 64; x++) {
-						const float in[3] = { x / 63.0f, y / 63.0f, z / 63.0f };
+						const float in[3] = { gammaCorrected[x] / 255.0f, gammaCorrected[y] / 255.0f, gammaCorrected[z] / 255.0f };
 						float out[3];
 
 						R_GradeColor( &grade, in, out );
-						*write++ = R_GammaByte( out[0], g, shift );
-						*write++ = R_GammaByte( out[1], g, shift );
-						*write++ = R_GammaByte( out[2], g, shift );
+						*write++ = (byte)Com_Clampi( 0, 255, (int)( out[0] * 255.0f + 0.5f ) );
+						*write++ = (byte)Com_Clampi( 0, 255, (int)( out[1] * 255.0f + 0.5f ) );
+						*write++ = (byte)Com_Clampi( 0, 255, (int)( out[2] * 255.0f + 0.5f ) );
 					}
 				}
 			}
@@ -3222,17 +3236,7 @@ void	R_InitImages( void ) {
 	// gamma render target
 	if (r_gammamethod->integer == GAMMA_POSTPROCESSING) {
 		qglEnable(GL_TEXTURE_3D);
-		tr.gammaLUTImage = 1024 + giTextureBindNum++;
-		tr.gammaLUTClassicImage = 1024 + giTextureBindNum++;
-		for (int i = 0; i < 2; i++) {
-			qglBindTexture(GL_TEXTURE_3D, i ? tr.gammaLUTClassicImage : tr.gammaLUTImage);
-			qglTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 64, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		}
+		tr.gammaLUTImage = R_CreateGammaLUT();
 		qglDisable(GL_TEXTURE_3D);
 		qglEnable(GL_TEXTURE_2D);
 	}

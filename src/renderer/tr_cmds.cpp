@@ -472,7 +472,7 @@ void RE_EndFrame( void ) {
 =============
 RE_SwapBuffers
 
-Returns the number of msec spent in the back end
+Returns the time spent in the front end and in the back end, in microseconds
 =============
 */
 void RE_SwapBuffers( int *frontEndUsec, int *backEndUsec ) {

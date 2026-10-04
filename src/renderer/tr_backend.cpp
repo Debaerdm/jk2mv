@@ -21,6 +21,7 @@ bool g_bDynamicGlowSupported = false;
 
 static void RB_DrawGlowOverlay();
 static void RB_BlurGlowTexture();
+#define MAX_GLOW_PASSES		16		// with the automatic glow size
 const void *RB_GammaCorrection( const void *data );
 
 /*
@@ -352,12 +353,17 @@ void GL_State( unsigned int stateBits )
 	//
 	// alpha test
 	//
-	if ( diff & GLS_ATEST_BITS )
+	// coverage depends on the blend too, so a blend change of an alpha
+	// tested stage goes through here again
+	if ( ( diff & GLS_ATEST_BITS ) ||
+		( ( diff & ( GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS ) ) && ( stateBits & GLS_ATEST_BITS ) ) )
 	{
 		// With MSAA, alpha to coverage antialiases the cut-out edges of
-		// foliage, fences and grates. It replaces the alpha test, except for
-		// "alpha < 0.5" which coverage can't express.
-		const qboolean alphaToCoverage = (qboolean)( r_ext_alphaToCoverage->integer && tr.msaaSamples > 1 );
+		// foliage, fences and grates: the opaque "alpha >= 0.5" stages. It
+		// would apply the alpha twice on blended stages, and can't express
+		// the other thresholds, which keep the alpha test.
+		const qboolean alphaToCoverage = (qboolean)( r_ext_alphaToCoverage->integer && tr.msaaSamples > 1 &&
+			!( stateBits & ( GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS ) ) );
 		qboolean coverage = qfalse;
 
 		switch ( stateBits & GLS_ATEST_BITS )
@@ -368,7 +374,6 @@ void GL_State( unsigned int stateBits )
 		case GLS_ATEST_GT_0:
 			qglEnable( GL_ALPHA_TEST );
 			qglAlphaFunc( GL_GREATER, 0.0f );
-			coverage = alphaToCoverage;
 			break;
 		case GLS_ATEST_LT_80:
 			qglEnable( GL_ALPHA_TEST );
@@ -384,23 +389,20 @@ void GL_State( unsigned int stateBits )
 			}
 			break;
 		case GLS_ATEST_GE_C0:
-			if ( alphaToCoverage ) {
-				qglDisable( GL_ALPHA_TEST );
-				coverage = qtrue;
-			} else {
-				qglEnable( GL_ALPHA_TEST );
-				qglAlphaFunc( GL_GEQUAL, 0.75f );
-			}
+			qglEnable( GL_ALPHA_TEST );
+			qglAlphaFunc( GL_GEQUAL, 0.75f );
 			break;
 		default:
 			assert( 0 );
 			break;
 		}
 
-		if ( coverage ) {
-			qglEnable( GL_SAMPLE_ALPHA_TO_COVERAGE );
-		} else if ( alphaToCoverage || glState.alphaToCoverage ) {
-			qglDisable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+		if ( coverage != glState.alphaToCoverage ) {
+			if ( coverage ) {
+				qglEnable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+			} else {
+				qglDisable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+			}
 		}
 		glState.alphaToCoverage = coverage;
 	}
@@ -1600,9 +1602,36 @@ static void RB_BlurGlowTexture()
 	// Setup vertex and pixel programs.
 	/////////////////////////////////////////////////////////
 
+	// The automatic glow size (glowRadiusScale above 1) widens the blur with
+	// more passes, not wider ones: offsets near whole texels make the
+	// bilinear taps comb-like and stripe thin glows. Each pass sums the taps
+	// with weight r_DynamicGlowIntensity in all, so that gain is spread over
+	// the passes to keep the glow as bright.
+	// (below 1, at low resolutions, narrower offsets are fine)
+	const float fOffsetScale = MIN( tr.glowRadiusScale, 1.0f );
+	const int basePasses = r_DynamicGlowPasses->integer;
+	const float fDelta = r_DynamicGlowDelta->value * fOffsetScale;
+	int iBlurPasses = basePasses;
+	float fIntensity = r_DynamicGlowIntensity->value;
+
+	if ( tr.glowRadiusScale > 1.0f && basePasses > 0 ) {
+		float target = 0.0f, spread = 0.0f;
+
+		// the variance of the blur grows with the sum of the squared offsets
+		for ( int i = 0; i < basePasses; i++ ) {
+			target += ( 0.1f + i * fDelta ) * ( 0.1f + i * fDelta );
+		}
+		target *= tr.glowRadiusScale * tr.glowRadiusScale;
+		for ( iBlurPasses = 0; spread < target && iBlurPasses < MAX_GLOW_PASSES; iBlurPasses++ ) {
+			spread += ( 0.1f + iBlurPasses * fDelta ) * ( 0.1f + iBlurPasses * fDelta );
+		}
+		iBlurPasses = MAX( iBlurPasses, basePasses );
+		fIntensity = powf( fIntensity, basePasses / (float)iBlurPasses );
+	}
+
 	// NOTE: The 0.25 is because we're blending 4 textures (so = 1.0) and we want a relatively normalized pixel
 	// intensity distribution, but this won't happen anyways if intensity is higher than 1.0.
-	const float fBlurDistribution = r_DynamicGlowIntensity->value * 0.25f;
+	const float fBlurDistribution = fIntensity * 0.25f;
 	const float fBlurWeight[4] = { fBlurDistribution, fBlurDistribution, fBlurDistribution, 1.0f };
 
 	// Enable and set the Vertex Program.
@@ -1630,7 +1659,7 @@ static void RB_BlurGlowTexture()
 	/////////////////////////////////////////////////////////
 
 	// How much to offset each texel by.
-	float fTexelWidthOffset = 0.1f * tr.glowRadiusScale, fTexelHeightOffset = 0.1f * tr.glowRadiusScale;
+	float fTexelWidthOffset = 0.1f * fOffsetScale, fTexelHeightOffset = 0.1f * fOffsetScale;
 
 	GLuint uiTex = tr.screenGlow;
 
@@ -1658,7 +1687,7 @@ static void RB_BlurGlowTexture()
 	//int iTexWidth = backEnd.viewParms.viewportWidth, iTexHeight = backEnd.viewParms.viewportHeight;
 	int iTexWidth = glConfig.vidWidth, iTexHeight = glConfig.vidHeight;
 
-	for ( int iNumBlurPasses = 0; iNumBlurPasses < r_DynamicGlowPasses->integer; iNumBlurPasses++ )
+	for ( int iNumBlurPasses = 0; iNumBlurPasses < iBlurPasses; iNumBlurPasses++ )
 	{
 		// Load the Texel Offsets into the Vertex Program.
 		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 0, -fTexelWidthOffset, -fTexelWidthOffset, 0.0f, 0.0f );
@@ -1723,8 +1752,8 @@ static void RB_BlurGlowTexture()
 		// make it look better (at a much higher cost of course). This is cheap though and still looks pretty great. In the future
 		// I might want to use an actual gaussian equation to correctly calculate the pixel coefficients and attenuates, texel
 		// offsets, gaussian amplitude and radius...
-		fTexelWidthOffset += r_DynamicGlowDelta->value * tr.glowRadiusScale;
-		fTexelHeightOffset += r_DynamicGlowDelta->value * tr.glowRadiusScale;
+		fTexelWidthOffset += fDelta;
+		fTexelHeightOffset += fDelta;
 	}
 
 	// Disable multi-texturing.

@@ -681,9 +681,14 @@ static void InitOpenGL(void) {
 		GL_SetDefaultState();
 	}
 
-	// tr is cleared on every R_Init, also when the context is kept
+	// tr is cleared on every R_Init, also when the context is kept.
+	// GL_SAMPLES is an error before GL 1.3 without ARB_multisample.
 	tr.msaaSamples = 0;
-	qglGetIntegerv(GL_SAMPLES, &tr.msaaSamples);
+	int major = 1, minor = 0;
+	sscanf( glConfig.version_string, "%d.%d", &major, &minor );
+	if ( major > 1 || minor >= 3 || GL_CheckForExtension( "GL_ARB_multisample" ) ) {
+		qglGetIntegerv(GL_SAMPLES, &tr.msaaSamples);
+	}
 }
 
 /*
@@ -981,6 +986,13 @@ void GL_SetDefaultState( void )
 	//
 	glState.glStateBits = GLS_DEPTHTEST_DISABLE | GLS_DEPTHMASK_TRUE;
 
+	// no alpha test in those bits; the context may be kept from before
+	qglDisable( GL_ALPHA_TEST );
+	if ( glState.alphaToCoverage ) {
+		qglDisable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+		glState.alphaToCoverage = qfalse;
+	}
+
 	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
 	qglDepthMask( GL_TRUE );
 	qglDisable( GL_DEPTH_TEST );
@@ -1023,7 +1035,7 @@ void GfxInfo_f( void )
 	ri.Printf( PRINT_ALL, "GL_MAX_TEXTURE_SIZE: %d\n", glConfig.maxTextureSize );
 	ri.Printf( PRINT_ALL, "GL_MAX_ACTIVE_TEXTURES_ARB: %d\n", glConfig.maxActiveTextures );
 	ri.Printf( PRINT_ALL, "\nPIXELFORMAT: color(%d-bits) Z(%d-bit) stencil(%d-bits)\n", glConfig.colorBits, glConfig.depthBits, glConfig.stencilBits );
-	ri.Printf( PRINT_ALL, "MODE: %d, %d x %d %s hz:", r_mode->integer, glConfig.winWidth, glConfig.winHeight, fsstrings[r_fullscreen->integer == 1] );
+	ri.Printf( PRINT_ALL, "MODE: %d, %d x %d %s hz:", r_mode->integer, glConfig.winWidth, glConfig.winHeight, r_fullscreen->integer == 2 ? "desktop fullscreen" : fsstrings[r_fullscreen->integer == 1] );
 
 	if ( glConfig.displayFrequency )
 	{
@@ -1088,7 +1100,7 @@ void GfxInfo_f( void )
 	} else {
 		ri.Printf( PRINT_ALL, "anisotropic filtering: %s\n", enablestrings[0] );
 	}
-	ri.Printf( PRINT_ALL, "Dynamic Glow: %s\n", enablestrings[r_DynamicGlow->integer] );
+	ri.Printf( PRINT_ALL, "Dynamic Glow: %s\n", r_DynamicGlow->integer == 2 ? "debug (glow buffer only)" : enablestrings[r_DynamicGlow->integer != 0] );
 	if (g_bTextureRectangleHack) ri.Printf( PRINT_ALL, "Dynamic Glow ATI BAD DRIVER HACK %s\n", enablestrings[g_bTextureRectangleHack] );
 
 	if ( glConfig.smpActive ) {
@@ -1429,37 +1441,35 @@ void RE_Shutdown( qboolean destroyWindow ) {
 #ifndef DEDICATED
 	R_ShutdownPostFX();
 
-	if ( r_DynamicGlow && r_DynamicGlow->integer )
+	// whatever r_DynamicGlow is now: the glow images always exist and the
+	// cvar may have changed since the programs were made
+	// Release the Glow Vertex Shader.
+	if ( tr.glowVShader )
 	{
-		// Release the Glow Vertex Shader.
-		if ( tr.glowVShader )
+		qglDeleteProgramsARB( 1, &tr.glowVShader );
+	}
+
+	// Release Pixel Shader.
+	if ( tr.glowPShader )
+	{
+		if ( qglCombinerParameteriNV  )
 		{
-			qglDeleteProgramsARB( 1, &tr.glowVShader );
+			// Release the Glow Regcom call list.
+			qglDeleteLists( tr.glowPShader, 1 );
 		}
-
-		// Release Pixel Shader.
-		if ( tr.glowPShader )
+		else if ( qglGenProgramsARB )
 		{
-			if ( qglCombinerParameteriNV  )
-			{
-				// Release the Glow Regcom call list.
-				qglDeleteLists( tr.glowPShader, 1 );
-			}
-			else if ( qglGenProgramsARB )
-			{
-				// Release the Glow Fragment Shader.
-				qglDeleteProgramsARB( 1, &tr.glowPShader );
-			}
+			// Release the Glow Fragment Shader.
+			qglDeleteProgramsARB( 1, &tr.glowPShader );
 		}
+	}
 
-		// Release the scene glow texture.
-		qglDeleteTextures( 1, &tr.screenGlow );
-
-		// Release the scene texture.
-		qglDeleteTextures( 1, &tr.sceneImage );
-
-		// Release the blur texture.
-		qglDeleteTextures( 1, &tr.blurImage );
+	// Release the scene glow, scene and blur textures.
+	const GLuint glowImages[] = { tr.screenGlow, tr.sceneImage, tr.blurImage };
+	for ( size_t i = 0; i < ARRAY_LEN( glowImages ); i++ ) {
+		if ( glowImages[i] ) {
+			qglDeleteTextures( 1, &glowImages[i] );
+		}
 	}
 
 	// gamma correction
@@ -1473,6 +1483,10 @@ void RE_Shutdown( qboolean destroyWindow ) {
 
 	if (tr.gammaLUTImage) {
 		qglDeleteTextures(1, &tr.gammaLUTImage);
+	}
+
+	if (tr.gammaLUTClassicImage) {
+		qglDeleteTextures(1, &tr.gammaLUTClassicImage);
 	}
 	// --------
 
