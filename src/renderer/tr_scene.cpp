@@ -6,11 +6,18 @@
 #endif
 #include "../ghoul2/G2_local.h"
 #include "matcomp.h"
+#include <algorithm>
 
 static	int			r_firstSceneDrawSurf;
 
 static	int			r_numdlights;
 static	int			r_firstSceneDlight;
+
+// dynamic lights a frame can collect: classic first come first served
+// MAX_DLIGHTS, or a pool that each scene picks its MAX_DLIGHTS from
+static int R_DlightLimit( void ) {
+	return r_dlightPriority->integer ? MAX_DLIGHT_POOL : MAX_DLIGHTS;
+}
 
 static	int			r_numentities;
 static	int			r_firstSceneEntity;
@@ -288,7 +295,7 @@ void RE_AddDynamicLightToScene( const vec3_t org, float intensity, float r, floa
 	if ( !tr.registered ) {
 		return;
 	}
-	if ( r_numdlights >= MAX_DLIGHTS ) {
+	if ( r_numdlights >= R_DlightLimit() ) {
 		return;
 	}
 	if ( intensity <= 0 ) {
@@ -305,6 +312,45 @@ void RE_AddDynamicLightToScene( const vec3_t org, float intensity, float r, floa
 
 /*
 =====================
+R_SelectDlights
+
+More dynamic lights than surfaces have bits for (big fights: sabers, shots,
+explosions): keep the MAX_DLIGHTS that matter most for this view at the
+start of the scene's list. A light entirely behind the viewer can't reach
+anything visible; the others rank by brightness over distance, a light
+around the viewer counting as at half its radius.
+=====================
+*/
+static void R_SelectDlights( dlight_t *dlights, int count, const refdef_t *fd ) {
+	float	score[MAX_DLIGHT_POOL];
+	int		order[MAX_DLIGHT_POOL];
+	dlight_t keep[MAX_DLIGHTS];
+
+	for ( int i = 0; i < count; i++ ) {
+		const dlight_t	*dl = &dlights[i];
+		vec3_t			delta;
+
+		VectorSubtract( dl->origin, fd->vieworg, delta );
+		order[i] = i;
+		if ( DotProduct( delta, fd->viewaxis[0] ) < -dl->radius ) {
+			score[i] = -1.0f;
+			continue;
+		}
+		const float brightness = MAX( dl->color[0], MAX( dl->color[1], dl->color[2] ) ) * dl->radius * dl->radius;
+		const float dist2 = MAX( DotProduct( delta, delta ), 0.25f * dl->radius * dl->radius );
+		score[i] = brightness / MAX( dist2, 1.0f );
+	}
+	// stable for equal scores, so the choice doesn't flicker between frames
+	std::stable_sort( order, order + count, [&score]( int a, int b ) { return score[a] > score[b]; } );
+	std::sort( order, order + MAX_DLIGHTS );	// keep the original order among the chosen
+	for ( int i = 0; i < MAX_DLIGHTS; i++ ) {
+		keep[i] = dlights[order[i]];
+	}
+	Com_Memcpy( dlights, keep, sizeof( keep ) );
+}
+
+/*
+=====================
 RE_AddLightToScene
 
 =====================
@@ -317,7 +363,7 @@ void RE_AddLightToScene( const vec3_t org, float intensity, float r, float g, fl
 		if ( !tr.registered ) {
 			return;
 		}
-		if ( r_numdlights >= MAX_DLIGHTS ) {
+		if ( r_numdlights >= R_DlightLimit() ) {
 			return;
 		}
 		//dl = &backEnd.refdef.dlights[r_numdlights++];
@@ -458,6 +504,10 @@ void RE_RenderScene( const refdef_t *fd ) {
 
 	tr.refdef.num_dlights = r_numdlights - r_firstSceneDlight;
 	tr.refdef.dlights = &backEndData->dlights[r_firstSceneDlight];
+	if ( tr.refdef.num_dlights > MAX_DLIGHTS ) {
+		R_SelectDlights( tr.refdef.dlights, tr.refdef.num_dlights, fd );
+		tr.refdef.num_dlights = MAX_DLIGHTS;
+	}
 
 	tr.refdef.numPolys = r_numpolys - r_firstScenePoly;
 	tr.refdef.polys = &backEndData->polys[r_firstScenePoly];

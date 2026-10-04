@@ -1,18 +1,20 @@
 // cl_testscene.cpp -- testscene command: draws a map from a fixed camera
 // while disconnected, without the game modules
 //
-// testscene <map> [x y z [yaw [pitch]]] [dlight]
+// testscene <map> [x y z [yaw [pitch]]] [dlight | dlights]
 // testscene off
 //
 // For trying renderer settings on a map and for the renderer smoke test,
 // which has no retail assets (so no cgame) but needs world rendering. The
-// optional dlight adds a fixed dynamic light in front of the camera.
+// optional dlight adds a fixed dynamic light in front of the camera; dlights
+// adds it after 40 others behind the camera, past the classic limit of 32
+// lights (r_dlightPriority).
 
 #include "client.h"
 
 static struct {
 	qboolean	active;
-	qboolean	dlight;
+	int			dlights;	// 0, 1: the light in front, 2: plus 40 behind first
 	vec3_t		origin;
 	vec3_t		angles;
 } testScene;
@@ -31,7 +33,7 @@ static void CL_TestScene_f( void ) {
 	int		argc = Cmd_Argc();
 
 	if ( argc < 2 ) {
-		Com_Printf( "usage: testscene <map> [x y z [yaw [pitch]]] [dlight], testscene off\n" );
+		Com_Printf( "usage: testscene <map> [x y z [yaw [pitch]]] [dlight | dlights], testscene off\n" );
 		return;
 	}
 	if ( !Q_stricmp( Cmd_Argv( 1 ), "off" ) ) {
@@ -52,8 +54,8 @@ static void CL_TestScene_f( void ) {
 		return;
 	}
 
-	testScene.dlight = (qboolean)!Q_stricmp( Cmd_Argv( argc - 1 ), "dlight" );
-	if ( testScene.dlight ) {
+	testScene.dlights = !Q_stricmp( Cmd_Argv( argc - 1 ), "dlight" ) ? 1 : !Q_stricmp( Cmd_Argv( argc - 1 ), "dlights" ) ? 2 : 0;
+	if ( testScene.dlights ) {
 		argc--;
 	}
 	VectorClear( testScene.origin );
@@ -99,7 +101,16 @@ void CL_DrawTestScene( void ) {
 	rd.time = cls.realtime;
 
 	re.ClearScene();
-	if ( testScene.dlight ) {
+	if ( testScene.dlights == 2 ) {
+		// out of sight behind the camera, added first
+		for ( int i = 0; i < 40; i++ ) {
+			vec3_t	light;
+
+			VectorMA( rd.vieworg, -300.0f - 4.0f * i, rd.viewaxis[0], light );
+			re.AddLightToScene( light, 100.0f, 1.0f, 0.2f, 0.2f );
+		}
+	}
+	if ( testScene.dlights ) {
 		vec3_t	light;
 
 		VectorMA( rd.vieworg, 192.0f, rd.viewaxis[0], light );

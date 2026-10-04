@@ -13,6 +13,8 @@ driver and software OpenGL, and checks the screenshots:
     the light without the classic vertical smear above it
   - with r_fbo the color grade tints the 3D view as before but no longer the
     console drawn over it
+  - past 32 dynamic lights, r_dlightPriority keeps the visible one that the
+    classic first come first served limit drops
 
 usage: render_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
@@ -53,6 +55,9 @@ DLIGHT_RUNS = {
     'nodlight': (['+testscene', 'ci_box', '200', '0', '96', '0', '0'], []),
     'dlight_classic': (DLIGHT_SCENE, ['+set', 'r_dlightMode', '0']),
     'dlight_pixel': (DLIGHT_SCENE, ['+set', 'r_dlightMode', '1']),
+    # the light in front comes after 40 lights behind the camera
+    'crowd_classic': (DLIGHT_SCENE[:-1] + ['dlights'], ['+set', 'r_dlightPriority', '0']),
+    'crowd': (DLIGHT_SCENE[:-1] + ['dlights'], ['+set', 'r_dlightPriority', '1']),
 }
 
 # 640x480 screen areas, top-down
@@ -200,6 +205,11 @@ def main():
             check(gain(name, FLOOR_UNDER_LIGHT) >= 30, '%s does not light the floor' % name)
         check(gain('dlight_classic', WALL_ABOVE_LIGHT) >= 10, 'the classic light no longer smears (test scene changed?)')
         check(gain('dlight_pixel', WALL_ABOVE_LIGHT) <= 2, 'the per-pixel light reaches past its radius')
+        print('41st dynamic light, blue gain on the wall: first come first served %.1f, by priority %.1f'
+              % (gain('crowd_classic', WALL_AT_LIGHT), gain('crowd', WALL_AT_LIGHT)))
+        check(gain('crowd_classic', WALL_AT_LIGHT) <= 1, 'the classic limit kept the 41st light (test no longer meaningful)')
+        check(abs(gain('crowd', WALL_AT_LIGHT) - gain('dlight_classic', WALL_AT_LIGHT)) <= 1,
+              'r_dlightPriority did not keep the visible light')
 
         plain, graded, view = shots['console'], shots['noir_classic'], shots['noir_view']
         print('console background: plain %s, noir %s, noir with r_fbo %s' % (

@@ -1215,6 +1215,7 @@ extern cvar_t	*r_inGameVideo;				// controls whether in game video should be dra
 extern cvar_t	*r_fastsky;				// controls whether sky should be cleared or drawn
 extern cvar_t	*r_drawSun;				// controls drawing of sun quad
 extern cvar_t	*r_dynamiclight;		// dynamic lights enabled/disabled
+extern cvar_t	*r_dlightPriority;		// keep the dynamic lights that matter most past MAX_DLIGHTS
 extern cvar_t	*r_dlightBacks;			// dlight non-facing surfaces for continuity
 
 extern	cvar_t	*r_newDLights;
@@ -1923,9 +1924,13 @@ typedef enum {
 // contained in a backEndData_t.  This entire structure is
 // duplicated so the front and back end can run in parallel
 // on an SMP machine
+// r_dlightPriority: dynamic lights a frame can collect, MAX_DLIGHTS of them
+// are kept per scene
+#define	MAX_DLIGHT_POOL	256
+
 typedef struct {
 	drawSurf_t	drawSurfs[MAX_DRAWSURFS];
-	dlight_t	dlights[MAX_DLIGHTS];
+	dlight_t	dlights[MAX_DLIGHT_POOL];
 	trRefEntity_t	entities[MAX_ENTITIES];
 	trMiniRefEntity_t	miniEntities[MAX_MINI_ENTITIES];
 	srfPoly_t	*polys;//[MAX_POLYS];
