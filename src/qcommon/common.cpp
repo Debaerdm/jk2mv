@@ -71,7 +71,7 @@ cvar_t	*mv_apienabled;
 cvar_t	*com_timestamps;
 cvar_t	*com_debugMessage;
 
-// com_speeds times
+// com_speeds times, in microseconds
 int		time_game;
 int		time_frontend;		// renderer frontend time
 int		time_backend;		// renderer backend time
@@ -2299,21 +2299,20 @@ Com_RunAndTimeServerPacket
 =================
 */
 void Com_RunAndTimeServerPacket( netadr_t *evFrom, msg_t *buf ) {
-	int		t1, t2, msec;
+	int64_t	t1, t2;
 
 	t1 = 0;
 
 	if ( com_speeds->integer ) {
-		t1 = Sys_Milliseconds ();
+		t1 = Sys_Microseconds ();
 	}
 
 	SV_PacketEvent( *evFrom, buf );
 
 	if ( com_speeds->integer ) {
-		t2 = Sys_Milliseconds ();
-		msec = t2 - t1;
+		t2 = Sys_Microseconds ();
 		if ( com_speeds->integer == 3 ) {
-			Com_Printf( "SV_PacketEvent time: %i\n", msec );
+			Com_Printf( "SV_PacketEvent time: %.3f\n", (t2 - t1) / 1000.0 );
 		}
 	}
 }
@@ -2851,11 +2850,11 @@ void Com_Frame( void ) {
 	int		timeVal;
 	static int	lastTime = 0, bias = 0;
 
-	int timeBeforeFirstEvents = 0;
-	int timeBeforeServer = 0;
-	int timeBeforeEvents = 0;
-	int timeBeforeClient = 0;
-	int timeAfter = 0;
+	int64_t timeBeforeFirstEvents = 0;
+	int64_t timeBeforeServer = 0;
+	int64_t timeBeforeEvents = 0;
+	int64_t timeBeforeClient = 0;
+	int64_t timeAfter = 0;
 
 	if (setjmp(abortframe)) {
 		return;			// an ERR_DROP was thrown
@@ -2868,7 +2867,7 @@ void Com_Frame( void ) {
 	// main event loop
 	//
 	if ( com_speeds->integer ) {
-		timeBeforeFirstEvents = Sys_Milliseconds ();
+		timeBeforeFirstEvents = Sys_Microseconds ();
 	}
 
 	// Figure out how much time we have
@@ -2933,7 +2932,7 @@ void Com_Frame( void ) {
 	// server side
 	//
 	if ( com_speeds->integer ) {
-		timeBeforeServer = Sys_Milliseconds ();
+		timeBeforeServer = Sys_Microseconds ();
 	}
 
 	SV_Frame( msec );
@@ -2965,7 +2964,7 @@ void Com_Frame( void ) {
 		// without a frame of latency
 		//
 		if ( com_speeds->integer ) {
-			timeBeforeEvents = Sys_Milliseconds ();
+			timeBeforeEvents = Sys_Microseconds ();
 		}
 		Com_EventLoop();
 		Cbuf_Execute ();
@@ -2975,17 +2974,17 @@ void Com_Frame( void ) {
 		// client side
 		//
 		if ( com_speeds->integer ) {
-			timeBeforeClient = Sys_Milliseconds ();
+			timeBeforeClient = Sys_Microseconds ();
 		}
 
 		CL_Frame( msec );
 
 		if ( com_speeds->integer ) {
-			timeAfter = Sys_Milliseconds ();
+			timeAfter = Sys_Microseconds ();
 		}
 	} else {
 		if ( com_speeds->integer ) {
-			timeAfter = timeBeforeEvents = timeBeforeClient = Sys_Milliseconds();
+			timeAfter = timeBeforeEvents = timeBeforeClient = Sys_Microseconds();
 		}
 	}
 
@@ -2993,7 +2992,7 @@ void Com_Frame( void ) {
 	// report timing information
 	//
 	if ( com_speeds->integer ) {
-		int			all, sv, ev, cl;
+		int64_t		all, sv, ev, cl;
 
 		all = timeAfter - timeBeforeServer;
 		sv = timeBeforeEvents - timeBeforeServer;
@@ -3002,8 +3001,10 @@ void Com_Frame( void ) {
 		sv -= time_game;
 		cl -= time_frontend + time_backend;
 
-		Com_Printf ("frame:%i all:%3i sv:%3i ev:%3i cl:%3i gm:%3i rf:%3i bk:%3i\n",
-					 com_frameNumber, all, sv, ev, cl, time_game, time_frontend, time_backend );
+		// microseconds, printed as milliseconds
+		Com_Printf ("frame:%i all:%7.3f sv:%7.3f ev:%7.3f cl:%7.3f gm:%7.3f rf:%7.3f bk:%7.3f\n",
+					 com_frameNumber, all / 1000.0, sv / 1000.0, ev / 1000.0, cl / 1000.0,
+					 time_game / 1000.0, time_frontend / 1000.0, time_backend / 1000.0 );
 	}
 
 	//

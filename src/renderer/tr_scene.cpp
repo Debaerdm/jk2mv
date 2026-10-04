@@ -373,7 +373,7 @@ to handle mirrors,
 */
 void RE_RenderScene( const refdef_t *fd ) {
 	viewParms_t		parms;
-	int				startTime;
+	int64_t			startTime;
 	float			xscale, yscale;
 	static	int		lastTime = 0;
 
@@ -386,7 +386,7 @@ void RE_RenderScene( const refdef_t *fd ) {
 		return;
 	}
 
-	startTime = ri.Milliseconds();
+	startTime = Sys_Microseconds();
 
 	if (!tr.world && !( fd->rdflags & RDF_NOWORLDMODEL ) ) {
 		ri.Error (ERR_DROP, "R_RenderScene: NULL worldmodel");
@@ -513,5 +513,5 @@ void RE_RenderScene( const refdef_t *fd ) {
 
 	RE_RenderWorldEffects();
 
-	tr.frontEndMsec += ri.Milliseconds() - startTime;
+	tr.frontEndUsec += (int)( Sys_Microseconds() - startTime );
 }

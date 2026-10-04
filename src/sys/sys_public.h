@@ -94,6 +94,8 @@ void CON_DeleteConsoleWindow(void);
 // any game related timing information should come from event timestamps
 int		Sys_Milliseconds (bool baseTime = false);
 int		Sys_Milliseconds2(void);
+// monotonic high resolution clock, for profiling only (com_speeds, renderer timers)
+int64_t	Sys_Microseconds(void);
 void	Sys_Sleep( int msec );
 
 extern "C" void	Sys_SnapVector( float *v );

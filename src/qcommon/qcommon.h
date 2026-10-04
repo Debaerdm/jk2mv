@@ -835,8 +835,9 @@ extern	cvar_t	*cl_paused;
 extern	cvar_t	*sv_paused;
 
 // com_speeds times
+// com_speeds times, in microseconds
 extern	int		time_game;
-extern	int		time_frontend;
+extern	int		time_frontend;		// renderer frontend time
 extern	int		time_backend;		// renderer backend time
 
 extern	int		com_frameTime;

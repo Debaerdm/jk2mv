@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/time.h>
+#include <time.h>
 #include <sys/resource.h>
 #include <pwd.h>
 #include <pthread.h>
@@ -78,6 +79,14 @@ int Sys_Milliseconds (bool baseTime)
     }
 
     return curtime;
+}
+
+int64_t Sys_Microseconds( void )
+{
+	struct timespec ts;
+
+	clock_gettime( CLOCK_MONOTONIC, &ts );
+	return (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 
 int Sys_Milliseconds2( void )

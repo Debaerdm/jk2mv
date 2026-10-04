@@ -424,6 +424,20 @@ int Sys_Milliseconds2(void) {
 	return Sys_Milliseconds(false);
 }
 
+int64_t Sys_Microseconds(void) {
+	static LARGE_INTEGER	freq;
+	LARGE_INTEGER			count;
+
+	if (!freq.QuadPart) {
+		QueryPerformanceFrequency(&freq);
+	}
+	QueryPerformanceCounter(&count);
+
+	// split to avoid overflowing count * 1000000
+	return (int64_t)(count.QuadPart / freq.QuadPart) * 1000000 +
+		(int64_t)(count.QuadPart % freq.QuadPart) * 1000000 / freq.QuadPart;
+}
+
 static UINT timerResolution = 0;
 
 ITaskbarList3 *win_taskbar;

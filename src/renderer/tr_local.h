@@ -991,7 +991,7 @@ typedef struct {
 	int		c_flareTests;
 	int		c_flareRenders;
 
-	int		msec;			// total msec for backend run
+	int		usec;			// total microseconds for backend run
 } backEndCounters_t;
 
 // all state modified by the back end is seperated
@@ -1099,7 +1099,7 @@ typedef struct {
 	vec3_t					sunAmbient;			// from the sky shader	(only used for John's terrain system)
 
 	frontEndCounters_t		pc;
-	int						frontEndMsec;		// not in pc due to clearing issue
+	int						frontEndUsec;		// not in pc due to clearing issue
 
 	//
 	// put large tables at the end, so most elements will be
@@ -1905,7 +1905,7 @@ void RE_RotatePic2 ( float x, float y, float w, float h, float s1, float t1,
 	float s2, float t2,float a, qhandle_t hShader, float xadjust, float yadjust );
 void RE_BeginFrame( stereoFrame_t stereoFrame );
 void RE_EndFrame( void );
-void RE_SwapBuffers( int *frontEndMsec, int *backEndMsec );
+void RE_SwapBuffers( int *frontEndUsec, int *backEndUsec );
 void RE_RenderWorldEffects( void );
 void RE_GammaCorrection( void );
 void SaveJPG(const char * filename, int quality, int image_width, int image_height, byte *image_buffer, int padding);

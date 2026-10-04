@@ -463,7 +463,7 @@ RE_SwapBuffers
 Returns the number of msec spent in the back end
 =============
 */
-void RE_SwapBuffers( int *frontEndMsec, int *backEndMsec ) {
+void RE_SwapBuffers( int *frontEndUsec, int *backEndUsec ) {
 	swapBuffersCommand_t	*cmd;
 
 	if ( !tr.registered ) {
@@ -495,14 +495,14 @@ void RE_SwapBuffers( int *frontEndMsec, int *backEndMsec ) {
 
 	R_InitNextFrame();
 
-	if ( frontEndMsec ) {
-		*frontEndMsec = tr.frontEndMsec;
+	if ( frontEndUsec ) {
+		*frontEndUsec = tr.frontEndUsec;
 	}
-	tr.frontEndMsec = 0;
-	if ( backEndMsec ) {
-		*backEndMsec = backEnd.pc.msec;
+	tr.frontEndUsec = 0;
+	if ( backEndUsec ) {
+		*backEndUsec = backEnd.pc.usec;
 	}
-	backEnd.pc.msec = 0;
+	backEnd.pc.usec = 0;
 }
 
 /*

@@ -54,7 +54,7 @@ happen before SV_Frame is called
 */
 void SV_Frame( int msec ) {
 	int		frameMsec;
-	int		startTime;
+	int64_t	startTime;
 
 	// the menu kills the server with this cvar
 	if ( sv_killserver->integer ) {
@@ -131,7 +131,7 @@ void SV_Frame( int msec ) {
 	}
 
 	if ( com_speeds->integer ) {
-		startTime = Sys_Milliseconds ();
+		startTime = Sys_Microseconds ();
 	} else {
 		startTime = 0;	// quite a compiler warning
 	}
@@ -158,7 +158,7 @@ void SV_Frame( int msec ) {
 	}
 
 	if ( com_speeds->integer ) {
-		time_game = Sys_Milliseconds () - startTime;
+		time_game = (int)( Sys_Microseconds () - startTime );
 	}
 
 	// check timeouts

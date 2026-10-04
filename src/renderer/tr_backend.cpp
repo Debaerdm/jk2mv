@@ -1395,9 +1395,9 @@ smp extensions, or asyncronously by another thread.
 ====================
 */
 void RB_ExecuteRenderCommands( const void *data ) {
-	int			t1, t2;
+	int64_t		t1, t2;
 
-	t1 = ri.Milliseconds()*Cvar_VariableValue("timescale");
+	t1 = Sys_Microseconds();
 
 	while ( 1 ) {
 		data = PADP( data, sizeof( void * ) );
@@ -1432,8 +1432,8 @@ void RB_ExecuteRenderCommands( const void *data ) {
 			break;
 		case RC_END_OF_LIST:
 			// stop rendering
-			t2 = ri.Milliseconds()*Cvar_VariableValue("timescale");
-			backEnd.pc.msec = t2 - t1;
+			t2 = Sys_Microseconds();
+			backEnd.pc.usec = (int)( t2 - t1 );
 			return;
 		default:
 			ri.Error(ERR_DROP, "Unknown render command");
