@@ -119,6 +119,7 @@ static vec3_t		listener_axis[3];
 
 int			s_soundtime;		// sample PAIRS
 int		s_paintedtime;		// sample PAIRS
+static qboolean	s_videoClock;	// recording a video: the mixer runs on its clock, see S_GetSoundtime
 
 // MAX_SFX may be larger than MAX_SOUNDS because
 // of custom player sounds
@@ -2336,19 +2337,31 @@ void S_GetSoundtime(void)
 	// with updated `buffers` it seems to synchronize better when done
 	if (CL_VideoRecording() && cl_aviFrameRate->integer)
 	{
-		static double	overflow = 0.0f;
+		static double	overflow = 0.0;
 		double			frameSamples;
 		int				samples;
+
+		// The mixer follows the video's clock: each frame paints exactly one
+		// engine frame of samples (see S_Update_), from where the previous
+		// one stopped, and the sounds started during a frame begin on its
+		// first sample (S_ScanChannelStarts). So a sound started on video
+		// frame k lands on sample k * samples per frame of the recording,
+		// whatever the real frame times and the mix ahead before it.
+		if (!s_videoClock) {
+			s_videoClock = qtrue;
+			overflow = 0.0;
+		}
 
 		// per engine frame: several per video frame with cl_aviMotionBlur
 		frameSamples = (double) dma.speed / CL_VideoEngineFrameRate() + overflow;
 		samples = floor(frameSamples);
 		overflow = frameSamples - samples;
 
-		s_soundtime += samples;
+		s_soundtime = s_paintedtime + samples;
 
 		return;
 	}
+	s_videoClock = qfalse;
 
 	s_soundtime = buffers*fullsamples + samplepos/dma.channels;
 
@@ -2560,6 +2573,13 @@ void S_Update_(void) {
 		// clear any sound effects that end before the current time,
 		// and start any new sounds
 		S_ScanChannelStarts();
+
+		if (s_videoClock) {
+			// recording a video: exactly this frame's samples, nothing ahead
+			S_PaintChannels (s_soundtime);
+			lastTime = thisTime;
+			return;
+		}
 
 		sane = thisTime - lastTime;
 		if (sane<11) {

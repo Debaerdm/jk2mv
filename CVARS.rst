@@ -969,6 +969,8 @@ Other Changes
   fails, its messages are in videos/<name>.mp4.log. The frame rate comes
   from ``cl_aviFrameRate``, the quality from ``cl_mp4Crf`` (default 18, lower
   is better, 0 - 51) and ``cl_mp4Preset`` (x264 preset, default "medium").
+* ``video`` and ``video_mp4``: a sound starts on the video frame where it was
+  played, whatever the real frame rate (it used to come 0.1 to 0.2 s late).
 * ``cl_aviMotionBlur N`` (2 - 32, default 0): ``video`` and ``video_mp4`` run
   N game frames per video frame and blend them, for real motion blur (the
   window shows the frames as they come). Needs ``r_fbo 1``; recording takes
