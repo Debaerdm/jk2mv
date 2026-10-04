@@ -9,7 +9,8 @@
 // optional dlight adds a fixed dynamic light in front of the camera; dlights
 // adds it after 40 others behind the camera, past the classic limit of 32
 // lights (r_dlightPriority). spin turns the camera at 90 degrees per second
-// of client time, for time based effects (video motion blur).
+// of client time, for time based effects (video motion blur). The scene
+// takes the place of the main menu until testscene off or Escape.
 
 #include "client.h"
 
@@ -31,6 +32,18 @@ qboolean CL_TestSceneActive( void ) {
 	return (qboolean)( testScene.active && cls.state == CA_DISCONNECTED );
 }
 
+/*
+==================
+CL_StopTestScene
+
+testscene off, and Escape during the scene (CL_KeyEvent): the main menu
+comes back with the next frame (CL_Frame)
+==================
+*/
+void CL_StopTestScene( void ) {
+	testScene.active = qfalse;
+}
+
 static void CL_TestScene_f( void ) {
 	char	name[MAX_QPATH];
 	int		argc = Cmd_Argc();
@@ -40,10 +53,7 @@ static void CL_TestScene_f( void ) {
 		return;
 	}
 	if ( !Q_stricmp( Cmd_Argv( 1 ), "off" ) ) {
-		if ( testScene.active ) {
-			testScene.active = qfalse;
-			Key_SetCatcher( Key_GetCatcher() | KEYCATCH_UI );
-		}
+		CL_StopTestScene();
 		return;
 	}
 	if ( cls.state != CA_DISCONNECTED ) {

@@ -1939,6 +1939,8 @@ void CL_KeyEvent (int key, qboolean down, int time) {
 				VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_INGAME);
 			}
 			else {
+				// also ends a test scene, as testscene off does
+				CL_StopTestScene();
 				CL_Disconnect_f();
 				S_StopAllSounds();
 				VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN);
@@ -1984,6 +1986,9 @@ void CL_KeyEvent (int key, qboolean down, int time) {
 		}
 	} else if ( cls.keyCatchers & KEYCATCH_MESSAGE ) {
 		Message_Key( key );
+	} else if ( CL_TestSceneActive() ) {
+		// not into the hidden console line: the console key opens the
+		// console over the scene, Escape ends it
 	} else if ( cls.state == CA_DISCONNECTED ) {
 		Console_Key( key );
 	} else {
@@ -2051,7 +2056,7 @@ void CL_CharEvent( int key ) {
 		Field_CharEvent( &chatField, key );
 		Field_CheckRep( &chatField );
 	}
-	else if ( cls.state == CA_DISCONNECTED )
+	else if ( cls.state == CA_DISCONNECTED && !CL_TestSceneActive() )
 	{
 		Field_CharEvent( &kg.g_consoleField, key );
 		Key_CheckRep();

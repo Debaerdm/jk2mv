@@ -436,6 +436,7 @@ void CL_InitTestScene( void );
 void CL_ShutdownTestScene( void );
 void CL_TestSceneReset( void );
 qboolean CL_TestSceneActive( void );
+void CL_StopTestScene( void );
 void CL_DrawTestScene( void );
 void CL_BenchmarkFrame( void );
 qboolean CL_BenchmarkDemoCompleted( void );

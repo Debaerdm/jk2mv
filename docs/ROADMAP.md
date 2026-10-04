@@ -154,6 +154,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
   - le halo du bloom ;
   - le halo resté rouge en HDR ;
   - l'absence d'erreur GL avec tous les effets et le MSAA.
+- **`testscene` avec les menus retail :** la scène prend bien la place du menu principal plein écran, qui la cachait jusqu'ici ; Échap ou `testscene off` ramène le menu. Le stub de `smoke_render` a maintenant un menu principal plein écran, pour attraper ce cas.
 
 **Critère de fin.**
 1. `r_fbo 0` reste identique bit à bit aux références de la phase 1. `r_fbo 1` sans effet est identique à la tolérance près, captures et AVI compris.

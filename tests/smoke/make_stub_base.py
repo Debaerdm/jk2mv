@@ -3,9 +3,9 @@
 
 The retail JK2 assets can't be used in CI, so this writes the minimum the
 engine needs to start a server and a client: an assets5.pk3 placeholder,
-empty string packages, a bot list, empty menu lists and a tiny box map
-(maps/ci_box.bsp). The mvsdk assets built with the engine (assetsmv.pk3,
-assetsmv2.pk3) are copied from the build output.
+empty string packages, a bot list, a menu list with a stand-in full screen
+main menu and a tiny box map (maps/ci_box.bsp). The mvsdk assets built with
+the engine (assetsmv.pk3, assetsmv2.pk3) are copied from the build output.
 
 usage: make_stub_base.py <output dir> <directory holding the built base/>
 """
@@ -44,6 +44,43 @@ SCENE_SURFACES = [
     ('textures/ci/red', [(436, 160, 64), (436, 192, 64), (436, 192, 320), (436, 160, 320)], (255, 255, 255)),
     ('textures/ci/red', [(432, 164, 64), (432, 196, 64), (432, 196, 320), (432, 164, 320)], (255, 255, 255)),
 ]
+
+# Full screen like the retail main menu, so the tests go through the same
+# UIMENU_MAIN path: what it covers isn't drawn at all. Pure green where the
+# 3D view would be (render_smoke.py's MENU_PROBE), with blue and red bands
+# for client_smoke.py's blank screenshot check. No text: the retail fonts
+# aren't there.
+MAIN_MENU = '''{
+	menuDef
+	{
+		name		"main"
+		fullscreen	1
+		rect		0 0 640 480
+		visible		1
+		style		1
+		background	"white"
+		backcolor	0 1 0 1
+		itemDef
+		{
+			name		"ci_top"
+			rect		0 0 640 40
+			style		1
+			backcolor	0 0 1 1
+			visible		1
+			decoration
+		}
+		itemDef
+		{
+			name		"ci_bottom"
+			rect		0 440 640 40
+			style		1
+			backcolor	1 0 0 1
+			visible		1
+			decoration
+		}
+	}
+}
+'''
 
 SCENE_SHADERS = (
     'textures/ci/floor\n{\n\tcull none\n\t{\n\t\tmap $whiteimage\n\t\trgbGen vertex\n\t}\n}\n'
@@ -180,8 +217,9 @@ def main():
     write(os.path.join(base, 'botfiles', 'bots.txt'), bots)
 
     # the menu module fails with a recursive error without menu lists
+    write(os.path.join(base, 'ui', 'ci_main.menu'), MAIN_MENU)
     for name in ('menus.txt', 'jk2mpmenus.txt'):
-        write(os.path.join(base, 'ui', name), '{\n}\n')
+        write(os.path.join(base, 'ui', name), '{\n\tloadMenu { "ui/ci_main.menu" }\n}\n')
 
     make_box_bsp(os.path.join(base, 'maps', 'ci_box.bsp'))
 

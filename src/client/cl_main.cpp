@@ -2535,8 +2535,9 @@ void CL_Frame ( int msec ) {
 									//	of course this still doesn't work for menus...
 
 	if ( cls.state == CA_DISCONNECTED && !( cls.keyCatchers & KEYCATCH_UI )
-		&& !com_sv_running->integer ) {
-		// if disconnected, bring up the menu
+		&& !com_sv_running->integer && !CL_TestSceneActive() ) {
+		// if disconnected, bring up the menu (a test scene takes its place:
+		// the full screen retail menu would hide it)
 		S_StopAllSounds();
 		VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );
 	}

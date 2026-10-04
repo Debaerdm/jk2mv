@@ -4,6 +4,7 @@
 Draws the generated ci_box room with the testscene command (no cgame or
 retail assets needed) under several settings, with SDL's offscreen video
 driver and software OpenGL, and checks the screenshots:
+  - the scene shows in place of the full screen main menu
   - rendering offscreen (r_fbo 1) gives the same image as the back buffer,
     and the same dynamic glow within its extra precision
   - bloom brightens the wall around the lamp and leaves the rest alone
@@ -72,6 +73,9 @@ FLOOR_UNDER_LIGHT = (300, 440, 340, 470)
 # with the console open: its background, and the view under it
 CONSOLE_BACK = (100, 60, 540, 200)
 VIEW_UNDER_CONSOLE = (100, 400, 540, 470)
+# pure green in the stub's full screen main menu (make_stub_base.py), under
+# the half console and above the menu's bottom band
+MENU_PROBE = (280, 300, 360, 380)
 
 
 class Shot:
@@ -93,6 +97,10 @@ class Shot:
                     total[c] += v
         n = (x1 - x0) * (y1 - y0)
         return [t / n for t in total]
+
+    def shows_menu(self):
+        r, g, b = self.mean(MENU_PROBE)
+        return g > 200 and r < 20 and b < 20
 
 
 def compare(a, b):
@@ -166,6 +174,11 @@ def main():
     def check(condition, message):
         if not condition:
             errors.append(message)
+
+    # a frame that reopens the full screen main menu hides the scene, as the
+    # retail menus did
+    covered = sorted(name for name, shot in shots.items() if shot.shows_menu())
+    check(not covered, 'the main menu hides the test scene: %s' % ', '.join(covered))
 
     if len(shots) == len(runs):
         # the offscreen glow keeps 16 bits between its blur passes where the
