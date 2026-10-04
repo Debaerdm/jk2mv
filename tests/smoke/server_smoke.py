@@ -30,7 +30,8 @@ def main():
     cfg = ['wait 20']
     for i in range(1, NUM_BOTS + 1):
         cfg += ['addbot B%02d 4' % i, 'wait 5']      # bots added at once get kicked for overflow
-    cfg += ['wait 200', 'status', 'map_restart', 'wait 100', 'map ci_box', 'wait 200', 'status', 'quit']
+    # 'map_restart' alone waits 5 s and would run after 'quit': restart now
+    cfg += ['wait 200', 'status', 'map_restart 0', 'wait 100', 'status', 'map ci_box', 'wait 200', 'status', 'quit']
     with open(os.path.join(work, 'base', 'smoke.cfg'), 'w') as f:
         f.write('\n'.join(cfg) + '\n')
 
@@ -50,18 +51,25 @@ def main():
 
     errors = []
     if rc != 0:
-        errors.append('exit code %s' % rc)
+        errors.append('exit code %s%s' % (rc, ' (signal %d)' % -rc if isinstance(rc, int) and rc < 0 else ''))
     for marker in FATAL_MARKERS:
         if marker in log:
             errors.append('log contains %r' % marker)
-    statuses = log.split('num score ping name')
-    if len(statuses) < 3:
-        errors.append('expected two status outputs, got %d' % (len(statuses) - 1))
+    statuses = log.split('num score ping name')[1:]
+    if len(statuses) != 3:
+        errors.append('expected three status outputs, got %d' % len(statuses))
     else:
-        bots = len(re.findall(r'^\s*\d+\s+-?\d+\s+\d+\s+.*\sbot\s', statuses[-1], re.M))
-        if bots != NUM_BOTS:
-            errors.append('%d bots connected after the map reload, expected %d' % (bots, NUM_BOTS))
-    crashlogs = glob.glob(os.path.join(work, 'crashlog-*.txt'))
+        for when, status in zip(('after joining', 'after the map_restart', 'after the map reload'), statuses):
+            bots = len(re.findall(r'^\s*\d+\s+-?\d+\s+\d+\s+.*\sbot\s', status, re.M))
+            if bots != NUM_BOTS:
+                errors.append('%d bots connected %s, expected %d' % (bots, when, NUM_BOTS))
+    # the restart must really happen between the first two statuses
+    first, second = log.find('num score ping name'), log.find('num score ping name', log.find('num score ping name') + 1)
+    if first >= 0 and second >= 0 and 'ShutdownGame' not in log[first:second]:
+        errors.append('map_restart did not restart the game')
+    # portable builds write crash logs next to the game, installed ones in ~/.jk2mv
+    crashlogs = (glob.glob(os.path.join(work, 'crashlog-*.txt')) +
+                 glob.glob(os.path.join(os.path.expanduser('~'), '.jk2mv', 'crashlog-*.txt')))
     if crashlogs:
         errors.append('crash logs written: %s' % ', '.join(crashlogs))
 

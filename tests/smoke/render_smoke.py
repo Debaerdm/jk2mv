@@ -21,7 +21,7 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True   # no __pycache__ in the source tree
-from client_smoke import FATAL_MARKERS, read_tga  # noqa: E402
+from client_smoke import FATAL_MARKERS, exit_error, read_tga  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCENE = ['+testscene', 'ci_box', '-256', '0', '96']
@@ -93,12 +93,13 @@ def run(client, work, name, args):
     except subprocess.TimeoutExpired as e:
         rc, out = 'timeout', (e.stdout or b'').decode('latin-1')
     log = re.sub(r'\x1b\[[0-9;]*m', '', out)
+    log = re.sub(r'^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ', '', log, flags=re.M)
     with open(os.path.join(work, 'render_%s.log' % name), 'w') as f:
         f.write(log)
 
     errors = []
-    if rc != 0:
-        errors.append('%s: exit code %s' % (name, rc))
+    if exit_error(rc):
+        errors.append('%s: %s' % (name, exit_error(rc)))
     for marker in FATAL_MARKERS:
         if marker in log:
             errors.append('%s: log contains %r' % (name, marker))

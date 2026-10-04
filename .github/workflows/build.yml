@@ -177,8 +177,9 @@ jobs:
   vs2022_xp:
     name: Build VS 2022 v141_xp (Portable - WinXP), ${{ matrix.build_type }}, ${{ matrix.arch }}
     # windows-2019 runners are retired; VS 2022 can still install the v141_xp toolset.
-    # Non blocking: the toolset install does not take effect yet, and keeping
-    # Windows XP support at all is an open decision.
+    # Non blocking until a green run confirms the toolset install (it used to
+    # get an unquoted install path), and keeping Windows XP support at all is
+    # an open decision.
     runs-on: windows-2022
     continue-on-error: true
     timeout-minutes: 60
@@ -196,8 +197,18 @@ jobs:
     - name: Install WinXP Toolset
       shell: powershell
       run: |
-        Set-Location "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\"
-        Start-Process -FilePath vs_installer.exe -ArgumentList "modify", "--installPath", "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise", "--add Microsoft.VisualStudio.Component.VC.v141.x86.x64", "--add Microsoft.VisualStudio.Component.WinXP", "--quiet", "--norestart", "--nocache" -Wait -PassThru -WindowStyle Hidden
+        $installerDir = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+        $vsPath = & "$installerDir\vswhere.exe" -latest -property installationPath
+        # Start-Process joins the arguments with spaces without quoting them,
+        # so the path (which has spaces) needs its own quotes
+        $arguments = @("modify", "--installPath", "`"$vsPath`"",
+          "--add", "Microsoft.VisualStudio.Component.VC.v141.x86.x64",
+          "--add", "Microsoft.VisualStudio.Component.WinXP",
+          "--quiet", "--norestart", "--nocache")
+        $p = Start-Process -FilePath "$installerDir\vs_installer.exe" -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden
+        Write-Host "vs_installer exit code: $($p.ExitCode)"
+        # 3010: success, reboot required
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { exit $p.ExitCode }
 
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v2

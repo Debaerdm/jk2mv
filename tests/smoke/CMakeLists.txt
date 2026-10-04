@@ -7,6 +7,11 @@ if(NOT Python3_Interpreter_FOUND OR NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
   message(STATUS "Smoke tests need Python 3 on Linux, skipping them")
   return()
 endif()
+# the stub game directory takes the game module from assetsmv2.pk3
+if(NOT TARGET assetsmv2)
+  message(STATUS "Smoke tests need the mvsdk assets (BuildMVSDK), skipping them")
+  return()
+endif()
 
 if(TARGET ${MVDED})
   add_test(NAME smoke_server

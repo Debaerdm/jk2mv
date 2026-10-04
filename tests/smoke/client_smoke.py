@@ -20,8 +20,9 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# Com_Error banner; plain 'ERROR:' lines also come from harmless menu parse warnings
-FATAL_MARKERS = ('********************\nERROR', 'recursive error', 'Segmentation fault')
+# Com_Error banner; plain 'ERROR:' lines also come from harmless menu parse warnings.
+# A crash shows as a negative exit code (the signal), see exit_error.
+FATAL_MARKERS = ('********************\nERROR', 'recursive error')
 SHOTS = ('ci_console', 'ci_after_vidrestart')   # captured at the end of the next frame
 
 
@@ -35,6 +36,15 @@ def read_tga(path):
     start = 18 + id_len
     pixels = data[start:start + width * height * (bpp // 8)]
     return width, height, bpp, pixels
+
+
+def exit_error(rc):
+    """Description of a bad exit code, or None."""
+    if rc == 0:
+        return None
+    if isinstance(rc, int) and rc < 0:
+        return 'killed by signal %d' % -rc
+    return 'exit code %s' % rc
 
 
 def main():
@@ -58,15 +68,17 @@ def main():
         rc, out = proc.returncode, proc.stdout.decode('latin-1')
     except subprocess.TimeoutExpired as e:
         rc, out = 'timeout', (e.stdout or b'').decode('latin-1')
-    # drop color codes and the com_timestamps prefix of dedicated servers
+    # drop color codes and the com_timestamps prefix of the console output
     log = re.sub(r'\x1b\[[0-9;]*m', '', out)
     log = re.sub(r'^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ', '', log, flags=re.M)
     with open(os.path.join(work, 'client.log'), 'w') as f:
         f.write(log)
 
     errors = []
-    if rc != 0:
-        errors.append('exit code %s' % rc)
+    if exit_error(rc):
+        errors.append(exit_error(rc))
+    if log.count('----- finished R_Init -----') < 2:
+        errors.append('the renderer did not restart (vid_restart)')
     for marker in FATAL_MARKERS:
         if marker in log:
             errors.append('log contains %r' % marker)

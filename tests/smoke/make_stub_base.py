@@ -110,13 +110,16 @@ def make_box_bsp(path):
 
     b = int(size)
     nodes = struct.pack('3i3i3i', 0, -1, -2, -b, -b, -64, b, b, b)
+    # the solid leaf is cluster -1, as q3map writes it
     leafs = (struct.pack('2i3i3i4i', 0, 0, -b, -b, 0, b, b, b, 0, num_surfaces, 0, 1) +
-             struct.pack('2i3i3i4i', 0, 0, -b, -b, -64, b, b, 0, 0, 0, 1, 1))
+             struct.pack('2i3i3i4i', -1, 0, -b, -b, -64, b, b, 0, 0, 0, 1, 1))
     leafbrushes = struct.pack('2i', 0, 0)
     leafsurfaces = struct.pack('%di' % num_surfaces, *range(num_surfaces))
     models = struct.pack('6f4i', -size, -size, -64, size, size, size, 0, num_surfaces, 0, 1)
     brushes = struct.pack('3i', 0, 6, 0)
-    brushsides = b''.join(struct.pack('3i', p, 0, 0) for p in (0, 2, 4, 6, 8, 10))
+    # axial sides in q3map's order, -x +x -y +y -z +z: CM_BoundBrush takes
+    # the brush bounds from them
+    brushsides = b''.join(struct.pack('3i', p, 0, 0) for p in (6, 4, 10, 8, 2, 0))
 
     lumps = [b''] * 18
     lumps[0] = ents
