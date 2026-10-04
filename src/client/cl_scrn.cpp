@@ -49,6 +49,13 @@ static void SCR_DrawConnectScreen(qboolean overlay)
 	VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, overlay);
 }
 
+// cls.glconfig.vidWidth/vidHeight pixels per pixel of the window: with
+// r_renderScale, sizes in pixels are multiplied by it to look the same
+static float SCR_RenderScale(void)
+{
+	return re.GetRenderScale ? re.GetRenderScale() : 1.0f;
+}
+
 /*
 ================
 SCR_DrawNamedPic
@@ -316,7 +323,9 @@ void SCR_DrawDemoRecording( void ) {
 	}
 
 	if (cl_drawRecording->integer >= 2 && cls.recordingShader) {
-		static const float width = 60.0f, height = 15.0f;
+		// pixels of the window, also with r_renderScale
+		const float scale = SCR_RenderScale();
+		const float width = 60.0f * scale, height = 15.0f * scale;
 		re.SetColor(nullptr);
 		re.DrawStretchPic(0, cls.glconfig.vidHeight - height, width, height,
 			0, 0, 1, 1, cls.recordingShader, cls.xadjust, cls.yadjust);
@@ -478,20 +487,23 @@ static void SCR_DrawPerfOverlay( void ) {
 
 	if ( cl_perfOverlay->integer >= 2 ) {
 		// one bar per frame, 4 pixels per millisecond, 16.7 and 33.3 ms bands
-		const int	height = 4 * 34;
-		const int	width = MIN( n, cls.glconfig.vidWidth / 2 );
-		const int	x = cls.glconfig.vidWidth - width - con.charWidth;
+		// (pixels of the window, px of the frame with r_renderScale)
+		const float	px = SCR_RenderScale();
+		const int	height = (int)( 4 * 34 * px );
+		const int	bars = MIN( n, (int)( cls.glconfig.vidWidth / 2 / px ) );
+		const float	width = bars * px;
+		const float	x = cls.glconfig.vidWidth - width - con.charWidth;
 		const int	y = con.charHeight * 2 + height;
 
 		re.SetColor( backdrop );
 		re.DrawStretchPic( x, y - height, width, height, 0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
 
-		for ( int i = 0; i < width; i++ ) {
+		for ( int i = 0; i < bars; i++ ) {
 			const int usec = SCR_PerfSample( i );
-			const int h = MIN( height, usec * 4 / 1000 );
+			const int h = MIN( height, (int)( usec * 4.0 * px / 1000.0 ) );
 
 			re.SetColor( graphColors[usec > 33333 ? 2 : usec > 16667 ? 1 : 0] );
-			re.DrawStretchPic( x + width - 1 - i, y - h, 1, h, 0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
+			re.DrawStretchPic( x + width - ( i + 1 ) * px, y - h, px, h, 0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
 		}
 		re.SetColor( nullptr );
 	}

@@ -1698,7 +1698,8 @@ void CSnowSystem::Render(void)
 	GL_State(GLS_ALPHA);
 	qglDisable(GL_TEXTURE_2D);
 
-	qglPointSize(2.0);
+	// two pixels of the window, also with r_renderScale
+	qglPointSize(2.0f * R_PostFXRenderScale());
 
 	item = mSnowList;
 	qglBegin(GL_POINTS);

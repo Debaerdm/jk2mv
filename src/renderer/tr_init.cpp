@@ -678,6 +678,10 @@ static void InitOpenGL(void) {
 		// set default state
 		GL_SetDefaultState();
 	} else {
+		// a kept window may still have the render size of the last renderer
+		// (r_renderScale): start from the drawable, R_InitPostFX scales it
+		WIN_UpdateGLConfig(&glConfig);
+
 		// set default state
 		GL_SetDefaultState();
 	}
@@ -1048,6 +1052,7 @@ void GfxInfo_f( void )
 	}
 
 	ri.Printf( PRINT_ALL, "renderer size: %d x %d\n", glConfig.vidWidth, glConfig.vidHeight );
+	R_PostFXRenderScaleInfo();
 	ri.Printf( PRINT_ALL, "display scale: %d%%\n", (int)roundf(glConfig.displayScale * 100.0f));
 
 	// gamma correction
@@ -1568,6 +1573,8 @@ void RE_UpdateGLConfig( glconfig_t *glconfigOut ) {
 	int		oldHeight = glConfig.vidHeight;
 
 	WIN_UpdateGLConfig( &glConfig );
+	// r_renderScale: from the drawable to the render size
+	R_ApplyRenderScale();
 
 	if (oldWidth != glConfig.vidWidth || oldHeight != glConfig.vidHeight) {
 		R_SyncRenderThread();
@@ -1662,6 +1669,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.CaptureFrameJPEG = RE_CaptureFrameJPEG;
 	re.GetGPUTimes = RE_GetGPUTimes;
 	re.SetFrameBlend = RE_SetFrameBlend;
+	re.GetRenderScale = R_PostFXRenderScale;
 #endif //!DEDICATED
 	return &re;
 }

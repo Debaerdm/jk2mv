@@ -166,7 +166,7 @@ static void CL_BenchFinish( void ) {
 			"version", "r_picmip", "r_textureMode", "r_ext_texture_filter_anisotropic", "r_ext_multisample",
 			"r_DynamicGlow", "r_DynamicGlowWidth", "r_DynamicGlowHeight", "r_gammamethod", "r_swapInterval",
 			"com_maxfps", "cl_autolodscale", "r_fbo", "r_hdr", "r_bloom", "r_dlightMode", "r_gpuTimers",
-			"r_colorGrade", "r_ext_alphaToCoverage", "r_dlightPriority",
+			"r_colorGrade", "r_ext_alphaToCoverage", "r_dlightPriority", "r_renderScale",
 		};
 		for ( size_t i = 0; i < ARRAY_LEN( cvars ); i++ ) {
 			FS_Printf( f, "%s: %s\n", cvars[i], Cvar_VariableString( cvars[i] ) );

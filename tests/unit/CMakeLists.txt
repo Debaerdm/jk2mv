@@ -174,6 +174,15 @@ add_jk2mv_test(test_tr_dlightselect
 )
 
 # ==============================================================================
+# Renderer: render size of r_renderScale (links the real engine source)
+# ==============================================================================
+
+add_jk2mv_test(test_r_renderscale
+  test_r_renderscale.cpp
+  ${CMAKE_SOURCE_DIR}/src/renderer/tr_renderscale.cpp
+)
+
+# ==============================================================================
 # Server: snapshot entity ring (uses the real engine header)
 # ==============================================================================
 

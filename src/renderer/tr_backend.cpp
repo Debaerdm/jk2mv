@@ -1339,6 +1339,9 @@ const void	*RB_SwapBuffers( const void *data ) {
 		RB_GammaCorrection( &present );
 	}
 
+	// r_renderScale: the frame, finished at the render size, to the window
+	R_PostFXShowFrame();
+
 	// we measure overdraw by reading back the stencil buffer and
 	// counting up the number of increments that have happened
 	if ( r_measureOverdraw->integer ) {

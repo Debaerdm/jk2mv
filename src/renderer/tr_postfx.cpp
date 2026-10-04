@@ -12,11 +12,17 @@
 // so it no longer tints the HUD. The dynamic glow draws its objects into a
 // target of its own sharing the scene's depth and blurs between two small
 // targets, instead of copying the screen around.
+// r_renderScale draws whole frames, HUD included, at the window's size times
+// the scale: glConfig.vidWidth/vidHeight become that render size for the
+// renderer and the client (the VMs keep the window size), the gamma pass
+// finishes the frame in a target of that size, where screenshots and videos
+// read it, and the frame is scaled to the window just before the swap.
 // Everything is off by default; with r_fbo 1 and no effect the image is the
 // same as without it. Programs are ARB assembly, the level the gamma and glow
 // passes already need, embedded in the code so they also work on pure servers.
 
 #include "tr_local.h"
+#include "tr_renderscale.h"
 
 cvar_t	*r_fbo;
 cvar_t	*r_hdr;
@@ -24,6 +30,7 @@ cvar_t	*r_bloom;
 cvar_t	*r_bloomIntensity;
 cvar_t	*r_bloomThreshold;
 cvar_t	*r_exposure;
+cvar_t	*r_renderScale;
 
 static PFNGLGENFRAMEBUFFERSPROC						qglGenFramebuffers;
 static PFNGLDELETEFRAMEBUFFERSPROC					qglDeleteFramebuffers;
@@ -66,6 +73,16 @@ static struct {
 	renderTarget_t	post;			// the view composited (HDR, bloom), copied back through the grade
 	renderTarget_t	blend;			// video motion blur: the average of the frames so far
 	GLuint			blendCopy;		// the finished frame, copied from the back buffer
+
+	// r_renderScale
+	qboolean		scaled;			// frames are drawn at the render size, then scaled to the window
+	float			renderScale;	// the scale asked for
+	int				maxSize;		// largest render target the GL can make
+	int				windowWidth, windowHeight;	// the window's drawable, where frames are shown
+	float			windowDisplayScale;
+	int				shownWidth, shownHeight;	// the window size the targets were made for
+	renderTarget_t	final;			// the finished frame at the render size
+	qboolean		showPending;	// final holds a frame the window hasn't shown
 
 	GLuint			tapProgram;		// 4 bilinear taps, threshold, scale
 	GLuint			copyProgram;
@@ -268,6 +285,10 @@ static void R_DestroyTargets( void ) {
 		qglDeleteFramebuffers( 1, &pfx.post.fbo );
 		qglDeleteTextures( 1, &pfx.post.texture );
 	}
+	if ( pfx.final.fbo ) {
+		qglDeleteFramebuffers( 1, &pfx.final.fbo );
+		qglDeleteTextures( 1, &pfx.final.texture );
+	}
 	if ( pfx.msaaFbo ) {
 		qglDeleteFramebuffers( 1, &pfx.msaaFbo );
 		qglDeleteRenderbuffers( 1, &pfx.msaaColor );
@@ -279,13 +300,17 @@ static void R_DestroyTargets( void ) {
 	Com_Memset( &pfx.scene, 0, sizeof( pfx.scene ) );
 	Com_Memset( pfx.blur, 0, sizeof( pfx.blur ) );
 	Com_Memset( &pfx.post, 0, sizeof( pfx.post ) );
+	Com_Memset( &pfx.final, 0, sizeof( pfx.final ) );
 	pfx.msaaFbo = pfx.msaaColor = pfx.msaaDepth = pfx.sceneDepth = 0;
+	pfx.showPending = qfalse;
 }
 
 static qboolean R_CreateTargetsFormat( GLenum format ) {
 	pfx.format = format;
 	pfx.width = glConfig.vidWidth;
 	pfx.height = glConfig.vidHeight;
+	pfx.shownWidth = pfx.scaled ? pfx.windowWidth : pfx.width;
+	pfx.shownHeight = pfx.scaled ? pfx.windowHeight : pfx.height;
 	pfx.samples = tr.msaaSamples > 1 ? tr.msaaSamples : 0;
 
 	if ( pfx.samples ) {
@@ -319,7 +344,9 @@ static qboolean R_CreateTargetsFormat( GLenum format ) {
 	qglClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
 
 	if ( pfx.bloom ) {
-		int w = pfx.width, h = pfx.height;
+		// from half the window's size, so the bloom keeps its size on the
+		// screen at any r_renderScale (R_BloomChain)
+		int w = pfx.shownWidth, h = pfx.shownHeight;
 
 		for ( int i = 0; i < BLOOM_LEVELS; i++ ) {
 			w = MAX( 1, w / 2 );
@@ -340,6 +367,10 @@ static qboolean R_CreateTargetsFormat( GLenum format ) {
 		if ( !R_CreateTarget( &pfx.post, pfx.width, pfx.height, GL_RGBA8, 0 ) ) {
 			return qfalse;
 		}
+	}
+	// r_renderScale: the gamma pass finishes the frame in it
+	if ( pfx.scaled && !R_CreateTarget( &pfx.final, pfx.width, pfx.height, GL_RGBA8, 0 ) ) {
+		return qfalse;
 	}
 	return qtrue;
 }
@@ -367,6 +398,65 @@ static qboolean R_CreateTargets( void ) {
 
 /*
 ==================
+R_ApplyRenderScale
+
+After each WIN_UpdateGLConfig, which puts the window's drawable size in
+glConfig.vidWidth/vidHeight. With r_renderScale they become the render size,
+which the renderer and the client then work at (2D included), and the
+drawable size is kept here to show the frames. The console sizes its text
+with displayScale, which follows so the text keeps its size in the window.
+==================
+*/
+void R_ApplyRenderScale( void ) {
+	pfx.windowWidth = glConfig.vidWidth;
+	pfx.windowHeight = glConfig.vidHeight;
+	pfx.windowDisplayScale = glConfig.displayScale;
+	if ( !pfx.scaled || pfx.windowWidth <= 0 || pfx.windowHeight <= 0 ) {
+		return;
+	}
+	R_RenderScaleSize( pfx.windowWidth, pfx.windowHeight, pfx.renderScale, pfx.maxSize,
+		&glConfig.vidWidth, &glConfig.vidHeight );
+	glConfig.displayScale *= (float)glConfig.vidHeight / pfx.windowHeight;
+}
+
+// r_renderScale on, before the targets are made at the render size
+static void R_StartRenderScale( float scale ) {
+	GLint renderbufferSize = 0, rectangleSize = 0, viewportSize[2] = { 0, 0 };
+
+	// the scene is in renderbuffers and rectangle textures, drawn through
+	// viewports of the full size
+	qglGetIntegerv( GL_MAX_RENDERBUFFER_SIZE, &renderbufferSize );
+	qglGetIntegerv( GL_MAX_RECTANGLE_TEXTURE_SIZE_ARB, &rectangleSize );
+	qglGetIntegerv( GL_MAX_VIEWPORT_DIMS, viewportSize );
+	pfx.maxSize = 0;
+	const GLint limits[] = { renderbufferSize, rectangleSize, viewportSize[0], viewportSize[1] };
+	for ( size_t i = 0; i < ARRAY_LEN( limits ); i++ ) {
+		if ( limits[i] > 0 && ( !pfx.maxSize || limits[i] < pfx.maxSize ) ) {
+			pfx.maxSize = limits[i];
+		}
+	}
+
+	pfx.renderScale = scale;
+	pfx.scaled = qtrue;
+	R_ApplyRenderScale();
+}
+
+// the targets couldn't be made at the render size: r_renderScale off, and
+// another try at the window's size
+static qboolean R_RetryWithoutScale( void ) {
+	ri.Printf( PRINT_WARNING, "r_renderScale: couldn't create the render targets at %ix%i, rendering at the window size\n",
+		glConfig.vidWidth, glConfig.vidHeight );
+	R_DestroyTargets();
+	R_ClearGLErrors();
+	pfx.scaled = qfalse;
+	glConfig.vidWidth = pfx.windowWidth;
+	glConfig.vidHeight = pfx.windowHeight;
+	glConfig.displayScale = pfx.windowDisplayScale;
+	return R_CreateTargets();
+}
+
+/*
+==================
 R_InitPostFX
 
 Called at the end of R_Init, after the shaders (gamma program) exist
@@ -379,10 +469,17 @@ void R_InitPostFX( void ) {
 	r_bloomIntensity = ri.Cvar_Get( "r_bloomIntensity", "0.5", CVAR_ARCHIVE | CVAR_GLOBAL );
 	r_bloomThreshold = ri.Cvar_Get( "r_bloomThreshold", "0.75", CVAR_ARCHIVE | CVAR_GLOBAL );
 	r_exposure = ri.Cvar_Get( "r_exposure", "1", CVAR_ARCHIVE | CVAR_GLOBAL );
+	r_renderScale = ri.Cvar_Get( "r_renderScale", "1", CVAR_ARCHIVE | CVAR_GLOBAL | CVAR_LATCH );
 
 	Com_Memset( &pfx, 0, sizeof( pfx ) );
+	// InitOpenGL left the window's drawable size in glConfig
+	R_ApplyRenderScale();
+	const float renderScale = R_RenderScaleValue( r_renderScale->value );
 
 	if ( !r_fbo->integer ) {
+		if ( renderScale != 1.0f ) {
+			ri.Printf( PRINT_WARNING, "r_renderScale: needs r_fbo 1\n" );
+		}
 		return;
 	}
 
@@ -444,13 +541,30 @@ void R_InitPostFX( void ) {
 		pfx.hdr = qfalse;
 	}
 
+	// the tap program shows the frames of r_renderScale in the window
+	if ( renderScale != 1.0f ) {
+		if ( pfx.tapProgram ) {
+			R_StartRenderScale( renderScale );
+		} else {
+			ri.Printf( PRINT_WARNING, "r_renderScale: the post-process programs failed\n" );
+		}
+	}
+
+	// a scale above 1 may be more than the GPU can hold, it goes first; below
+	// 1 the size isn't the problem, and a GPU without float targets keeps it
 	qboolean created = R_CreateTargets();
+	if ( !created && pfx.scaled && pfx.renderScale > 1.0f ) {
+		created = R_RetryWithoutScale();
+	}
 	if ( !created && pfx.hdr ) {
 		ri.Printf( PRINT_WARNING, "r_hdr: can't render to float textures\n" );
 		R_DestroyTargets();
 		R_ClearGLErrors();
 		pfx.hdr = qfalse;
 		created = R_CreateTargets();
+	}
+	if ( !created && pfx.scaled ) {
+		created = R_RetryWithoutScale();
 	}
 	if ( !created ) {
 		ri.Printf( PRINT_WARNING, "r_fbo: couldn't create the render targets\n" );
@@ -467,14 +581,16 @@ void R_InitPostFX( void ) {
 
 	qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	pfx.active = qtrue;
-	if ( pfx.hdr ) {
-		// the glow pass copies the scene into sceneImage and draws it back
+	if ( pfx.hdr || pfx.scaled ) {
+		// the glow pass copies the scene into sceneImage and draws it back,
+		// and the glow images have the render size
 		R_UpdateImages();
 	}
 	// the color grade moves from the gamma LUT to the end of the view
 	R_SetColorMappings();
-	ri.Printf( PRINT_ALL, "...rendering offscreen (%ix%i%s%s%s)\n", pfx.width, pfx.height,
-		pfx.samples ? va( ", MSAA %ix", pfx.samples ) : "", pfx.hdr ? ", HDR" : "", pfx.bloom ? ", bloom" : "" );
+	ri.Printf( PRINT_ALL, "...rendering offscreen (%ix%i%s%s%s%s)\n", pfx.width, pfx.height,
+		pfx.samples ? va( ", MSAA %ix", pfx.samples ) : "", pfx.hdr ? ", HDR" : "", pfx.bloom ? ", bloom" : "",
+		pfx.scaled ? va( ", scaled to %ix%i", pfx.windowWidth, pfx.windowHeight ) : "" );
 }
 
 void R_ShutdownPostFX( void ) {
@@ -492,16 +608,22 @@ void R_ShutdownPostFX( void ) {
 	Com_Memset( &pfx, 0, sizeof( pfx ) );
 }
 
-// window resized: recreate the targets at the new size
+// window resized: recreate the targets at the new size. Without room for
+// r_renderScale, the render size goes back to the window's.
 void R_ResizePostFX( void ) {
 	if ( !pfx.active || ( pfx.width == glConfig.vidWidth && pfx.height == glConfig.vidHeight ) ) {
 		return;
 	}
 	qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	R_DestroyTargets();
-	if ( !R_CreateTargets() ) {
+	qboolean created = R_CreateTargets();
+	if ( !created && pfx.scaled ) {
+		created = R_RetryWithoutScale();
+	}
+	if ( !created ) {
 		ri.Printf( PRINT_WARNING, "r_fbo: couldn't resize the render targets, rendering to the window\n" );
 		R_DestroyTargets();
+		R_ClearGLErrors();
 		pfx.active = qfalse;
 		qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
 		// the grade goes back into the gamma LUT
@@ -530,11 +652,12 @@ GLenum R_PostFXSceneFormat( void ) {
 R_PostFXBindScene
 
 Frame start (RB_DrawBuffer): the back buffer of mono rendering is replaced by
-the offscreen target. Returns qfalse to draw to the window as usual.
+the offscreen target. Returns qfalse to draw to the window as usual. With
+r_renderScale every frame goes through it, r_drawBuffer GL_FRONT included.
 ==================
 */
 qboolean R_PostFXBindScene( GLenum buffer ) {
-	if ( !pfx.active || buffer != GL_BACK ) {
+	if ( !pfx.active || ( buffer != GL_BACK && !pfx.scaled ) ) {
 		pfx.drawing = qfalse;
 		return qfalse;
 	}
@@ -774,20 +897,40 @@ R_BloomChain
 Blurs the parts of the view brighter than the threshold into blur[0]:
 threshold and halve, halve down the chain, then add each level to the one
 above on the way back up. Returns the size used in blur[0].
+
+The chain starts from half the view's size in window pixels, so with
+r_renderScale the bloom keeps its size on the screen. Above scale 1 the view
+is first brought to the window's size in the post target (free until the
+tone mapping), and the chain is the one of scale 1; below, the first level
+covers each texel's footprint in the smaller view.
 ==================
 */
 static void R_BloomChain( int x, int y, int w, int h, float threshold, int *bloomW, int *bloomH ) {
-	int levelW[BLOOM_LEVELS], levelH[BLOOM_LEVELS];
+	const int	shownW = R_RenderScaleShownSide( w, pfx.width, pfx.shownWidth );
+	const int	shownH = R_RenderScaleShownSide( h, pfx.height, pfx.shownHeight );
+	int			levelW[BLOOM_LEVELS], levelH[BLOOM_LEVELS];
+	GLuint		source = pfx.scene.texture;
+	float		offset = 1.0f;	// one source texel apart, so the bilinear taps cover 4x4 texels
 
 	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.tapProgram );
+	if ( shownW < w ) {
+		R_SetTarget( pfx.post.fbo, 0, 0, shownW, shownH );
+		R_TapPass( source, x, y, x + w, y + h, R_RenderScaleBoxOffset( (float)w / shownW ), 0.0f, 1.0f );
+		source = pfx.post.texture;
+		x = y = 0;
+		w = shownW;
+		h = shownH;
+	}
 	for ( int i = 0; i < BLOOM_LEVELS; i++ ) {
-		levelW[i] = MAX( 1, ( i ? levelW[i - 1] : w ) / 2 );
-		levelH[i] = MAX( 1, ( i ? levelH[i - 1] : h ) / 2 );
+		levelW[i] = MAX( 1, ( i ? levelW[i - 1] : shownW ) / 2 );
+		levelH[i] = MAX( 1, ( i ? levelH[i - 1] : shownH ) / 2 );
 
 		R_SetTarget( pfx.blur[i].fbo, 0, 0, levelW[i], levelH[i] );
-		// one source texel apart, so the bilinear taps cover 4x4 texels
 		if ( i == 0 ) {
-			R_TapPass( pfx.scene.texture, x, y, x + w, y + h, 1.0f, threshold, 1.0f );
+			if ( shownW > w ) {
+				offset = R_RenderScaleBoxOffset( (float)w / levelW[0] );
+			}
+			R_TapPass( source, x, y, x + w, y + h, offset, threshold, 1.0f );
 		} else {
 			R_TapPass( pfx.blur[i - 1].texture, 0, 0, levelW[i - 1], levelH[i - 1], 1.0f, 0.0f, 1.0f );
 		}
@@ -907,14 +1050,24 @@ void R_PostFXEndView( int x, int y, int w, int h ) {
 	R_EndPasses();
 }
 
+// where the gamma pass finishes the frame, and screenshots and videos read
+// it: the window, or with r_renderScale the final target
+static void R_BindPresentTarget( void ) {
+	const GLenum buffer = pfx.scaled ? GL_COLOR_ATTACHMENT0 : GL_BACK;
+
+	qglBindFramebuffer( GL_FRAMEBUFFER, pfx.scaled ? pfx.final.fbo : 0 );
+	qglDrawBuffer( buffer );
+	qglReadBuffer( buffer );
+}
+
 /*
 ==================
 R_PostFXPresent
 
 End of frame (gamma pass), instead of copying the back buffer: resolves the
-scene, goes back to the window and binds the scene texture on unit 0. Returns
-the fragment program drawing it through the gamma LUT, or 0 when the frame
-wasn't drawn offscreen.
+scene, goes back to the window (or the final target) and binds the scene
+texture on unit 0. Returns the fragment program drawing it through the gamma
+LUT, or 0 when the frame wasn't drawn offscreen.
 ==================
 */
 GLuint R_PostFXPresent( void ) {
@@ -934,9 +1087,8 @@ GLuint R_PostFXPresent( void ) {
 	}
 	pfx.drawing = qfalse;
 
-	qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
-	qglDrawBuffer( GL_BACK );
-	qglReadBuffer( GL_BACK );
+	R_BindPresentTarget();
+	pfx.showPending = pfx.scaled;
 	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 
@@ -947,12 +1099,68 @@ GLuint R_PostFXPresent( void ) {
 
 /*
 ==================
+R_PostFXShowFrame
+
+r_renderScale, just before the swap: draws the finished frame, which the
+gamma pass left in the final target, over the window. Shrinking, the four
+taps of each window pixel average the render pixels under it (each 2x2 block
+at scale 2), where one bilinear tap would skip some of them between 1 and 2;
+enlarging, they are one bilinear tap. A quad rather than a blit, which
+couldn't filter that way, and scaled blits into a multisampled window are an
+error.
+==================
+*/
+void R_PostFXShowFrame( void ) {
+	if ( !pfx.showPending ) {
+		return;
+	}
+	pfx.showPending = qfalse;
+
+	const float ratio = (float)pfx.final.width / pfx.windowWidth;
+
+	R_GPUTimerBegin( GPU_POST );
+	R_BeginPasses();
+	R_SetTarget( 0, 0, 0, pfx.windowWidth, pfx.windowHeight );
+	qglDrawBuffer( GL_BACK );
+	qglReadBuffer( GL_BACK );
+	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.tapProgram );
+	R_TapPass( pfx.final.texture, 0.0f, 0.0f, (float)pfx.final.width, (float)pfx.final.height,
+		ratio > 1.0f ? R_RenderScaleBoxOffset( ratio ) : 0.0f, 0.0f, 1.0f );
+	qglDisable( GL_FRAGMENT_PROGRAM_ARB );
+	qglDisable( GL_VERTEX_PROGRAM_ARB );
+	qglDisable( GL_TEXTURE_RECTANGLE_ARB );
+	qglEnable( GL_TEXTURE_2D );
+	// the next frame may start with a clear, which the scissor limits
+	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	R_GPUTimerEnd( GPU_POST );
+}
+
+// r_renderScale as applied: pixels of the frame per pixel of the window's
+// drawable, 1 when off. Things sized in pixels keep their size on the screen
+// with it (re.GetRenderScale for the client).
+float R_PostFXRenderScale( void ) {
+	return pfx.scaled && pfx.windowHeight > 0 ? (float)pfx.height / pfx.windowHeight : 1.0f;
+}
+
+// gfxinfo
+void R_PostFXRenderScaleInfo( void ) {
+	if ( pfx.scaled ) {
+		ri.Printf( PRINT_ALL, "render scale: %.2f, shown at %d x %d\n", R_PostFXRenderScale(),
+			pfx.windowWidth, pfx.windowHeight );
+	} else if ( r_renderScale && R_RenderScaleValue( r_renderScale->value ) != 1.0f ) {
+		ri.Printf( PRINT_ALL, "render scale: off\n" );
+	}
+}
+
+/*
+==================
 R_PostFXBlendFrame
 
 Video motion blur (cl_aviMotionBlur), at the end of the gamma pass: the
-finished frame in the back buffer is added with weight 1 / subframes to a
-float target, cleared on the first frame of each blend; the last frame
-puts the average in the back buffer, where the video capture reads it.
+finished frame in the back buffer (or the final target) is added with weight
+1 / subframes to a float target, cleared on the first frame of each blend;
+the last frame puts the average back, where the video capture reads it.
 ==================
 */
 qboolean R_PostFXCanBlendFrames( void ) {
@@ -975,7 +1183,7 @@ void R_PostFXBlendFrame( int subframe, int subframes ) {
 			R_DestroyBlendTargets();
 			if ( !R_CreateTarget( &pfx.blend, w, h, GL_RGBA16, 0 ) ) {
 				R_DestroyBlendTargets();
-				qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
+				R_BindPresentTarget();
 				return;
 			}
 		}
@@ -984,12 +1192,10 @@ void R_PostFXBlendFrame( int subframe, int subframes ) {
 		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-		qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
-		qglDrawBuffer( GL_BACK );
-		qglReadBuffer( GL_BACK );
+		R_BindPresentTarget();
 	}
 
-	// the finished frame, from the window's back buffer
+	// the finished frame, from the window's back buffer or the final target
 	GL_SelectTexture( 0 );
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.blendCopy );
 	qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, w, h );
@@ -1006,10 +1212,10 @@ void R_PostFXBlendFrame( int subframe, int subframes ) {
 	R_TapPass( pfx.blendCopy, 0, 0, w, h, 0.0f, 0.0f, 1.0f / subframes );
 	qglDisable( GL_BLEND );
 
-	// back to the window, with the average on the last frame
-	R_SetTarget( 0, 0, 0, w, h );
-	qglDrawBuffer( GL_BACK );
-	qglReadBuffer( GL_BACK );
+	// back to the window or the final target, with the average on the last frame
+	R_BindPresentTarget();
+	qglViewport( 0, 0, w, h );
+	qglScissor( 0, 0, w, h );
 	if ( subframe >= subframes - 1 ) {
 		qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.copyProgram );
 		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.blend.texture );

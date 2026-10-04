@@ -127,8 +127,10 @@ void CL_DrawTestScene( void ) {
 	refdef_t	rd;
 
 	Com_Memset( &rd, 0, sizeof( rd ) );
-	rd.width = cls.glconfig.vidWidth;
-	rd.height = cls.glconfig.vidHeight;
+	// in window coordinates, like the VMs' scenes: the renderer scales them
+	// to its own size (high dpi drawable, r_renderScale)
+	rd.width = cls.glconfig.winWidth;
+	rd.height = cls.glconfig.winHeight;
 	rd.fov_x = 90.0f;
 	rd.fov_y = RAD2DEG( 2.0f * atanf( tanf( DEG2RAD( rd.fov_x * 0.5f ) ) * rd.height / rd.width ) );
 	VectorCopy( testScene.origin, rd.vieworg );

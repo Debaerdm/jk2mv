@@ -3111,8 +3111,10 @@ Update images when renderer size changes
 ===============
 */
 void R_UpdateImages( void ) {
-	R_BindGlowImages();
+	// first: it may have to drop r_renderScale (render size back to the
+	// window's) or r_fbo (sceneImage format)
 	R_ResizePostFX();
+	R_BindGlowImages();
 }
 
 // texture name for objects outside the image list (render targets), in the

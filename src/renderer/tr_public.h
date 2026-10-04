@@ -133,6 +133,10 @@ typedef struct {
 	// of subframes, averaged into the last one. Returns qfalse when the
 	// renderer can't blend (needs r_fbo); subframes 0 only asks.
 	qboolean (*SetFrameBlend)( int subframe, int subframes );
+
+	// r_renderScale as applied: pixels of the frame (glconfig vidWidth and
+	// vidHeight) per pixel of the window's drawable, 1 when off
+	float	(*GetRenderScale)( void );
 } refexport_t;
 
 //

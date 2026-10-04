@@ -1484,7 +1484,7 @@ GLuint	R_AllocTextureName( void );
 bool	GL_CheckForExtension( const char *ext );
 
 //
-// tr_postfx.cpp: offscreen rendering, HDR and bloom (r_fbo)
+// tr_postfx.cpp: offscreen rendering, HDR, bloom and render scale (r_fbo)
 //
 extern cvar_t	*r_fbo;
 extern cvar_t	*r_hdr;
@@ -1492,6 +1492,7 @@ extern cvar_t	*r_bloom;
 extern cvar_t	*r_bloomIntensity;
 extern cvar_t	*r_bloomThreshold;
 extern cvar_t	*r_exposure;
+extern cvar_t	*r_renderScale;
 
 // tr_gputimer.cpp: GPU timestamps (r_gpuTimers)
 typedef enum {
@@ -1518,6 +1519,10 @@ void		R_ShutdownDlightPrograms( void );
 void		R_InitPostFX( void );
 void		R_ShutdownPostFX( void );
 void		R_ResizePostFX( void );
+void		R_ApplyRenderScale( void );
+void		R_PostFXShowFrame( void );
+float		R_PostFXRenderScale( void );
+void		R_PostFXRenderScaleInfo( void );
 GLenum		R_PostFXSceneFormat( void );
 qboolean	R_PostFXGradesView( void );
 qboolean	R_PostFXActive( void );

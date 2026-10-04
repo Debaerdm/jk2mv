@@ -18,6 +18,9 @@ driver and software OpenGL, and checks the screenshots:
     classic first come first served limit drops
   - video records the spinning scene at its fixed frame rate and stops with
     testscene off, which brings the menu back
+  - r_renderScale 2 and 0.5 render at twice and half the window's size
+    (screenshots included), and look the same once brought back to it,
+    bloom halo included
 
 usage: render_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
@@ -48,7 +51,11 @@ RUNS = {
     'hdr_bloom': ['+set', 'r_fbo', '1', '+set', 'r_hdr', '1', '+set', 'r_bloom', '1'],
     'all': ['+set', 'r_fbo', '1', '+set', 'r_hdr', '1', '+set', 'r_bloom', '1', '+set', 'r_DynamicGlow', '1',
             '+set', 'r_ext_multisample', '4'],
+    'scale2': ['+set', 'r_fbo', '1', '+set', 'r_bloom', '1', '+set', 'r_renderScale', '2'],
+    'scale05': ['+set', 'r_fbo', '1', '+set', 'r_renderScale', '0.5'],
 }
+# r_renderScale run: (render scale, run at scale 1 it must look like)
+SCALE_RUNS = {'scale2': (2, 'bloom'), 'scale05': (0.5, 'fbo')}
 # with the console open over the bottom of the view
 CONSOLE = ['+toggleconsole', '+wait', '40']
 GRADE_RUNS = {
@@ -204,7 +211,7 @@ def main():
     for lib in glob.glob(os.path.join(built, 'jk2mvmenu_*')):
         shutil.copy(lib, work)
 
-    shots, errors, last_log = {}, [], ''
+    shots, logs, errors, last_log = {}, {}, [], ''
     runs = [(name, args, SCENE, ()) for name, args in RUNS.items()]
     runs += [(name, args, scene, ()) for name, (scene, args) in DLIGHT_RUNS.items()]
     runs += [(name, args, SCENE, CONSOLE) for name, args in GRADE_RUNS.items()]
@@ -212,6 +219,7 @@ def main():
     for name, args, scene, after in runs:
         shot, errs, log = run(client, work, name, args, scene, after)
         errors += errs
+        logs[name] = log
         if errs:
             last_log = log
         if shot:
@@ -305,12 +313,30 @@ def main():
             check(False, 'video: no lamp in frames %s' % [n for n, yaw in enumerate(yaws) if yaw is None])
         check(shots['video'].shows_menu(), 'testscene off did not bring the main menu back')
 
+        # r_renderScale: drawn at the scale times the window's size, shown at
+        # the window's size, where it looks like scale 1. Next to the lamp,
+        # the bloom halo is as bright as at scale 1 (a chain of the render
+        # size would make it half as wide, 3.6 darker there at scale 2).
+        for name, (scale, ref) in SCALE_RUNS.items():
+            shot = shots[name]
+            size = (int(640 * scale), int(480 * scale))
+            check((shot.width, shot.height) == size,
+                  '%s: screenshot of %dx%d instead of %dx%d' % (name, shot.width, shot.height, size[0], size[1]))
+            check('scaled to 640x480' in logs[name], '%s: not rendered at the render scale' % name)
+            if (shot.width, shot.height) != size:
+                continue
+            for area, box in (('wall near the lamp', WALL_NEAR_LAMP), ('floor', FLOOR)):
+                scaled = tuple(int(v * scale) for v in box)
+                diff = max(abs(p - q) for p, q in zip(shot.mean(scaled), shots[ref].mean(box)))
+                print('%s: %s within %.1f of %s' % (name, area, diff, ref))
+                check(diff <= 2.0, '%s: the %s differs from %s by %.1f' % (name, area, ref, diff))
+
     if errors:
         print('\n'.join(last_log.splitlines()[-60:]))
         print('render smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
     print('render smoke test passed: offscreen path identical, bloom, HDR, per-pixel lights, view grading and '
-          'test scene video work, no GL error')
+          'test scene video and render scale work, no GL error')
 
 
 if __name__ == '__main__':

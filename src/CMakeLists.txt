@@ -437,6 +437,7 @@ if (BuildMVMP)
 		"renderer/tr_gammapass.h"
 		"renderer/tr_WorldEffects.h"
 		"renderer/tr_dlightselect.h"
+		"renderer/tr_renderscale.h"
 
 		"renderer/tr_WorldEffects.cpp"
 		"renderer/tr_animation.cpp"
@@ -454,6 +455,7 @@ if (BuildMVMP)
 		"renderer/tr_noise.cpp"
 		"renderer/tr_postfx.cpp"
 		"renderer/tr_quicksprite.cpp"
+		"renderer/tr_renderscale.cpp"
 		"renderer/tr_scene.cpp"
 		"renderer/tr_shade.cpp"
 		"renderer/tr_shade_calc.cpp"

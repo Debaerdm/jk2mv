@@ -477,9 +477,9 @@ Client-Side
    Render each frame into an offscreen buffer (framebuffer object) and show
    it through the post-process gamma pass. On its own it looks the same as 0,
    and the dynamic glow gets faster (no screen copies, finer blur);
-   ``r_hdr`` and ``r_bloom`` need it. Requires ``r_gammamethod 2`` and
-   vid_restart. With MSAA the offscreen buffer is multisampled.
-   ``r_measureOverdraw`` is turned off with it.
+   ``r_hdr``, ``r_bloom`` and ``r_renderScale`` need it. Requires
+   ``r_gammamethod 2`` and vid_restart. With MSAA the offscreen buffer is
+   multisampled. ``r_measureOverdraw`` is turned off with it.
 
 ..
 
@@ -521,6 +521,22 @@ Client-Side
 :Description:
    Strength of the bloom, and the brightness (as a fraction of white) above
    which parts of the view bloom.
+
+..
+
+:Name: r_renderScale
+:Values: Float (0.5 - 2.0)
+:Default: "1"
+:Description:
+   With ``r_fbo``, draw each frame, HUD, menus and console included, at the
+   window size times this scale, then scale it to the window. 2 renders four
+   times the pixels and averages them (supersampling): no shimmering edges or
+   textures, even where MSAA can't help. Below 1 the frame is drawn smaller
+   and stretched, a bit blurry but lighter for slow GPUs. Text, bloom and the
+   performance overlay keep their size on the screen. Screenshots and videos
+   have the render size. The scale is lowered if the GPU can't render that
+   large, and set back to 1 if the render targets can't be made; 0 or less
+   is the same as 1. Requires vid_restart.
 
 ..
 
