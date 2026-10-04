@@ -39,6 +39,7 @@ static const presetCvar_t presetDefaults[] = {
 	{ "r_maxFrameLatency", "0" },
 	{ "cl_aviFrameRate", "30" },
 	{ "cl_aviMotionJpegQuality", "90" },
+	{ "cl_aviMotionBlur", "0" },
 };
 
 static const presetCvar_t presetEnhancedCvars[] = {
@@ -77,6 +78,7 @@ static const presetCvar_t presetCompetitiveCvars[] = {
 static const presetCvar_t presetMovieCvars[] = {
 	{ "cl_aviFrameRate", "60" },
 	{ "cl_aviMotionJpegQuality", "95" },
+	{ "cl_aviMotionBlur", "4" },					// 4 frames blended per video frame
 	{ "r_fbo", "1" },
 	{ "r_hdr", "1" },
 	{ "r_bloom", "1" },
@@ -90,7 +92,7 @@ static const preset_t presets[] = {
 	presetEnhanced,
 	{ "ultra", "enhanced with MSAA 8x, HDR, bloom and full model detail (CPU heavy in big fights)", &presetEnhanced, presetUltraCvars },
 	{ "competitive", "the original look without glow and vsync, lowest input lag", NULL, presetCompetitiveCvars },
-	{ "movie", "enhanced with HDR, bloom, 60 fps and high quality video capture", &presetEnhanced, presetMovieCvars },
+	{ "movie", "enhanced with HDR, bloom, 60 fps video capture with motion blur", &presetEnhanced, presetMovieCvars },
 };
 
 static const char * const presetNames[] = { "classic", "enhanced", "ultra", "competitive", "movie" };

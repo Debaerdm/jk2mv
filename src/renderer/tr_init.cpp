@@ -1660,6 +1660,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.CaptureFrameRaw = RE_CaptureFrameRaw;
 	re.CaptureFrameJPEG = RE_CaptureFrameJPEG;
 	re.GetGPUTimes = RE_GetGPUTimes;
+	re.SetFrameBlend = RE_SetFrameBlend;
 #endif //!DEDICATED
 	return &re;
 }

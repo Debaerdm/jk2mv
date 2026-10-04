@@ -1,20 +1,23 @@
 // cl_testscene.cpp -- testscene command: draws a map from a fixed camera
 // while disconnected, without the game modules
 //
-// testscene <map> [x y z [yaw [pitch]]] [dlight | dlights]
+// testscene <map> [x y z [yaw [pitch]]] [dlight | dlights] [spin]
 // testscene off
 //
 // For trying renderer settings on a map and for the renderer smoke test,
 // which has no retail assets (so no cgame) but needs world rendering. The
 // optional dlight adds a fixed dynamic light in front of the camera; dlights
 // adds it after 40 others behind the camera, past the classic limit of 32
-// lights (r_dlightPriority).
+// lights (r_dlightPriority). spin turns the camera at 90 degrees per second
+// of client time, for time based effects (video motion blur).
 
 #include "client.h"
 
 static struct {
 	qboolean	active;
 	int			dlights;	// 0, 1: the light in front, 2: plus 40 behind first
+	qboolean	spin;
+	int			startTime;
 	vec3_t		origin;
 	vec3_t		angles;
 } testScene;
@@ -33,7 +36,7 @@ static void CL_TestScene_f( void ) {
 	int		argc = Cmd_Argc();
 
 	if ( argc < 2 ) {
-		Com_Printf( "usage: testscene <map> [x y z [yaw [pitch]]] [dlight | dlights], testscene off\n" );
+		Com_Printf( "usage: testscene <map> [x y z [yaw [pitch]]] [dlight | dlights] [spin], testscene off\n" );
 		return;
 	}
 	if ( !Q_stricmp( Cmd_Argv( 1 ), "off" ) ) {
@@ -54,8 +57,21 @@ static void CL_TestScene_f( void ) {
 		return;
 	}
 
-	testScene.dlights = !Q_stricmp( Cmd_Argv( argc - 1 ), "dlight" ) ? 1 : !Q_stricmp( Cmd_Argv( argc - 1 ), "dlights" ) ? 2 : 0;
-	if ( testScene.dlights ) {
+	// keywords after the numbers
+	testScene.dlights = 0;
+	testScene.spin = qfalse;
+	while ( argc > 2 ) {
+		const char *word = Cmd_Argv( argc - 1 );
+
+		if ( !Q_stricmp( word, "dlight" ) ) {
+			testScene.dlights = 1;
+		} else if ( !Q_stricmp( word, "dlights" ) ) {
+			testScene.dlights = 2;
+		} else if ( !Q_stricmp( word, "spin" ) ) {
+			testScene.spin = qtrue;
+		} else {
+			break;
+		}
 		argc--;
 	}
 	VectorClear( testScene.origin );
@@ -75,6 +91,7 @@ static void CL_TestScene_f( void ) {
 	CL_FlushMemory( qfalse );
 	re.LoadWorld( name );
 	testScene.active = qtrue;
+	testScene.startTime = cls.realtime;
 	if ( uivm ) {
 		VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_NONE );
 	}
@@ -97,7 +114,12 @@ void CL_DrawTestScene( void ) {
 	rd.fov_x = 90.0f;
 	rd.fov_y = RAD2DEG( 2.0f * atanf( tanf( DEG2RAD( rd.fov_x * 0.5f ) ) * rd.height / rd.width ) );
 	VectorCopy( testScene.origin, rd.vieworg );
-	AnglesToAxis( testScene.angles, rd.viewaxis );
+	vec3_t angles;
+	VectorCopy( testScene.angles, angles );
+	if ( testScene.spin ) {
+		angles[YAW] += ( cls.realtime - testScene.startTime ) * 0.09f;
+	}
+	AnglesToAxis( angles, rd.viewaxis );
 	rd.time = cls.realtime;
 
 	re.ClearScene();

@@ -1481,6 +1481,11 @@ const void *RB_GammaCorrection( const void *data )
 		qglScissor(0, 0, glConfig.vidWidth, glConfig.vidHeight);
 	}
 
+	// video motion blur: add the finished frame to the average
+	if (cmd->blendSubframes > 1) {
+		R_PostFXBlendFrame(cmd->blendSubframe, cmd->blendSubframes);
+	}
+
 	R_GPUTimerEnd( GPU_POST );
 	return (const void *)(cmd + 1);
 }

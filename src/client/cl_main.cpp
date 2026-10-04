@@ -45,6 +45,7 @@ cvar_t	*cl_timedemo;
 cvar_t	*cl_aviFrameRate;
 cvar_t	*cl_aviMotionJpeg;
 cvar_t	*cl_aviMotionJpegQuality;
+cvar_t	*cl_aviMotionBlur;
 cvar_t	*cl_mp4Crf;
 cvar_t	*cl_mp4Preset;
 cvar_t	*cl_forceavidemo;
@@ -188,7 +189,8 @@ void CL_Video_f( void )
 	char  filename[ MAX_OSPATH ];
 	int   i, last;
 
-	if( !clc.demoplaying )
+	// also in testscene, to try the video settings offline
+	if( !clc.demoplaying && !CL_TestSceneActive() )
 		{
 			Com_Printf( "The video command can only be used when playing back demos\n" );
 			return;
@@ -2516,11 +2518,12 @@ void CL_Frame ( int msec ) {
 	// demo_step) keeps its own msec
 	if ( CL_VideoRecording() && cl_aviFrameRate->integer && ( msec || clc.demoplaying ) &&
 		com_timescale->value > 0.0f && !cl_paused->integer ) {
-		if ( cls.state == CA_ACTIVE || cl_forceavidemo->integer) {
+		if ( cls.state == CA_ACTIVE || cl_forceavidemo->integer || CL_TestSceneActive() ) {
 			static double	overflow = 0.0;
 			double			frameTime;
 
-			frameTime = (1000.0 / abs(cl_aviFrameRate->integer)) * com_timescale->value;
+			// with motion blur, several engine frames per video frame
+			frameTime = (1000.0 / CL_VideoEngineFrameRate()) * com_timescale->value;
 			frameTime += overflow;
 
 			msec = floor(frameTime);
@@ -2933,6 +2936,7 @@ void CL_Init( void ) {
 	cl_aviFrameRate = Cvar_Get ("cl_aviFrameRate", "30", CVAR_ARCHIVE);
 	cl_aviMotionJpeg = Cvar_Get ("cl_aviMotionJpeg", "1", CVAR_ARCHIVE);
 	cl_aviMotionJpegQuality = Cvar_Get("cl_aviMotionJpegQuality", "90", CVAR_ARCHIVE);
+	cl_aviMotionBlur = Cvar_Get("cl_aviMotionBlur", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
 	cl_mp4Crf = Cvar_Get("cl_mp4Crf", "18", CVAR_ARCHIVE | CVAR_GLOBAL);
 	cl_mp4Preset = Cvar_Get("cl_mp4Preset", "medium", CVAR_ARCHIVE | CVAR_GLOBAL);
 	cl_forceavidemo = Cvar_Get ("cl_forceavidemo", "0", 0);

@@ -654,6 +654,27 @@ void RE_GammaCorrection( void )
 	}
 
 	cmd->commandId = RC_GAMMA_CORRECTION;
+	// one frame only
+	cmd->blendSubframe = tr.blendSubframe;
+	cmd->blendSubframes = tr.blendSubframes;
+	tr.blendSubframes = 0;
+}
+
+/*
+=============
+RE_SetFrameBlend
+
+Video motion blur: the frame about to be drawn goes into the average of
+subframes frames, shown (and captured) with the last one
+=============
+*/
+qboolean RE_SetFrameBlend( int subframe, int subframes ) {
+	if ( !R_PostFXCanBlendFrames() ) {
+		return qfalse;
+	}
+	tr.blendSubframe = subframe;
+	tr.blendSubframes = subframes;
+	return qtrue;
 }
 
 /*

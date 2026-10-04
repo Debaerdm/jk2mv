@@ -927,11 +927,16 @@ Other Changes
   the PATH or next to the game; ``stopvideo`` ends it. The frame rate comes
   from ``cl_aviFrameRate``, the quality from ``cl_mp4Crf`` (default 18, lower
   is better, 0 - 51) and ``cl_mp4Preset`` (x264 preset, default "medium").
+* ``cl_aviMotionBlur N`` (2 - 32, default 0): ``video`` and ``video_mp4`` run
+  N game frames per video frame and blend them, for real motion blur (the
+  window shows the frames as they come). Needs ``r_fbo 1``; recording takes
+  N times longer.
 * ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
 * ``testscene <map> [x y z [yaw [pitch]]] [dlight]`` draws a map from a fixed
   camera while disconnected, without the game modules, to try renderer
   settings (the renderer smoke test uses it); ``testscene off`` brings the
-  menu back.
+  menu back. ``spin`` turns the camera, and ``video`` and ``video_mp4`` work
+  there too, to try the video settings.
 * ``benchmark <demo> [runs] [warmup] [tag]`` plays a demo in timedemo mode
   several times without the 1000 fps cap and prints the average fps, frame
   time percentiles and the 1% low per run and pooled; it writes every frame

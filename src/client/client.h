@@ -478,6 +478,7 @@ extern	cvar_t	*cl_timedemo;
 extern	cvar_t	*cl_aviFrameRate;
 extern	cvar_t	*cl_aviMotionJpeg;
 extern  cvar_t  *cl_aviMotionJpegQuality;
+extern  cvar_t  *cl_aviMotionBlur;
 extern  cvar_t  *cl_mp4Crf;
 extern  cvar_t  *cl_mp4Preset;
 
@@ -696,3 +697,6 @@ void CL_WriteAVIVideoFrame( const byte *imageBuffer, int size );
 void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size );
 qboolean CL_CloseAVI( void );
 qboolean CL_VideoRecording( void );
+void CL_StartVideoBlend( void );
+int CL_VideoEngineFrameRate( void );
+void CL_VideoFrameBlend( void );

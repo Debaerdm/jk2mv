@@ -2340,7 +2340,8 @@ void S_GetSoundtime(void)
 		double			frameSamples;
 		int				samples;
 
-		frameSamples = (double) dma.speed / cl_aviFrameRate->integer + overflow;
+		// per engine frame: several per video frame with cl_aviMotionBlur
+		frameSamples = (double) dma.speed / CL_VideoEngineFrameRate() + overflow;
 		samples = floor(frameSamples);
 		overflow = frameSamples - samples;
 

@@ -143,6 +143,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 - **Phase 4, piste client :**
   - FE-17 : `-ffp-contract=off` explicite pour GCC et Clang, plus l'option CMake `UseLTO`.
   - RB-11a : `r_maxFrameLatency` (fences ARB_sync), à 1 dans le preset `competitive`.
+- **PX-10 (phase 2) est livré :** `cl_aviMotionBlur N` fait N frames de jeu par image vidéo et les moyenne dans une cible flottante, d'où un vrai flou de mouvement dans `video` et `video_mp4`. Le preset `movie` le met à 4.
 - **BM-6 (phase 2) est livré :** `r_gpuTimers 1` mesure le temps GPU de la frame, du glow et des passes post. Le résultat s'affiche dans `cl_perfOverlay` et entre dans les percentiles de `benchmark`. C'est l'outil pour vérifier les critères 2 et 3 sur une vraie carte.
 - **FE-9 est livré :** `r_dlightPriority 1` (par défaut). Au-delà de 32 lumières, chaque scène garde les 32 qui comptent le plus, au lieu des 32 premières ajoutées. `testscene ... dlights` crée ce cas et `smoke_render` le vérifie.
 - **VQ-2b est livré :** avec `r_fbo 1`, l'étalonnage passe dans une table 3D appliquée à la fin de la vue 3D, avant le HUD. La passe gamma garde la table classique.

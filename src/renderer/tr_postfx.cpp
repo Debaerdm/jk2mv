@@ -64,6 +64,8 @@ static struct {
 	GLuint			sceneDepth;
 	renderTarget_t	blur[BLOOM_LEVELS];	// bloom chain, half size and down
 	renderTarget_t	post;			// the view composited (HDR, bloom), copied back through the grade
+	renderTarget_t	blend;			// video motion blur: the average of the frames so far
+	GLuint			blendCopy;		// the finished frame, copied from the back buffer
 
 	GLuint			tapProgram;		// 4 bilinear taps, threshold, scale
 	GLuint			copyProgram;
@@ -209,11 +211,24 @@ static void R_DestroyGlowTargets( void ) {
 	Com_Memset( &pfx.glow, 0, sizeof( pfx.glow ) );
 }
 
+static void R_DestroyBlendTargets( void ) {
+	if ( pfx.blend.fbo ) {
+		qglDeleteFramebuffers( 1, &pfx.blend.fbo );
+		qglDeleteTextures( 1, &pfx.blend.texture );
+	}
+	if ( pfx.blendCopy ) {
+		qglDeleteTextures( 1, &pfx.blendCopy );
+	}
+	Com_Memset( &pfx.blend, 0, sizeof( pfx.blend ) );
+	pfx.blendCopy = 0;
+}
+
 static void R_DestroyTargets( void ) {
 	if ( !qglDeleteFramebuffers ) {
 		return;
 	}
 	R_DestroyGlowTargets();
+	R_DestroyBlendTargets();
 	if ( pfx.scene.fbo ) {
 		qglDeleteFramebuffers( 1, &pfx.scene.fbo );
 		qglDeleteTextures( 1, &pfx.scene.texture );
@@ -863,4 +878,78 @@ GLuint R_PostFXPresent( void ) {
 	GL_SelectTexture( 0 );
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.scene.texture );
 	return tr.gammaPixelShader;
+}
+
+/*
+==================
+R_PostFXBlendFrame
+
+Video motion blur (cl_aviMotionBlur), at the end of the gamma pass: the
+finished frame in the back buffer is added with weight 1 / subframes to a
+float target, cleared on the first frame of each blend; the last frame
+puts the average in the back buffer, where the video capture reads it.
+==================
+*/
+qboolean R_PostFXCanBlendFrames( void ) {
+	return pfx.active;
+}
+
+void R_PostFXBlendFrame( int subframe, int subframes ) {
+	const int w = glConfig.vidWidth, h = glConfig.vidHeight;
+
+	if ( !pfx.active || subframes < 2 ) {
+		return;
+	}
+	if ( pfx.blend.fbo && ( pfx.blend.width != w || pfx.blend.height != h ) ) {
+		R_DestroyBlendTargets();
+	}
+	if ( !pfx.blend.fbo ) {
+		if ( !( pfx.floatTextures && R_CreateTarget( &pfx.blend, w, h, GL_RGBA16F, 0 ) ) ) {
+			R_DestroyBlendTargets();
+			if ( !R_CreateTarget( &pfx.blend, w, h, GL_RGBA8, 0 ) ) {
+				R_DestroyBlendTargets();
+				qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
+				return;
+			}
+		}
+		pfx.blendCopy = R_AllocTextureName();
+		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.blendCopy );
+		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+		qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+		qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
+		qglDrawBuffer( GL_BACK );
+		qglReadBuffer( GL_BACK );
+	}
+
+	// the finished frame, from the window's back buffer
+	GL_SelectTexture( 0 );
+	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.blendCopy );
+	qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, w, h );
+
+	R_BeginPasses();
+	R_SetTarget( pfx.blend.fbo, 0, 0, w, h );
+	if ( subframe <= 0 ) {
+		qglClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
+		qglClear( GL_COLOR_BUFFER_BIT );
+	}
+	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.tapProgram );
+	qglEnable( GL_BLEND );
+	qglBlendFunc( GL_ONE, GL_ONE );
+	R_TapPass( pfx.blendCopy, 0, 0, w, h, 0.0f, 0.0f, 1.0f / subframes );
+	qglDisable( GL_BLEND );
+
+	// back to the window, with the average on the last frame
+	R_SetTarget( 0, 0, 0, w, h );
+	qglDrawBuffer( GL_BACK );
+	qglReadBuffer( GL_BACK );
+	if ( subframe >= subframes - 1 ) {
+		qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, pfx.copyProgram );
+		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, pfx.blend.texture );
+		R_DrawQuad( 0, 0, w, h );
+	}
+	qglDisable( GL_FRAGMENT_PROGRAM_ARB );
+	qglDisable( GL_VERTEX_PROGRAM_ARB );
+	qglDisable( GL_TEXTURE_RECTANGLE_ARB );
+	qglEnable( GL_TEXTURE_2D );
 }

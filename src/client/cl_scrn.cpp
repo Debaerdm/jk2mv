@@ -665,6 +665,7 @@ void SCR_UpdateScreen( void ) {
 	SCR_RecordFrameTime();
 
 	CL_UpdateRefConfig( );
+	CL_VideoFrameBlend();
 
 	SCR_DrawStereoFields();
 

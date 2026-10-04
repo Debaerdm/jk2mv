@@ -1154,6 +1154,7 @@ typedef struct {
 	GLuint gammaLUTImage;
 	GLuint gammaLUTClassicImage;	// ungraded LUT for the left half of r_colorGradeSplit
 	qboolean gammaLUTSplit;
+	int blendSubframe, blendSubframes;	// next frame's place in the video motion blur
 	GLuint gradeLUTImage;			// r_fbo: color grade of the 3D view, before gamma
 	qboolean gradeInView;			// the grade goes on the 3D view, not in the gamma LUT
 	qboolean gradeSplit;			// r_colorGradeSplit on the 3D view
@@ -1516,6 +1517,9 @@ void		R_ShutdownPostFX( void );
 void		R_ResizePostFX( void );
 GLenum		R_PostFXSceneFormat( void );
 qboolean	R_PostFXGradesView( void );
+qboolean	R_PostFXCanBlendFrames( void );
+void		R_PostFXBlendFrame( int subframe, int subframes );
+qboolean	RE_SetFrameBlend( int subframe, int subframes );
 qboolean	R_PostFXBindScene( GLenum buffer );
 qboolean	R_PostFXPending( void );
 void		R_PostFXCopyFrame( int width, int height );
@@ -1911,6 +1915,7 @@ typedef struct {
 
 typedef struct {
 	int		commandId;
+	int		blendSubframe, blendSubframes;	// video motion blur, see RE_SetFrameBlend
 } gammaCorrectionCommand_t;
 
 typedef struct {

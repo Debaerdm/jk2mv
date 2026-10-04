@@ -77,6 +77,10 @@ typedef struct aviFileData_s
 	char			mp4VideoQ[MAX_QPATH];	// same, game path (temporary when there is audio)
 	char			wavName[MAX_QPATH];
 	fileHandle_t	wavF;
+
+	// cl_aviMotionBlur: engine frames blended into each video frame
+	int				blendFrames;
+	int				blendIndex;
 } aviFileData_t;
 
 static aviFileData_t afd;
@@ -451,6 +455,7 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 	Q_strncpyz( afd.fileName, fileName, MAX_QPATH );
 
 	afd.frameRate = cl_aviFrameRate->integer;
+	CL_StartVideoBlend();
 	afd.framePeriod = (int)( 1000000.0f / afd.frameRate );
 	afd.width = cls.glconfig.vidWidth;
 	afd.height = cls.glconfig.vidHeight;
@@ -541,6 +546,7 @@ qboolean CL_OpenMP4ForWriting( const char *fileName )
 
 	afd.mp4 = qtrue;
 	afd.frameRate = cl_aviFrameRate->integer;
+	CL_StartVideoBlend();
 	afd.framePeriod = (int)( 1000000.0f / afd.frameRate );
 	afd.width = cls.glconfig.vidWidth;
 	afd.height = cls.glconfig.vidHeight;
@@ -797,6 +803,42 @@ void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size )
   CL_TakeVideoFrame
   ===============
 */
+/*
+===============
+CL_StartVideoBlend
+
+cl_aviMotionBlur N: the game runs N engine frames per video frame and the
+renderer averages them (needs r_fbo 1), for real motion blur
+===============
+*/
+void CL_StartVideoBlend( void )
+{
+	afd.blendFrames = 1;
+	afd.blendIndex = 0;
+	if ( cl_aviMotionBlur->integer > 1 ) {
+		if ( re.SetFrameBlend && re.SetFrameBlend( 0, 0 ) ) {
+			afd.blendFrames = Com_Clampi( 2, 32, cl_aviMotionBlur->integer );
+		} else {
+			Com_Printf( S_COLOR_YELLOW "cl_aviMotionBlur needs r_fbo 1, recording without motion blur\n" );
+		}
+	}
+}
+
+// engine frames per second while recording: the video frame rate times the
+// motion blur frames; 0 when not recording
+int CL_VideoEngineFrameRate( void )
+{
+	return afd.fileOpen ? cl_aviFrameRate->integer * afd.blendFrames : 0;
+}
+
+// before the frame is drawn: where it goes in the blend
+void CL_VideoFrameBlend( void )
+{
+	if ( afd.fileOpen && afd.blendFrames > 1 && re.SetFrameBlend ) {
+		re.SetFrameBlend( afd.blendIndex, afd.blendFrames );
+	}
+}
+
 void CL_TakeVideoFrame( void )
 {
 	int size;
@@ -804,6 +846,16 @@ void CL_TakeVideoFrame( void )
 	// AVI file isn't open
 	if( !afd.fileOpen )
 		return;
+
+	// motion blur: only the last frame of each blend holds the video frame
+	if ( afd.blendFrames > 1 ) {
+		const int index = afd.blendIndex;
+
+		afd.blendIndex = ( afd.blendIndex + 1 ) % afd.blendFrames;
+		if ( index != afd.blendFrames - 1 ) {
+			return;
+		}
+	}
 
 	if ( afd.width != cls.glconfig.vidWidth || afd.height != cls.glconfig.vidHeight ) {
 		CL_CloseAVI();

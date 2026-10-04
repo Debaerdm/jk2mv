@@ -128,6 +128,11 @@ typedef struct {
 	// r_gpuTimers: GPU microseconds of a recent frame and of its glow and
 	// post-process passes, -1 when off
 	int (*GetGPUTimes)( int *glowUsec, int *postUsec );
+
+	// video motion blur: the frame about to be drawn is blend frame subframe
+	// of subframes, averaged into the last one. Returns qfalse when the
+	// renderer can't blend (needs r_fbo); subframes 0 only asks.
+	qboolean (*SetFrameBlend)( int subframe, int subframes );
 } refexport_t;
 
 //
