@@ -596,6 +596,36 @@ void Con_DrawInput (void) {
 
 /*
 ================
+Con_BuildFontString
+
+Flattens a console row into a single color coded string for the font
+renderer. Writing stops when the buffer is full.
+================
+*/
+static void Con_BuildFontString( const conChar_t *text, int len, unsigned char *currentColor, char *buf, int bufSize ) {
+	int		o = 0;
+
+	for ( int x = 0 ; x < len ; x++ ) {
+		if ( text[x].f.color != *currentColor ) {
+			*currentColor = text[x].f.color;
+			if ( o + 2 >= bufSize ) {
+				break;
+			}
+			buf[o++] = Q_COLOR_ESCAPE;
+			buf[o++] = '0' + (*currentColor > 7 ? COLOR_JK2MV_FALLBACK : *currentColor);
+		}
+		if ( o + 1 >= bufSize ) {
+			break;
+		}
+		if ( text[x].f.character ) {
+			buf[o++] = text[x].f.character;
+		}
+	}
+	buf[o] = '\0';
+}
+
+/*
+================
 Con_DrawNotify
 
 Draws the last few lines of output transparently over the game top
@@ -657,15 +687,7 @@ void Con_DrawNotify (void)
 			// concat the text to be printed...
 			//
 			char sTemp[4096];	// ott
-			sTemp[0] = '\0';
-			for (x = 0 ; x < con.linewidth ; x++)
-			{
-				if ( text[x].f.color != currentColor ) {
-					currentColor = text[x].f.color;
-					strcat(sTemp,va("^%i", (currentColor > 7 ? COLOR_JK2MV_FALLBACK : currentColor) ));
-				}
-				strcat(sTemp,va("%c",text[x].f.character));
-			}
+			Con_BuildFontString(text, con.linewidth, &currentColor, sTemp, sizeof(sTemp));
 			//
 			// and print...
 			//
@@ -831,15 +853,7 @@ void Con_DrawSolidConsole( float frac ) {
 			// concat the text to be printed...
 			//
 			char sTemp[4096];	// ott
-			sTemp[0] = '\0';
-			for (x = 0 ; x < con.linewidth + 1 ; x++)
-			{
-				if ( text[x].f.color != currentColor ) {
-					currentColor = text[x].f.color;
-					strcat(sTemp,va("^%i", (currentColor > 7 ? COLOR_JK2MV_FALLBACK : currentColor) ));
-				}
-				strcat(sTemp,va("%c",text[x].f.character));
-			}
+			Con_BuildFontString(text, con.linewidth + 1, &currentColor, sTemp, sizeof(sTemp));
 			//
 			// and print...
 			//

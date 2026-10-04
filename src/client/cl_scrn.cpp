@@ -558,54 +558,36 @@ void SCR_UpdateScreen( void ) {
 	recursive = 0;
 }
 
-#define MAX_SCR_LINES 10
+#define MAX_SCR_LINES		10
+#define SCR_CENTER_WIDTH	76	// 640 / 8 - 4, the original hardcoded line width
 
-static float		scr_centertime_off;
 int					scr_center_y;
-//static string		scr_font;
-static char			scr_centerstring[1024];
-static int			scr_center_lines;
-static int			scr_center_widths[MAX_SCR_LINES];
 
-cvar_t		*scr_centertime;
+/*
+==================
+SCR_CenterPrint
 
+Single player center print. Multiplayer never draws it on screen, so only
+the console echo is left: the text is word wrapped at SCR_CENTER_WIDTH
+characters and at most MAX_SCR_LINES lines are printed.
+==================
+*/
 void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 {
-	char	*s, *last, *start, *write_pos, *save_pos;
+	char	*s, *last, *start;
 	int		num_chars;
 	int		num_lines;
-	int		width;
 	bool	done = false;
 	bool	spaced;
 
 	if (!str)
 	{
-		scr_centertime_off = 0;
 		return;
 	}
-
-//	scr_font = string("medium");
-
-	// RWL - commented out
-/*
-	width = viddef.width / 8;	// rjr hardcoded yuckiness
-	width = 640 / 8;	// rjr hardcoded yuckiness
-	width -= 4;
-
-	// RWL - commented out
-	if (cl.frame.playerstate.remote_type != REMOTE_TYPE_LETTERBOX)
-	{
-		width -= 30;
-	}
-*/
-
-	scr_centertime_off = scr_centertime->value;
 
 	Com_Printf("\n");
 
 	num_lines = 0;
-	write_pos = scr_centerstring;
-	scr_center_lines = 0;
 	spaced = false;
 	for(s = start = str, last=NULL, num_chars = 0; !done ; s++)
 	{
@@ -614,19 +596,17 @@ void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 		{
 			spaced = true;
 			last = s;
-			scr_centertime_off += 0.2f;//give them an extra 0.05 second for each character
 		}
 
 		if ((*s) == '\n' || (*s) == 0)
 		{
 			last = s;
-			num_chars = width;
+			num_chars = SCR_CENTER_WIDTH;
 			spaced = true;
 		}
 
-		if (num_chars >= width)
+		if (num_chars >= SCR_CENTER_WIDTH)
 		{
-			scr_centertime_off += 0.8f;//give them an extra half second for each newline
 			if (!last)
 			{
 				last = s;
@@ -636,22 +616,12 @@ void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 				last++;
 			}
 
-			save_pos = write_pos;
-			strncpy(write_pos, start, last-start);
-			write_pos += last-start;
-			*write_pos = 0;
-			write_pos++;
+			Com_Printf ("%.*s\n", (int)(last - start), start);
 
-			Com_Printf ("%s\n", save_pos);
+			num_lines++;
 
-			// RWL - commented out
-//			scr_center_widths[scr_center_lines] = re.StrlenFont(save_pos, scr_font);;
-			scr_center_widths[scr_center_lines] = 640;
-
-
-			scr_center_lines++;
-
-			if ((*s) == 0 || scr_center_lines >= MAX_SCR_LINES)
+			// a word hard wrapped right before the terminator also ends the text
+			if ((*s) == 0 || (*last) == 0 || num_lines >= MAX_SCR_LINES)
 			{
 				done = true;
 			}

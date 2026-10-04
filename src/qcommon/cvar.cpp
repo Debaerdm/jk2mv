@@ -988,9 +988,14 @@ void Cvar_Restart_f( void ) {
 			if ( var->resetString ) {
 				Z_Free( (void *)var->resetString );
 			}
-			// clear the var completely, since we
-			// can't remove the index from the list
-			Com_Memset( var, 0, sizeof( var ) );
+			// clear the freed strings, since we can't remove the index
+			// from the list. The var stays in its hash chain, so hashNext
+			// must survive; a NULL name never matches in Cvar_FindVar and
+			// a NULL string makes Cvar_Update skip it
+			var->name = NULL;
+			var->string = NULL;
+			var->latchedString = NULL;
+			var->resetString = NULL;
 			continue;
 		}
 
