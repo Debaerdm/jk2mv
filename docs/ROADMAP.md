@@ -150,6 +150,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 - **VQ-2b est livré :** avec `r_fbo 1`, l'étalonnage passe dans une table 3D appliquée à la fin de la vue 3D, avant le HUD. La passe gamma garde la table classique.
 - **Revue du rendu (G2), corrigé :** l'alpha-to-coverage (VQ-8) garde l'herbe et les grilles pleines grâce à une copie de leurs textures à l'alpha accentué. Sous `r_fbo 1`, le glow ne s'éclaircit plus aux bords de l'écran et ne laisse plus de fantôme, ses objets MSAA tiennent en 8 bits, l'étalonnage suit la vraie passe gamma, son trait de séparation reste dans la vue, et le flou vidéo sans textures flottantes accumule en 16 bits.
 - **Tonemapping :** c'est une épaule exponentielle au-dessus de 0,8 × blanc, appliquée à la fin de la vue 3D, avant le HUD. Je l'ai préférée à ACES pour que l'image d'origine reste intacte sous le genou.
+- **Outils démo (phase 2), correctifs de relecture :** `photomode` et `demo_freecam` partent de la vue du jeu au lieu de l'intérieur de la tête (et de la vue du chemin pendant `cam_play`), les allers-retours de caméra à 180° ne donnent plus de NaN ni de saut, `benchmark` démarre même suivi d'autres commandes, et `preset` redémarre le rendu avant la commande suivante.
 - **Banc d'essai sans assets :** la commande `testscene` et la salle de test de ci_box. Le test CI `smoke_render` vérifie :
   - `r_fbo 1` identique au pixel près, avec et sans glow ;
   - le halo du bloom ;
