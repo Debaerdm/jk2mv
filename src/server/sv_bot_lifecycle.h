@@ -210,7 +210,7 @@ int SV_BotGetSnapshotEntity( int client, int sequence ) {
 	if (sequence < 0 || sequence >= frame->num_entities) {
 		return -1;
 	}
-	return svs.snapshotEntities[(frame->first_entity + sequence) % svs.numSnapshotEntities].number;
+	return SV_SnapshotEntity( frame->first_entity + sequence )->number;
 }
 
 #endif // SV_BOT_LIFECYCLE_H

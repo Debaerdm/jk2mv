@@ -13,6 +13,8 @@
 
 #include "../api/mvapi.h"
 
+#include "sv_snapshot_ring.h"
+
 //=============================================================================
 
 #define	PERS_SCORE				0		// !!! MUST NOT CHANGE, SERVER AND
@@ -207,7 +209,7 @@ typedef struct {
 	int			snapFlagServerBit;			// ^= SNAPFLAG_SERVERCOUNT every SV_SpawnServer()
 
 	client_t	*clients;					// [sv_maxclients->integer];
-	int			numSnapshotEntities;		// sv_maxclients->integer*PACKET_BACKUP*MAX_PACKET_ENTITIES
+	int			numSnapshotEntities;		// power of two, see SV_SnapshotEntityRingSize
 	int			nextSnapshotEntities;		// next snapshotEntities to use
 	entityState_t	*snapshotEntities;		// [numSnapshotEntities]
 	int			nextHeartbeatTime;
@@ -264,6 +266,7 @@ extern	cvar_t	*mv_apiConnectionless;
 extern	cvar_t	*sv_pingFix;
 extern	cvar_t	*sv_autoWhitelist;
 extern	cvar_t	*sv_dynamicSnapshots;
+extern	cvar_t	*sv_snapshotEntityBudget;
 
 // toggleable fixes
 extern	cvar_t	*mv_fixnamecrash;
@@ -358,6 +361,11 @@ void SV_WriteFrameToClient (client_t *client, msg_t *msg);
 void SV_SendMessageToClient( msg_t *msg, client_t *client );
 void SV_SendClientMessages( void );
 void SV_SendClientSnapshot( client_t *client );
+
+// entry n of the snapshot entity ring
+static inline entityState_t *SV_SnapshotEntity( int n ) {
+	return &svs.snapshotEntities[SV_SnapshotEntityIndex( n, svs.numSnapshotEntities )];
+}
 
 //
 // sv_game.c

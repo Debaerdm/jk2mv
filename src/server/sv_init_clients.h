@@ -66,13 +66,8 @@ void SV_Startup( void ) {
 
 	svs.clients = (struct client_s *)Z_Malloc (sizeof(client_t) * sv_maxclients->integer, TAG_CLIENTS, qtrue );
 	if ( com_dedicated->integer ) {
-		svs.numSnapshotEntities = sv_maxclients->integer * PACKET_BACKUP * 64;
 		Cvar_Set( "r_ghoul2animsmooth", "0");
 		Cvar_Set( "r_ghoul2unsqashaftersmooth", "0");
-
-	} else {
-		// we don't need nearly as many when playing locally
-		svs.numSnapshotEntities = sv_maxclients->integer * 4 * 64;
 	}
 	svs.initialized = qtrue;
 
@@ -135,14 +130,53 @@ void SV_ChangeMaxClients( void ) {
 
 	// free the old clients on the hunk
 	Hunk_FreeTempMemory( oldClients );
+}
 
-	// allocate new snapshot entities
-	if ( com_dedicated->integer ) {
-		svs.numSnapshotEntities = sv_maxclients->integer * PACKET_BACKUP * 64;
-	} else {
-		// we don't need nearly as many when playing locally
-		svs.numSnapshotEntities = sv_maxclients->integer * 4 * 64;
+/*
+===============
+SV_AllocSnapshotEntities
+
+Sizes the snapshot entity ring for sv_maxclients, taking a latched
+sv_snapshotEntityBudget now, and allocates it.  Called on every map load,
+once the previous ring is freed.
+===============
+*/
+void SV_AllocSnapshotEntities( void ) {
+	int		budget;
+	int		wanted;
+
+	// take a latched value now
+	Cvar_Get( "sv_snapshotEntityBudget", XSTRING( SNAPSHOT_ENTITY_BUDGET_DEFAULT ), CVAR_ARCHIVE | CVAR_LATCH );
+	budget = SV_ClampSnapshotEntityBudget( sv_snapshotEntityBudget->integer );
+	if ( budget != sv_snapshotEntityBudget->integer ) {
+		Cvar_Set( "sv_snapshotEntityBudget", va( "%i", budget ) );
 	}
+	sv_snapshotEntityBudget->modified = qfalse;
+
+	// a listen server used to keep 4 frames per slot instead of 32, but
+	// remote clients delta from frames as old as on a dedicated server, and
+	// there the bots and the local client build a snapshot every client
+	// frame rather than every server frame
+	wanted = SV_SnapshotEntityRingSize( sv_maxclients->integer, PACKET_BACKUP, budget );
+
+	// the largest rings may not fit in the address space of a 32-bit server,
+	// and a smaller ring only costs more full snapshots
+	svs.numSnapshotEntities = wanted;
+	while ( ( svs.snapshotEntities = new (std::nothrow) entityState_s[svs.numSnapshotEntities] ) == NULL ) {
+		if ( svs.numSnapshotEntities <= SNAPSHOT_ENTITY_RING_MIN ) {
+			Com_Error( ERR_FATAL, "Couldn't allocate %i snapshot entities", svs.numSnapshotEntities );
+		}
+		svs.numSnapshotEntities >>= 1;
+	}
+	if ( svs.numSnapshotEntities < wanted ) {
+		Com_Printf( S_COLOR_YELLOW "WARNING: not enough memory for %i snapshot entities (sv_snapshotEntityBudget %i), using %i\n",
+			wanted, budget, svs.numSnapshotEntities );
+	}
+	// we CAN afford to do this here, since we know the STL vectors in Ghoul2 are empty
+	memset( svs.snapshotEntities, 0, sizeof( entityState_t ) * svs.numSnapshotEntities );
+
+	Com_DPrintf( "Snapshot entity ring: %i entities, %i KB\n", svs.numSnapshotEntities,
+		(int)( (long long)svs.numSnapshotEntities * sizeof( entityState_t ) / 1024 ) );
 }
 
 #endif // SV_INIT_CLIENTS_H

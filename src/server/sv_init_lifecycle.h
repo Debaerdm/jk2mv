@@ -109,6 +109,7 @@ void SV_Init (void) {
 	sv_pingFix = Cvar_Get("sv_pingFix", "1", CVAR_ARCHIVE);
 	sv_autoWhitelist = Cvar_Get("sv_autoWhitelist", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
 	sv_dynamicSnapshots = Cvar_Get("sv_dynamicSnapshots", "1", CVAR_ARCHIVE);
+	sv_snapshotEntityBudget = Cvar_Get("sv_snapshotEntityBudget", XSTRING(SNAPSHOT_ENTITY_BUDGET_DEFAULT), CVAR_ARCHIVE | CVAR_LATCH);
 
 	SP_Register("str_server",SP_REGISTER_REQUIRED);
 

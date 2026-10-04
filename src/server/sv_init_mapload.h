@@ -143,7 +143,7 @@ void SV_SpawnServer( char *server, qboolean killBots, ForceReload_e eForceReload
 
 	SV_SendMapChange();
 
-	// init client structures and svs.numSnapshotEntities
+	// init client structures
 	if ( !Cvar_VariableValue("sv_running") ) {
 		SV_Startup();
 	} else {
@@ -158,13 +158,9 @@ void SV_SpawnServer( char *server, qboolean killBots, ForceReload_e eForceReload
 	// clear pak references
 	FS_ClearPakReferences(0);
 
-	// allocate the snapshot entities on the hunk
-	svs.nextSnapshotEntities = 0;
-
 	// allocate the snapshot entities
-	svs.snapshotEntities = new entityState_s[svs.numSnapshotEntities];
-	// we CAN afford to do this here, since we know the STL vectors in Ghoul2 are empty
-	memset(svs.snapshotEntities, 0, sizeof(entityState_t)*svs.numSnapshotEntities);
+	svs.nextSnapshotEntities = 0;
+	SV_AllocSnapshotEntities();
 
 	// toggle the server bit so clients can detect that a
 	// server has changed

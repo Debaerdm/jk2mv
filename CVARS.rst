@@ -916,6 +916,38 @@ Server-Side
    cause a lot of commands to be sent to a client in a short interval on a busy
    server.
 
+..
+
+:Name: sv_snapshotEntityBudget
+:Valid: 64-1024
+:Default: "128"
+:Description:
+   Size of the ring that keeps the entities of recent snapshots, so that a
+   client can be sent only what changed since the last snapshot it received.
+   While snapshots average no more entities than this value, the ring keeps
+   the last 32 snapshots of every client slot, all a client may delta from,
+   even when every slot builds a snapshot each server frame as bots do. A
+   client whose last received snapshot has left the ring gets a full
+   snapshot instead, several times larger, and that happens when the server
+   is busiest: big fights, many bots, high ``sv_fps``. With 31 bots on
+   ffa_bespin at ``sv_fps`` 40, 64 (the size of earlier versions) kept at
+   worst the last 0.6 s of snapshots and 128 kept 1.4 s, the most a client
+   at 20 snapshots per second can delta from. A listen server gets the same
+   ring (earlier versions kept 4 snapshots per slot there), since its bots
+   and local client build a snapshot every client frame. Latched: takes
+   effect on the next map load or ``map_restart``. The ring takes
+   sv_maxclients x 32 x value x 296 bytes, rounded up to a power of two
+   (exact for 8, 16 or 32 slots; 17 to 31 slots cost as much as 32):
+
+   | 64: 592 KB per slot, 18.5 MB for 32 slots
+   | 128: 1.2 MB per slot, 37 MB for 32 slots, 9.25 MB for 8
+   | 256: 2.3 MB per slot, 74 MB for 32 slots
+   | 512: 4.6 MB per slot, 148 MB for 32 slots
+   | 1024: 9.3 MB per slot, 296 MB for 32 slots
+
+   When a ring that large can't be allocated (32-bit builds), a smaller one
+   is used and a warning is printed.
+
 ==================
 Undocumented Cvars
 ==================

@@ -3,6 +3,8 @@
 
 #include "server.h"
 
+#include <new>
+
 #include <mv_setup.h>
 
 #include "../qcommon/q_shared.h"

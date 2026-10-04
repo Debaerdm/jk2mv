@@ -154,6 +154,14 @@ add_jk2mv_test(test_tr_dlightselect
   ${CMAKE_SOURCE_DIR}/src/renderer/tr_dlightselect.cpp
 )
 
+# ==============================================================================
+# Server: snapshot entity ring (uses the real engine header)
+# ==============================================================================
+
+add_jk2mv_test(test_sv_snapshot_ring
+  test_sv_snapshot_ring.cpp
+)
+
 if(UNIX)
   add_jk2mv_test(test_sys_spawn
     test_sys_spawn.cpp

@@ -144,6 +144,8 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 - **Phase 4, piste client :**
   - FE-17 : `-ffp-contract=off` explicite pour GCC et Clang, plus l'option CMake `UseLTO`.
   - RB-11a : `r_maxFrameLatency` (fences ARB_sync), à 1 dans le preset `competitive`.
+- **Phase 4, piste serveur :**
+  - SV-3 : `sv_snapshotEntityBudget` (128 par défaut, 64 = l'ancien anneau) dimensionne l'anneau d'entités des snapshots, arrondi à une puissance de deux et indexé par un masque. Avec 31 bots à `sv_fps 40`, l'ancien anneau ne gardait par moments que 0,6 s de snapshots, contre 1,4 s avec 128 : toute la fenêtre de delta d'un client à 20 snapshots/s, pour 38,8 Mo à 32 slots au lieu de 19,4. Un serveur local a maintenant le même anneau qu'un dédié : avec 6 bots, un joueur distant à 100 ms n'y recevait que des snapshots complets.
 - **PX-10 (phase 2) est livré :** `cl_aviMotionBlur N` fait N frames de jeu par image vidéo et les moyenne dans une cible flottante, d'où un vrai flou de mouvement dans `video` et `video_mp4`. Le preset `movie` le met à 4.
 - **Capture vidéo, revue (phase 2) :** le son de `video` et `video_mp4` suit l'horloge de la vidéo, donc un son démarre sur l'image où il est joué, quelles que soient les fps réelles (avant : 90 à 180 ms de retard). `tests/video/av_sync.py` le vérifie sur les assets retail. `cl_aviMotionBlur` s'arrête à 1000 frames de jeu par seconde, le ralenti ne donne plus de frames à -1 ms, et `cl_aviFrameRate` est lu au début de l'enregistrement. Pendant que ffmpeg finit, la fenêtre de `video_mp4` répond et compte les secondes.
 - **BM-6 (phase 2) est livré :** `r_gpuTimers 1` mesure le temps GPU de la frame, du glow et des passes post. Le résultat s'affiche dans `cl_perfOverlay` et entre dans les percentiles de `benchmark`. C'est l'outil pour vérifier les critères 2 et 3 sur une vraie carte.
@@ -311,7 +313,7 @@ Avant tout code (toi, un week-end) : BM-3 et BM-4, décrits au §5.
 - **Ghoul2 est partagé avec le serveur.** Il faut les tests FE-16 sur x86 et ARM et `-ffp-contract=off` avant tout refactor. Ne pas « corriger » la garde morte `if (!boneUsedList)` (tr_ghoul2.cpp:1859).
 - **VQ-5 (FBO) est l'étape la plus risquée :** MSAA (résolution par blit), stéréo, `GL_FRONT`, ordre captures/AVI, macOS legacy. Le chemin par copies reste le repli `r_fbo 0`.
 - **RB-4, cache d'état GL :** il peut devenir faux près du code qui contourne les wrappers (flou du glow, gamma, tr_backend.cpp:1551-1569, 1669). Invalider le cache à ces frontières.
-- **Mémoire :** SV-3 fait passer l'anneau de 19,4 à 77,6 Mo à 32 slots, plus FBO, VBO et SSAA. C'est serré sur les builds 32 bits.
+- **Mémoire :** SV-3 fait passer l'anneau de 19,4 à 38,8 Mo à 32 slots (77,6 Mo avec `sv_snapshotEntityBudget 256`), plus FBO, VBO et SSAA. C'est serré sur les builds 32 bits.
 - **Mods et tick à 40 Hz :** certains mods supposent des frames de 50 ms. Tester mod par mod, en opt-in.
 - **Épuisement :** les phases 1 à 3 représentent environ un an à temps partiel. Chaque phase doit se suffire à elle-même. PX-4/6/7 peuvent être avancés pour garder la motivation. Les gros paris ne démarrent que sur preuve mesurée.
 
