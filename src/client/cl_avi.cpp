@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "client.h"
 #include "snd_local.h"
 #include "cl_videoclock.h"
+#include "cl_wav.h"
 #include "../sys/sys_spawn.h"
 
 #define INDEX_FILE_EXTENSION ".index.dat"
@@ -516,24 +517,11 @@ static const char * const mp4Presets[] = {
 
 static void CL_WriteWAVHeader( int64_t dataBytes )
 {
-	// past 4 GB the sizes saturate, and ffmpeg reads the data to the end
-	const unsigned int data = dataBytes > 0xFFFFFFFFll - 36 ? 0xFFFFFFFFu - 36 : (unsigned int)dataBytes;
+	byte header[WAV_HEADER_SIZE];
 
-	bufIndex = 0;
-	WRITE_STRING( "RIFF" );
-	WRITE_4BYTES( 36 + data );
-	WRITE_STRING( "WAVE" );
-	WRITE_STRING( "fmt " );
-	WRITE_4BYTES( 16 );
-	WRITE_2BYTES( WAV_FORMAT_PCM );
-	WRITE_2BYTES( afd.a.channels );
-	WRITE_4BYTES( afd.a.rate );
-	WRITE_4BYTES( afd.a.rate * afd.a.sampleSize );
-	WRITE_2BYTES( afd.a.sampleSize );
-	WRITE_2BYTES( afd.a.bits );
-	WRITE_STRING( "data" );
-	WRITE_4BYTES( data );
-	SafeFS_Write( buffer, bufIndex, afd.wavF );
+	// past 4 GB, sizes that ffmpeg takes as unknown (see cl_wav.h)
+	CL_WAVHeader( header, dataBytes, afd.a.rate, afd.a.channels, afd.a.bits );
+	SafeFS_Write( header, sizeof( header ), afd.wavF );
 }
 
 /*

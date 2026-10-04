@@ -141,6 +141,10 @@ add_jk2mv_test(test_cl_videoclock
   test_cl_videoclock.cpp
 )
 
+add_jk2mv_test(test_cl_wav
+  test_cl_wav.cpp
+)
+
 # ==============================================================================
 # Renderer: dynamic light selection (links the real engine source)
 # ==============================================================================
