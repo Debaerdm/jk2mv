@@ -14,6 +14,7 @@ typedef struct {
 //#define _USINGNEWHUFFTABLE_		// Build a new frequency table to cut and paste.
 
 static huffman_t		msgHuff;
+static huffTables_t		msgHuffTables;		// codes of msgHuff, which never adapts
 
 static qboolean			msgInit = qfalse;
 #ifdef _NEWHUFFTABLE_
@@ -99,8 +100,6 @@ int	overflows;
 
 // negative bit values include signs
 void MSG_WriteBits(msg_t *msg, int value, int bits) {
-	int	i;
-
 	oldsize += bits;
 
 	// this isn't an exact overflow check, but close enough
@@ -156,23 +155,19 @@ void MSG_WriteBits(msg_t *msg, int value, int bits) {
 		}
 	} else {
 		value &= (0xffffffff >> (32 - bits));
-		if (bits & 7) {
-			int nbits;
-			nbits = bits & 7;
-			for (i = 0; i<nbits; i++) {
-				Huff_putBit((value & 1), msg->data, &msg->bit);
-				value = (value >> 1);
-			}
-			bits = bits - nbits;
-		}
-		if (bits) {
-			for (i = 0; i<bits; i += 8) {
 #ifdef _NEWHUFFTABLE_
-				fwrite(&value, 1, 1, fp);
+		for (int i = bits & 7; i<bits; i += 8) {
+			byte b = (value >> i) & 0xff;
+			fwrite(&b, 1, 1, fp);
+		}
 #endif // _NEWHUFFTABLE_
-				Huff_offsetTransmit(&msgHuff.compressor, (value & 0xff), msg->data, &msg->bit);
-				value = (value >> 8);
-			}
+		if (bits < 8) {
+			// a few bits as they are: flags, mostly
+			Huff_putBits(value, bits, msg->data, &msg->bit);
+		} else {
+			// the low bits & 7 bits as they are, then the Huffman code of
+			// each whole byte
+			Huff_WriteBits(&msgHuffTables, value, bits, msg->data, &msg->bit);
 		}
 		msg->cursize = (msg->bit >> 3) + 1;
 	}
@@ -180,9 +175,7 @@ void MSG_WriteBits(msg_t *msg, int value, int bits) {
 
 int MSG_ReadBits(msg_t *msg, int bits) {
 	int			value;
-	int			get;
 	qboolean	sgn;
-	int			i, nbits;
 	value = 0;
 
 	if (bits < 0) {
@@ -211,23 +204,26 @@ int MSG_ReadBits(msg_t *msg, int bits) {
 			Com_Error(ERR_DROP, "can't read %d bits", bits);
 		}
 	} else {
-		nbits = 0;
-		if (bits & 7) {
-			nbits = bits & 7;
-			for (i = 0; i<nbits; i++) {
-				value |= (Huff_getBit(msg->data, &msg->bit) << i);
-			}
-			bits = bits - nbits;
+		if (bits >= 8) {
+			// the table decoder peeks at the next bytes: only at the ones
+			// that were received (or written), the tree reads the last few
+			int size = msg->cursize < msg->maxsize ? msg->cursize : msg->maxsize;
+
+			// the low bits & 7 bits as they are, then a Huffman code for
+			// each whole byte
+			value = Huff_ReadBits(&msgHuffTables, bits, msg->data, &msg->bit, size);
+		} else if (bits) {
+			// a few bits as they are: flags, mostly
+			value = Huff_getBits(bits, msg->data, &msg->bit);
 		}
-		if (bits) {
-			for (i = 0; i<bits; i += 8) {
-				Huff_offsetReceive(msgHuff.decompressor.tree, &get, msg->data, &msg->bit);
 #ifdef _NEWHUFFTABLE_
-				fwrite(&get, 1, 1, fp);
-#endif // _NEWHUFFTABLE_
-				value |= (get << (i + nbits));
-			}
+		for (int i = bits & 7; i<bits; i += 8) {
+			byte b = (value >> i) & 0xff;
+			fwrite(&b, 1, 1, fp);
 		}
+#endif // _NEWHUFFTABLE_
+		// the sign below is taken from the whole bytes, as it always was
+		bits -= bits & 7;
 		msg->readcount = (msg->bit >> 3) + 1;
 	}
 	if (sgn) {
@@ -2593,6 +2589,7 @@ void MSG_initHuffman() {
 	int i, j;
 
 	if (Huff_ReadData(&msgHuff, "huffman.dat")) {
+		Huff_BuildTables(&msgHuffTables, &msgHuff.compressor, &msgHuff.decompressor);
 		msgInit = qtrue;
 		return;
 	}
@@ -2611,6 +2608,7 @@ void MSG_initHuffman() {
 	}
 
 	Huff_SaveData(&msgHuff, "huffman.dat");
+	Huff_BuildTables(&msgHuffTables, &msgHuff.compressor, &msgHuff.decompressor);
 }
 
 #else
@@ -2645,6 +2643,7 @@ void MSG_initHuffman() {
 		Com_Printf("%d,			// %d\n", array[i], i);
 	}
 	Com_Printf("};\n");
+	Huff_BuildTables(&msgHuffTables, &msgHuff.compressor, &msgHuff.decompressor);
 	FS_FreeFile(data);
 	Cbuf_AddText("condump dump.txt\n");
 }

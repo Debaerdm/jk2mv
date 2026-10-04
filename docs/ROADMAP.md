@@ -196,6 +196,12 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 | SV-14b | preset `competitive` à 40 Hz, documenté avec son coût | S | S |
 | BM-13/14 | soak ASan/UBSan + nombre d'instructions Callgrind par `SV_Frame` en CI | M | – |
 
+**Avancement.**
+- **SV-2 est livré :** le Huffman du netchan passe par des tables (src/qcommon/huffman.cpp).
+  - L'arbre ne change plus après `MSG_initHuffman`, donc chaque octet a un code fixe de 2 à 11 bits. Une table de codes l'écrit d'un coup, une table de 2048 entrées le lit sur les 11 bits suivants. L'arbre ne sert plus qu'aux deux derniers octets d'un message.
+  - La sortie reste identique bit à bit. test_qcommon_huffman compare avec l'ancien code, dans les deux sens et à tous les décalages. En jeu, le client et le serveur d'avant marchent avec les nouveaux, et les démos de l'un se décodent à l'identique dans l'autre.
+  - Deltas de snapshot écrits 2,6 fois plus vite, lus 1,8 fois plus vite. Le `bloc` statique partagé a disparu, comme SV-8 le demandait.
+
 **Critère de fin.**
 1. Les références Ghoul2 sont bit-exactes sur x86-64 et ARM64 après chaque PR.
 2. Sur ta démo 32 joueurs, preset CPU-bound : −30 % de µs Ghoul2 par joueur visible, p99 −15 %.
