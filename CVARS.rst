@@ -149,6 +149,26 @@ Client-Side
 
 ..
 
+:Name: cl_demoHideHud
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   Hide the HUD, scoreboard, chat and console notify lines during demo
+   playback, for clean shots and videos. Has no effect in a live game.
+
+..
+
+:Name: cl_perfOverlay
+:Values: "0", "1", "2"
+:Default: "0"
+:Description:
+   | 1: show the frame rate, the 1% low frame rate and the frame time in
+   the top right corner
+   | 2: also draw a frame time graph (green under 16.7 ms, yellow under
+   33.3 ms, red above)
+
+..
+
 :Name: con_height
 :Values: Decimal > 0
 :Default: "0.5"
@@ -305,6 +325,46 @@ Client-Side
 :Default: "320" / "240"
 :Description:
    Resolution of the glow buffer. Requires vid_restart.
+   | 0: automatic, about a quarter of the screen resolution, with the blur
+   radius scaled so glows look the same size but stay sharp at high
+   resolutions.
+
+..
+
+:Name: r_dynamicGlowFinish
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   Wait for the GPU in the middle of the glow pass, as older versions always
+   did. Only useful as a workaround for drivers that draw glows incorrectly.
+
+..
+
+:Name: r_colorGrade
+:Values: "", "cinematic", "vivid", "cold", "warm", "noir"
+:Default: "" (Not set)
+:Description:
+   Color mood applied by the post-process gamma pass (``r_gammamethod 2``) at
+   no runtime cost. ``r_saturation``, ``r_contrast`` and ``r_vibrance``
+   adjust it further, or work on their own.
+
+..
+
+:Name: r_colorGradeSplit
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   Before/after comparison of the color settings: the left half of the screen
+   keeps the original colors.
+
+..
+
+:Name: r_contrast / r_saturation / r_vibrance
+:Values: Float (0.5 - 1.5 / 0.0 - 2.0 / -1.0 - 1.0)
+:Default: "1" / "1" / "0"
+:Description:
+   Contrast, saturation and vibrance (a saturation boost that spares already
+   vivid colors) of the post-process color grading, see ``r_colorGrade``.
 
 ..
 
@@ -322,6 +382,15 @@ Client-Side
 :Default: "0"
 :Description:
    Multisample anti-aliasing. May not work on all machines.
+
+..
+
+:Name: r_ext_alphaToCoverage
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   With multisampling (``r_ext_multisample``), antialias the cut-out edges of
+   foliage, fences and grates using alpha to coverage.
 
 ..
 
@@ -714,5 +783,12 @@ Undocumented Cvars
 Other Changes
 =============
 
+* New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
+  of visual cvars in one go and restarts the renderer if needed; ``preset
+  classic`` resets all of them to their defaults. ``preset`` alone lists them.
+* ``r_fullscreen 2`` is a borderless fullscreen window at the desktop
+  resolution, without a display mode change. Alt+Enter toggles between
+  windowed and the last fullscreen mode.
+* ``r_finish 0`` now also applies to menu and loading frames.
 * cl_avidemo replaced by cl_aviFrameRate
 * cl_conspeed renamed to con_speed

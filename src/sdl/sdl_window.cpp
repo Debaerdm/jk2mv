@@ -339,12 +339,8 @@ void WIN_Present( window_t *window )
 
 	if ( r_fullscreen->modified )
 	{
-		bool	fullscreen;
-		bool	needToToggle;
+		Uint32	current, wanted;
 		bool	sdlToggled = qfalse;
-
-		// Find out the current state
-		fullscreen = (SDL_GetWindowFlags( screen ) & SDL_WINDOW_FULLSCREEN) != 0;
 
 		if ( r_fullscreen->integer && Cvar_VariableIntegerValue( "in_nograb" ) )
 		{
@@ -353,20 +349,24 @@ void WIN_Present( window_t *window )
 			r_fullscreen->modified = qfalse;
 		}
 
-		// Is the state we want different from the current state?
-		needToToggle = !!r_fullscreen->integer != fullscreen;
+		// 0 windowed, 1 fullscreen, 2 desktop (borderless) fullscreen
+		current = SDL_GetWindowFlags( screen ) & SDL_WINDOW_FULLSCREEN_DESKTOP;
+		wanted = r_fullscreen->integer == 2 ? SDL_WINDOW_FULLSCREEN_DESKTOP :
+			r_fullscreen->integer ? SDL_WINDOW_FULLSCREEN : 0;
 
-		if ( needToToggle )
+		if ( wanted != current )
 		{
-			fullscreen = r_fullscreen->integer ? SDL_WINDOW_FULLSCREEN : 0;
-			sdlToggled = SDL_SetWindowFullscreen( screen, fullscreen ) >= 0;
+			// desktop fullscreen changes the window size, so it needs a restart
+			if ( wanted != SDL_WINDOW_FULLSCREEN_DESKTOP && current != SDL_WINDOW_FULLSCREEN_DESKTOP ) {
+				sdlToggled = SDL_SetWindowFullscreen( screen, wanted ) >= 0;
+			}
 
 			// SDL_WM_ToggleFullScreen didn't work, so do it the slow way
 			if ( !sdlToggled )
 			{
 				Cbuf_AddText( "vid_restart\n" );
 			}
-			else if ( !fullscreen )
+			else if ( !wanted )
 			{
 				int x, y;
 				int display = 0;
@@ -667,7 +667,8 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 
 	if( fullscreen )
 	{
-		flags |= SDL_WINDOW_FULLSCREEN;
+		// r_fullscreen 2: borderless window at the desktop resolution, no mode switch
+		flags |= ( r_fullscreen->integer == 2 ) ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
 		glConfig->isFullscreen = qtrue;
 	}
 	else
@@ -896,7 +897,7 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 			SDL_SetWindowIcon(screen, icon);
 #endif
 
-			if( fullscreen )
+			if( fullscreen && r_fullscreen->integer != 2 )
 			{
 				if( SDL_SetWindowDisplayMode( screen, NULL ) < 0 )
 				{
@@ -908,6 +909,10 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 
 	glConfig->winWidth = winWidth;
 	glConfig->winHeight = winHeight;
+	if ( screen && ( SDL_GetWindowFlags( screen ) & SDL_WINDOW_FULLSCREEN_DESKTOP ) == SDL_WINDOW_FULLSCREEN_DESKTOP ) {
+		// desktop fullscreen ignores the requested mode
+		SDL_GetWindowSize( screen, &glConfig->winWidth, &glConfig->winHeight );
+	}
 
 	displayIndex = -1;
 	WIN_UpdateGLConfig( glConfig );

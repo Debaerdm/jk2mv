@@ -658,6 +658,19 @@ qboolean CL_CgameEnableSubmodelBypass( qboolean enable ) {
 
 /*
 ====================
+CL_DemoHideHud
+
+cl_demoHideHud 1 drops the 2D drawing of cgame and of the engine notify lines,
+for clean shots and videos. Only during demo playback, so it can't hide
+anything in a live game.
+====================
+*/
+qboolean CL_DemoHideHud( void ) {
+	return (qboolean)( clc.demoplaying && cl_demoHideHud && cl_demoHideHud->integer );
+}
+
+/*
+====================
 CL_CgameSystemCalls
 
 The cgame module is making a system call
@@ -820,6 +833,9 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	case CG_R_FONT_STRHEIGHTPIXELS:
 		return re.Font_HeightPixels( args[1], VMF(2), cls.cgxadj, cls.cgyadj );
 	case CG_R_FONT_DRAWSTRING:
+		if ( CL_DemoHideHud() ) {
+			return 0;
+		}
 		re.Font_DrawString( args[1], args[2], VMAS(3), VMAP(4, const vec_t, 4), args[5], args[6], VMF(7), cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_LANGUAGE_ISASIAN:
@@ -853,12 +869,19 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 		re.AddAdditiveLightToScene( VMAP(1, const vec_t, 3), VMF(2), VMF(3), VMF(4), VMF(5) );
 		return 0;
 	case CG_R_RENDERSCENE:
+		// scenes without the world are HUD models
+		if ( CL_DemoHideHud() && ( VMAV(1, const refdef_t)->rdflags & RDF_NOWORLDMODEL ) ) {
+			return 0;
+		}
 		re.RenderScene( VMAV(1, const refdef_t) );
 		return 0;
 	case CG_R_SETCOLOR:
 		re.SetColor( VMAP(1, vec_t, 4) );
 		return 0;
 	case CG_R_DRAWSTRETCHPIC:
+		if ( CL_DemoHideHud() ) {
+			return 0;
+		}
 		re.DrawStretchPic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), args[9], cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_R_MODELBOUNDS:
@@ -867,9 +890,15 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	case CG_R_LERPTAG:
 		return re.LerpTag( VMAV(1, orientation_t), args[2], args[3], args[4], VMF(5), VMAS(6) );
 	case CG_R_DRAWROTATEPIC:
+		if ( CL_DemoHideHud() ) {
+			return 0;
+		}
 		re.DrawRotatePic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), VMF(9), args[10], cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_R_DRAWROTATEPIC2:
+		if ( CL_DemoHideHud() ) {
+			return 0;
+		}
 		re.DrawRotatePic2( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), VMF(9), args[10], cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_GETGLCONFIG:

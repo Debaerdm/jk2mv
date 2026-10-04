@@ -758,6 +758,21 @@ static void IN_ProcessEvents( int eventTime )
 				if ((e.key.keysym.mod & KMOD_CTRL) && (e.key.keysym.mod & KMOD_LALT))
 					break;
 
+				if (e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT) &&
+					!(e.key.keysym.mod & KMOD_CTRL)) {
+					// Alt+Enter toggles between windowed and the last fullscreen mode
+					static int lastFullscreen = 1;
+					const int fullscreen = Cvar_VariableIntegerValue("r_fullscreen");
+
+					if (fullscreen) {
+						lastFullscreen = fullscreen;
+						Cvar_Set("r_fullscreen", "0");
+					} else {
+						Cvar_Set("r_fullscreen", va("%i", lastFullscreen));
+					}
+					break;
+				}
+
 				if (e.key.keysym.scancode == SDL_SCANCODE_GRAVE) {
 					if (IN_ModTogglesConsole(e.key.keysym.mod)) {
 						Sys_QueEvent(eventTime, SE_KEY, A_CONSOLE, qtrue, 0, NULL);

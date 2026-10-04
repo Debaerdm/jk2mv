@@ -3,6 +3,7 @@
 #include "client.h"
 #include "snd_public.h"
 #include <mv_setup.h>
+#include <algorithm>
 
 extern console_t con;
 qboolean	scr_initialized;		// ready to draw
@@ -12,6 +13,7 @@ cvar_t		*cl_debuggraph;
 cvar_t		*cl_graphheight;
 cvar_t		*cl_graphscale;
 cvar_t		*cl_graphshift;
+cvar_t		*cl_perfOverlay;
 
 static qboolean SCR_IsColorCode(const char *s)
 {
@@ -392,6 +394,98 @@ void SCR_DrawDebugGraph (void)
 	}
 }
 
+/*
+===============================================================================
+
+PERFORMANCE OVERLAY
+
+cl_perfOverlay 1 shows the frame rate, the 1% low and the frame time,
+2 adds a frame time graph. Not a cheat: it only shows timings.
+
+===============================================================================
+*/
+
+#define PERF_SAMPLES	512		// power of two
+
+static int		perfFrameUsec[PERF_SAMPLES];
+static int		perfFrameCount;
+
+static void SCR_RecordFrameTime( void ) {
+	static int64_t	lastFrame;
+	const int64_t	now = Sys_Microseconds();
+
+	if ( lastFrame ) {
+		perfFrameUsec[perfFrameCount & ( PERF_SAMPLES - 1 )] = (int)( now - lastFrame );
+		perfFrameCount++;
+	}
+	lastFrame = now;
+}
+
+static int SCR_PerfSample( int age ) {
+	return perfFrameUsec[( perfFrameCount - 1 - age ) & ( PERF_SAMPLES - 1 )];
+}
+
+static void SCR_DrawPerfOverlay( void ) {
+	static const vec4_t	graphColors[3] = { { 0.2f, 0.9f, 0.2f, 0.8f }, { 0.95f, 0.8f, 0.1f, 0.8f }, { 0.95f, 0.2f, 0.2f, 0.8f } };
+	int		samples[PERF_SAMPLES];
+	char	text[64];
+	int64_t	sum = 0;
+	int		n, used = 0;
+
+	n = MIN( perfFrameCount, PERF_SAMPLES );
+	if ( n < 2 ) {
+		return;
+	}
+
+	// average over the last second
+	while ( used < n && sum < 1000000 ) {
+		sum += SCR_PerfSample( used++ );
+	}
+	if ( sum <= 0 ) {
+		return;
+	}
+
+	// 1% low: the frame rate of the 99th percentile frame time
+	for ( int i = 0; i < n; i++ ) {
+		samples[i] = SCR_PerfSample( i );
+	}
+	std::nth_element( samples, samples + n * 99 / 100, samples + n );
+	const int p99 = MAX( 1, samples[n * 99 / 100] );
+
+	Com_sprintf( text, sizeof( text ), "%4.0f fps  1%% low %4.0f  %6.2f ms",
+		used * 1000000.0 / sum, 1000000.0 / p99, sum / 1000.0 / used );
+
+	const int	textWidth = (int)strlen( text ) * con.charWidth;
+	const int	textX = cls.glconfig.vidWidth - textWidth - con.charWidth;
+	const int	textY = con.charHeight / 2;
+	const vec4_t backdrop = { 0.0f, 0.0f, 0.0f, 0.6f };
+
+	re.SetColor( backdrop );
+	re.DrawStretchPic( textX - con.charWidth / 2, textY - con.charHeight / 4, textWidth + con.charWidth,
+		con.charHeight + con.charHeight / 2, 0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
+	SCR_DrawSmallStringExt( textX, textY, text, g_color_table[ColorIndex(COLOR_WHITE)], qtrue );
+
+	if ( cl_perfOverlay->integer >= 2 ) {
+		// one bar per frame, 4 pixels per millisecond, 16.7 and 33.3 ms bands
+		const int	height = 4 * 34;
+		const int	width = MIN( n, cls.glconfig.vidWidth / 2 );
+		const int	x = cls.glconfig.vidWidth - width - con.charWidth;
+		const int	y = con.charHeight * 2 + height;
+
+		re.SetColor( backdrop );
+		re.DrawStretchPic( x, y - height, width, height, 0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
+
+		for ( int i = 0; i < width; i++ ) {
+			const int usec = SCR_PerfSample( i );
+			const int h = MIN( height, usec * 4 / 1000 );
+
+			re.SetColor( graphColors[usec > 33333 ? 2 : usec > 16667 ? 1 : 0] );
+			re.DrawStretchPic( x + width - 1 - i, y - h, 1, h, 0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
+		}
+		re.SetColor( nullptr );
+	}
+}
+
 //=============================================================================
 
 /*
@@ -405,6 +499,7 @@ void SCR_Init( void ) {
 	cl_graphheight = Cvar_Get ("graphheight", "32", CVAR_CHEAT);
 	cl_graphscale = Cvar_Get ("graphscale", "1", CVAR_CHEAT);
 	cl_graphshift = Cvar_Get ("graphshift", "0", CVAR_CHEAT);
+	cl_perfOverlay = Cvar_Get ("cl_perfOverlay", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
 
 	scr_initialized = qtrue;
 }
@@ -504,6 +599,10 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		SCR_DrawDebugGraph ();
 	}
 
+	if ( cl_perfOverlay->integer ) {
+		SCR_DrawPerfOverlay();
+	}
+
 	re.EndFrame();
 }
 
@@ -546,6 +645,8 @@ void SCR_UpdateScreen( void ) {
 		Com_Error( ERR_FATAL, "SCR_UpdateScreen: recursively called" );
 	}
 	recursive = 1;
+
+	SCR_RecordFrameTime();
 
 	CL_UpdateRefConfig( );
 

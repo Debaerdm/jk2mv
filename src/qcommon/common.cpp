@@ -3489,6 +3489,27 @@ void Field_CompleteModelname( void )
 
 /*
 ===============
+Field_CompleteList
+
+Completes an argument from a fixed list of words
+===============
+*/
+void Field_CompleteList( const char * const *list, int count )
+{
+	matchCount = 0;
+	shortestMatch[ 0 ] = 0;
+
+	for ( int i = 0; i < count; i++ )
+		FindMatches( list[i] );
+
+	if ( !Field_Complete() ) {
+		for ( int i = 0; i < count; i++ )
+			PrintMatches( list[i] );
+	}
+}
+
+/*
+===============
 Field_CompleteFilename
 ===============
 */

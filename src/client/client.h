@@ -415,6 +415,12 @@ extern	refexport_t		re;		// interface to refresh .dll
 extern	cvar_t	*cl_nodelta;
 extern	cvar_t	*cl_debugMove;
 extern	cvar_t	*cl_noprint;
+extern	cvar_t	*cl_demoHideHud;
+extern	cvar_t	*cl_perfOverlay;
+
+void CL_InitPresets( void );
+void CL_ShutdownPresets( void );
+qboolean CL_DemoHideHud( void );
 extern	cvar_t	*cl_timegraph;
 extern	cvar_t	*cl_maxpackets;
 extern	cvar_t	*cl_packetdup;

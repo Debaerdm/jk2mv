@@ -908,7 +908,7 @@ void Con_DrawConsole( void ) {
 		Con_DrawSolidConsole( con.displayFrac );
 	} else {
 		// draw notify lines
-		if ( cls.state == CA_ACTIVE ) {
+		if ( cls.state == CA_ACTIVE && !CL_DemoHideHud() ) {
 			Con_DrawNotify ();
 		}
 	}

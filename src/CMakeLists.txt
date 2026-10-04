@@ -360,6 +360,7 @@ if (BuildMVMP)
 		"client/cl_cin.cpp"
 		"client/cl_console.cpp"
 		"client/cl_demos_auto.cpp"
+		"client/cl_presets.cpp"
 		"client/cl_input.cpp"
 		"client/cl_keys.cpp"
 		"client/cl_main.cpp"

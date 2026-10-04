@@ -24,6 +24,7 @@ cvar_t	*cl_nodelta;
 cvar_t	*cl_debugMove;
 
 cvar_t	*cl_noprint;
+cvar_t	*cl_demoHideHud;
 cvar_t	*cl_motd;
 
 cvar_t	*rcon_client_password;
@@ -2944,6 +2945,7 @@ void CL_Init( void ) {
 	
 	// autorecord
 	cl_autoDemo = Cvar_Get ("cl_autoDemo", "0", CVAR_ARCHIVE | CVAR_GLOBAL );
+	cl_demoHideHud = Cvar_Get ("cl_demoHideHud", "0", CVAR_GLOBAL );
 	cl_autoDemoFormat = Cvar_Get ("cl_autoDemoFormat", "%t_%m", CVAR_ARCHIVE | CVAR_GLOBAL );
 
 	// mv cvars
@@ -2970,6 +2972,7 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("clientinfo", CL_Clientinfo_f);
 	Cmd_AddCommand ("snd_restart", CL_Snd_Restart_f);
 	Cmd_AddCommand ("vid_restart", CL_Vid_Restart_f);
+	CL_InitPresets();
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
 	Cmd_AddCommand ("record", CL_Record_f);
 	Cmd_AddCommand ("demo", CL_PlayDemo_f);
@@ -3056,6 +3059,7 @@ void CL_Shutdown( void ) {
 	Cmd_RemoveCommand ("clientinfo");
 	Cmd_RemoveCommand ("snd_restart");
 	Cmd_RemoveCommand ("vid_restart");
+	CL_ShutdownPresets();
 	Cmd_RemoveCommand ("disconnect");
 	Cmd_RemoveCommand ("record");
 	Cmd_RemoveCommand ("demo");
