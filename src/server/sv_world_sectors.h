@@ -96,6 +96,7 @@ void SV_ClearWorld( void ) {
 	for ( unsigned i = 0; i < ARRAY_LEN( sv.svEntities ); i++ ) {
 		sv.svEntities[i].worldSector = NULL;
 		sv.svEntities[i].nextEntityInWorldSector = NULL;
+		sv.svEntities[i].prevEntityInWorldSector = NULL;
 	}
 
 	// get world map bounds

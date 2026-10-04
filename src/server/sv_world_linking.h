@@ -8,11 +8,13 @@
 ===============
 SV_UnlinkEntity
 
+The sector lists are doubly linked, so the entity comes out where it is,
+without a walk of its sector, and the others keep their order.
 ===============
 */
 void SV_UnlinkEntity( sharedEntity_t *gEnt ) {
 	svEntity_t		*ent;
-	svEntity_t		*scan;
+	svEntity_t		*prev, *next;
 	worldSector_t	*ws;
 
 	ent = SV_SvEntityForGentity( gEnt );
@@ -25,19 +27,23 @@ void SV_UnlinkEntity( sharedEntity_t *gEnt ) {
 	}
 	ent->worldSector = NULL;
 
-	if ( ws->entities == ent ) {
-		ws->entities = ent->nextEntityInWorldSector;
+	prev = ent->prevEntityInWorldSector;
+	next = ent->nextEntityInWorldSector;
+	if ( ( prev ? prev->nextEntityInWorldSector : ws->entities ) != ent ) {
+		Com_Printf( "WARNING: SV_UnlinkEntity: not found in worldSector\n" );
 		return;
 	}
 
-	for ( scan = ws->entities ; scan ; scan = scan->nextEntityInWorldSector ) {
-		if ( scan->nextEntityInWorldSector == ent ) {
-			scan->nextEntityInWorldSector = ent->nextEntityInWorldSector;
-			return;
-		}
+	if ( prev ) {
+		prev->nextEntityInWorldSector = next;
+	} else {
+		ws->entities = next;
 	}
-
-	Com_Printf( "WARNING: SV_UnlinkEntity: not found in worldSector\n" );
+	if ( next ) {
+		next->prevEntityInWorldSector = prev;
+	}
+	ent->prevEntityInWorldSector = NULL;
+	ent->nextEntityInWorldSector = NULL;
 }
 
 /*
@@ -206,9 +212,13 @@ void SV_LinkEntity( sharedEntity_t *gEnt ) {
 			break;		// crosses the node
 	}
 
-	// link it in
+	// link it in, first in the list
 	ent->worldSector = node;
+	ent->prevEntityInWorldSector = NULL;
 	ent->nextEntityInWorldSector = node->entities;
+	if ( node->entities ) {
+		node->entities->prevEntityInWorldSector = ent;
+	}
 	node->entities = ent;
 
 	gEnt->r.linked = qtrue;

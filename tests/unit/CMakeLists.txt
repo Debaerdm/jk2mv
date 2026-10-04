@@ -20,6 +20,19 @@ add_jk2mv_test(test_sv_world_trace
   test_sv_world_trace.cpp
 )
 
+# the real world module and collision model, on maps built in memory
+add_jk2mv_test(test_sv_world_clip
+  test_sv_world_clip.cpp
+  ${CMAKE_SOURCE_DIR}/src/server/sv_world.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/cm_load.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/cm_patch.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/cm_polylib.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/cm_test.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/cm_trace.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_math.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/q_shared.cpp
+)
+
 # ==============================================================================
 # Phase 3: Client Management (8 test files)
 # ==============================================================================
