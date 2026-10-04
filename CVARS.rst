@@ -817,6 +817,11 @@ Other Changes
   - ``photomode`` pauses the demo, frees the camera and hides the HUD; again
     restores everything.
 
+* ``video_mp4 [name]`` records the demo being played to videos/<name>.mp4
+  (H.264, AAC sound from the software mixer) through ffmpeg, which must be in
+  the PATH or next to the game; ``stopvideo`` ends it. The frame rate comes
+  from ``cl_aviFrameRate``, the quality from ``cl_mp4Crf`` (default 18, lower
+  is better, 0 - 51) and ``cl_mp4Preset`` (x264 preset, default "medium").
 * ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
 * ``benchmark <demo> [runs] [warmup] [tag]`` plays a demo in timedemo mode
   several times without the 1000 fps cap and prints the average fps, frame

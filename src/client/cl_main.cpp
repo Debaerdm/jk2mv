@@ -45,6 +45,8 @@ cvar_t	*cl_timedemo;
 cvar_t	*cl_aviFrameRate;
 cvar_t	*cl_aviMotionJpeg;
 cvar_t	*cl_aviMotionJpegQuality;
+cvar_t	*cl_mp4Crf;
+cvar_t	*cl_mp4Preset;
 cvar_t	*cl_forceavidemo;
 
 cvar_t	*cl_freelook;
@@ -125,6 +127,53 @@ void CL_CheckForResend( void );
 void CL_ShowIP_f(void);
 void CL_ServerStatus_f(void);
 void CL_ServerStatusResponse( netadr_t from, msg_t *msg );
+
+/*
+===============
+CL_VideoFileName
+
+videos/<name>.<ext>, or the first free videos/videoNNNN.<ext>
+===============
+*/
+static qboolean CL_VideoFileName( char *filename, int size, const char *ext )
+{
+	if( Cmd_Argc( ) == 2 )
+	{
+		Com_sprintf( filename, size, "videos/%s.%s", Cmd_Argv( 1 ), ext );
+		return qtrue;
+	}
+
+	for( int i = 0; i <= 9999; i++ )
+	{
+		Com_sprintf( filename, size, "videos/video%04d.%s", i, ext );
+		if( !FS_FileExists( filename ) )
+			return qtrue;
+	}
+
+	Com_Printf( S_COLOR_RED "ERROR: no free file names to create video\n" );
+	return qfalse;
+}
+
+/*
+===============
+CL_VideoMP4_f
+
+video_mp4 [name]: H.264 MP4 with sound through ffmpeg
+===============
+*/
+void CL_VideoMP4_f( void )
+{
+	char filename[ MAX_OSPATH ];
+
+	if( !clc.demoplaying )
+	{
+		Com_Printf( "The video_mp4 command can only be used when playing back demos\n" );
+		return;
+	}
+
+	if( CL_VideoFileName( filename, sizeof( filename ), "mp4" ) )
+		CL_OpenMP4ForWriting( filename );
+}
 
 /*
 ===============
@@ -2874,6 +2923,8 @@ void CL_Init( void ) {
 	cl_aviFrameRate = Cvar_Get ("cl_aviFrameRate", "30", CVAR_ARCHIVE);
 	cl_aviMotionJpeg = Cvar_Get ("cl_aviMotionJpeg", "1", CVAR_ARCHIVE);
 	cl_aviMotionJpegQuality = Cvar_Get("cl_aviMotionJpegQuality", "90", CVAR_ARCHIVE);
+	cl_mp4Crf = Cvar_Get("cl_mp4Crf", "18", CVAR_ARCHIVE | CVAR_GLOBAL);
+	cl_mp4Preset = Cvar_Get("cl_mp4Preset", "medium", CVAR_ARCHIVE | CVAR_GLOBAL);
 	cl_forceavidemo = Cvar_Get ("cl_forceavidemo", "0", 0);
 
 	rconAddress = Cvar_Get ("rconAddress", "", 0);
@@ -3004,6 +3055,7 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("saveDemo", demoAutoSave_f);
 	Cmd_AddCommand ("saveDemoLast", demoAutoSaveLast_f);
 	Cmd_AddCommand ("video", CL_Video_f);
+	Cmd_AddCommand ("video_mp4", CL_VideoMP4_f);
 	Cmd_AddCommand ("stopvideo", CL_StopVideo_f);
 	Cmd_AddCommand ("silent", CL_Silent_f);
 	Cmd_SetCommandCompletionFunc( "silent", CL_CompleteRedirect );
@@ -3088,6 +3140,7 @@ void CL_Shutdown( void ) {
 	Cmd_RemoveCommand ("saveDemo");
 	Cmd_RemoveCommand ("saveDemoLast");
 	Cmd_RemoveCommand ("video");
+	Cmd_RemoveCommand ("video_mp4");
 	Cmd_RemoveCommand ("stopvideo");
 
 	Cvar_Set( "cl_running", "0" );

@@ -116,3 +116,10 @@ add_jk2mv_test(test_cl_campath
   test_cl_campath.cpp
   ${CMAKE_SOURCE_DIR}/src/client/cl_campath.cpp
 )
+
+if(UNIX)
+  add_jk2mv_test(test_sys_spawn
+    test_sys_spawn.cpp
+    ${CMAKE_SOURCE_DIR}/src/sys/sys_spawn.cpp
+  )
+endif()

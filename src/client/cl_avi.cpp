@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "client.h"
 #include "snd_local.h"
+#include "../sys/sys_spawn.h"
 
 #define INDEX_FILE_EXTENSION ".index.dat"
 
@@ -67,6 +68,15 @@ typedef struct aviFileData_s
 
 	byte			*frameBuffer;
 	int			frameBufferSize;
+
+	// video_mp4: raw frames piped to ffmpeg, audio to a temporary WAV file
+	qboolean		mp4;
+	sysPipe_t		*mp4Pipe;
+	char			mp4Final[MAX_OSPATH];	// OS path of the finished video
+	char			mp4Video[MAX_OSPATH];	// OS path ffmpeg encodes to
+	char			mp4VideoQ[MAX_QPATH];	// same, game path (temporary when there is audio)
+	char			wavName[MAX_QPATH];
+	fileHandle_t	wavF;
 } aviFileData_t;
 
 static aviFileData_t afd;
@@ -203,7 +213,8 @@ static int CL_CaptureAVIFrame( void )
 		return re.CaptureFrameJPEG( afd.frameBuffer, afd.frameBufferSize, cl_aviMotionJpegQuality->integer );
 	}
 
-	return re.CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, AVI_LINE_PADDING );
+	// ffmpeg's rawvideo input expects rows without padding
+	return re.CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, afd.mp4 ? 1 : AVI_LINE_PADDING );
 }
 
 /*
@@ -359,6 +370,55 @@ void CL_WriteAVIHeader( void )
 
 /*
   ===============
+  CL_ChooseVideoAudio
+
+  Audio is captured from the software mixer only
+  ===============
+*/
+static void CL_ChooseVideoAudio( void )
+{
+	afd.a.rate = dma.speed;
+	afd.a.format = WAV_FORMAT_PCM;
+	afd.a.channels = dma.channels;
+	afd.a.bits = dma.samplebits;
+	afd.a.sampleSize = ( afd.a.bits / 8 ) * afd.a.channels;
+
+	if( afd.a.rate % afd.frameRate )
+	{
+		int suggestRate = afd.frameRate;
+
+		while( ( afd.a.rate % suggestRate ) && suggestRate >= 1 )
+			suggestRate--;
+
+		Com_Printf( S_COLOR_YELLOW "WARNING: cl_aviFrameRate is not a divisor "
+			"of the audio rate, suggest %d\n", suggestRate );
+	}
+
+	if( !Cvar_VariableIntegerValue( "s_initsound" ) )
+	{
+		afd.audio = qfalse;
+	}
+	else if( !Cvar_VariableIntegerValue( "s_UseOpenAL" ) )
+	{
+		if( afd.a.bits != 16 || afd.a.channels != 2 )
+		{
+			Com_Printf( S_COLOR_YELLOW "WARNING: Audio format of %d bit/%d channels not supported\n",
+				afd.a.bits, afd.a.channels );
+			afd.audio = qfalse;
+		}
+		else
+			afd.audio = qtrue;
+	}
+	else
+	{
+		afd.audio = qfalse;
+		Com_Printf( S_COLOR_YELLOW "WARNING: Audio capture is not supported "
+			"with OpenAL. Set s_useOpenAL to 0 for audio capture\n" );
+	}
+}
+
+/*
+  ===============
   CL_OpenAVIForWriting
 
   Creates an AVI file and gets it into a state where
@@ -409,44 +469,7 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 	else
 		afd.motionJpeg = qfalse;
 
-	afd.a.rate = dma.speed;
-	afd.a.format = WAV_FORMAT_PCM;
-	afd.a.channels = dma.channels;
-	afd.a.bits = dma.samplebits;
-	afd.a.sampleSize = ( afd.a.bits / 8 ) * afd.a.channels;
-
-	if( afd.a.rate % afd.frameRate )
-	{
-		int suggestRate = afd.frameRate;
-
-		while( ( afd.a.rate % suggestRate ) && suggestRate >= 1 )
-			suggestRate--;
-
-		Com_Printf( S_COLOR_YELLOW "WARNING: cl_aviFrameRate is not a divisor "
-			"of the audio rate, suggest %d\n", suggestRate );
-	}
-
-	if( !Cvar_VariableIntegerValue( "s_initsound" ) )
-	{
-		afd.audio = qfalse;
-	}
-	else if( !Cvar_VariableIntegerValue( "s_UseOpenAL" ) )
-	{
-		if( afd.a.bits != 16 || afd.a.channels != 2 )
-		{
-			Com_Printf( S_COLOR_YELLOW "WARNING: Audio format of %d bit/%d channels not supported\n",
-				afd.a.bits, afd.a.channels );
-			afd.audio = qfalse;
-		}
-		else
-			afd.audio = qtrue;
-	}
-	else
-	{
-		afd.audio = qfalse;
-		Com_Printf( S_COLOR_YELLOW "WARNING: Audio capture is not supported "
-			"with OpenAL. Set s_useOpenAL to 0 for audio capture\n" );
-	}
+	CL_ChooseVideoAudio();
 
 	// This doesn't write a real header, but allocates the
 	// correct amount of space at the beginning of the file
@@ -462,6 +485,160 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 	afd.moviSize = 4; // For the "movi"
 	afd.fileOpen = qtrue;
 
+	return qtrue;
+}
+
+/*
+===============================================================================
+
+MP4 VIDEO THROUGH FFMPEG
+
+The program is always "ffmpeg" from the PATH or the game directory, started
+without a shell with arguments built here: game modules can run console
+commands, so nothing they can set may choose what gets executed.
+
+===============================================================================
+*/
+
+static const char * const mp4Presets[] = {
+	"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow",
+};
+
+static void CL_WriteWAVHeader( int dataBytes )
+{
+	bufIndex = 0;
+	WRITE_STRING( "RIFF" );
+	WRITE_4BYTES( 36 + dataBytes );
+	WRITE_STRING( "WAVE" );
+	WRITE_STRING( "fmt " );
+	WRITE_4BYTES( 16 );
+	WRITE_2BYTES( WAV_FORMAT_PCM );
+	WRITE_2BYTES( afd.a.channels );
+	WRITE_4BYTES( afd.a.rate );
+	WRITE_4BYTES( afd.a.rate * afd.a.sampleSize );
+	WRITE_2BYTES( afd.a.sampleSize );
+	WRITE_2BYTES( afd.a.bits );
+	WRITE_STRING( "data" );
+	WRITE_4BYTES( dataBytes );
+	SafeFS_Write( buffer, bufIndex, afd.wavF );
+}
+
+qboolean CL_OpenMP4ForWriting( const char *fileName )
+{
+	char		size[32], rate[16], crf[16];
+	const char	*preset = "medium";
+
+	if( afd.fileOpen )
+		return qfalse;
+
+	Com_Memset( &afd, 0, sizeof( aviFileData_t ) );
+
+	if( cl_aviFrameRate->integer <= 0 )
+	{
+		Com_Printf( S_COLOR_RED "cl_aviFrameRate must be >= 1\n" );
+		return qfalse;
+	}
+
+	afd.mp4 = qtrue;
+	afd.frameRate = cl_aviFrameRate->integer;
+	afd.framePeriod = (int)( 1000000.0f / afd.frameRate );
+	afd.width = cls.glconfig.vidWidth;
+	afd.height = cls.glconfig.vidHeight;
+	CL_ChooseVideoAudio();
+
+	for( size_t i = 0; i < ARRAY_LEN( mp4Presets ); i++ )
+	{
+		if( !Q_stricmp( cl_mp4Preset->string, mp4Presets[i] ) )
+			preset = mp4Presets[i];
+	}
+	Com_sprintf( size, sizeof( size ), "%ix%i", afd.width, afd.height );
+	Com_sprintf( rate, sizeof( rate ), "%i", afd.frameRate );
+	Com_sprintf( crf, sizeof( crf ), "%i", Com_Clampi( 0, 51, cl_mp4Crf->integer ) );
+
+	// with audio, the video is muxed with the WAV into the final file at the end
+	Q_strncpyz( afd.fileName, fileName, sizeof( afd.fileName ) );
+	Q_strncpyz( afd.mp4Final, FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", fileName ), sizeof( afd.mp4Final ) );
+	Com_sprintf( afd.mp4VideoQ, sizeof( afd.mp4VideoQ ), afd.audio ? "%s.video.mp4" : "%s", fileName );
+	Q_strncpyz( afd.mp4Video, FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", afd.mp4VideoQ ), sizeof( afd.mp4Video ) );
+	FS_CreatePath( afd.mp4Final );
+
+	const char * const argv[] = {
+		"ffmpeg", "-loglevel", "error", "-nostats", "-y",
+		"-f", "rawvideo", "-pix_fmt", "bgr24", "-s", size, "-r", rate, "-i", "-",
+		"-vf", "vflip", "-c:v", "libx264", "-preset", preset, "-crf", crf, "-pix_fmt", "yuv420p",
+		afd.mp4Video, NULL };
+
+	afd.mp4Pipe = Sys_SpawnPipe( argv );
+	if( !afd.mp4Pipe )
+	{
+		Com_Printf( S_COLOR_RED "video_mp4: couldn't start ffmpeg. Install it in the PATH or put ffmpeg next to the game.\n" );
+		return qfalse;
+	}
+
+	if( afd.audio )
+	{
+		Com_sprintf( afd.wavName, sizeof( afd.wavName ), "%s.wav", fileName );
+		afd.wavF = FS_FOpenFileWrite( afd.wavName );
+		if( afd.wavF <= 0 )
+		{
+			afd.audio = qfalse;
+			afd.wavF = 0;
+		}
+		else
+		{
+			CL_WriteWAVHeader( 0 );
+		}
+	}
+
+	afd.frameBufferSize = afd.width * 3 * afd.height;
+	afd.frameBuffer = (byte *)Z_Malloc( afd.frameBufferSize, TAG_AVI );
+	afd.fileOpen = qtrue;
+
+	Com_Printf( "recording %s (%s, %s fps, crf %s, %s)%s\n", fileName, size, rate, crf, preset,
+		afd.audio ? "" : ", no audio" );
+	return qtrue;
+}
+
+static qboolean CL_CloseMP4( void )
+{
+	const int	frames = afd.numVideoFrames;
+	int			code;
+
+	Com_Printf( "finishing %s...\n", afd.fileName );
+
+	// waits for ffmpeg to encode the frames still in flight
+	code = Sys_PipeClose( afd.mp4Pipe );
+	afd.mp4Pipe = NULL;
+
+	if( afd.wavF )
+	{
+		FS_Seek( afd.wavF, 0, FS_SEEK_SET );
+		CL_WriteWAVHeader( afd.a.totalBytes );
+		FS_FCloseFile( afd.wavF );
+		afd.wavF = 0;
+
+		if( code == 0 )
+		{
+			const char * const argv[] = {
+				"ffmpeg", "-loglevel", "error", "-nostats", "-y",
+				"-i", afd.mp4Video, "-i", FS_BuildOSPath( Cvar_VariableString( "fs_homepath" ), "", afd.wavName ),
+				"-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", afd.mp4Final, NULL };
+
+			code = Sys_RunProcess( argv );
+			if( code == 0 )
+			{
+				FS_HomeRemove( afd.mp4VideoQ );
+				FS_HomeRemove( afd.wavName );
+			}
+		}
+	}
+
+	if( code != 0 )
+	{
+		Com_Printf( S_COLOR_RED "video_mp4: ffmpeg failed (exit code %i), the temporary files are kept\n", code );
+		return qfalse;
+	}
+	Com_Printf( "Wrote %s, %i frames\n", afd.fileName, frames );
 	return qtrue;
 }
 
@@ -511,6 +688,18 @@ void CL_WriteAVIVideoFrame( const byte *imageBuffer, int size )
 	if( !afd.fileOpen )
 		return;
 
+	if( afd.mp4 )
+	{
+		if( !Sys_PipeWrite( afd.mp4Pipe, imageBuffer, size ) )
+		{
+			Com_Printf( S_COLOR_RED "video_mp4: ffmpeg stopped, ending the recording\n" );
+			CL_CloseAVI();
+			return;
+		}
+		afd.numVideoFrames++;
+		return;
+	}
+
 	// Chunk header + contents + padding
 	if( CL_CheckFileSize( 8 + size + 2 ) )
 		return;
@@ -550,6 +739,16 @@ void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size )
 
 	if( !afd.fileOpen )
 		return;
+
+	if( afd.mp4 )
+	{
+		if( afd.wavF )
+		{
+			SafeFS_Write( pcmBuffer, size, afd.wavF );
+			afd.a.totalBytes += size;
+		}
+		return;
+	}
 
 	// Chunk header + contents + padding
 	if( CL_CheckFileSize( 8 + bytesInBuffer + size + 2 ) )
@@ -638,6 +837,10 @@ qboolean CL_CloseAVI( void )
 		Z_Free( afd.frameBuffer );
 		afd.frameBuffer = NULL;
 		afd.frameBufferSize = 0;
+	}
+
+	if ( afd.mp4 ) {
+		return CL_CloseMP4();
 	}
 
 	FS_Seek( afd.idxF, 4, FS_SEEK_SET );

@@ -469,6 +469,8 @@ extern	cvar_t	*cl_timedemo;
 extern	cvar_t	*cl_aviFrameRate;
 extern	cvar_t	*cl_aviMotionJpeg;
 extern  cvar_t  *cl_aviMotionJpegQuality;
+extern  cvar_t  *cl_mp4Crf;
+extern  cvar_t  *cl_mp4Preset;
 
 extern	cvar_t	*cl_activeAction;
 
@@ -679,6 +681,7 @@ extern void demoAutoInit(void);
 // cl_avi.c
 //
 qboolean CL_OpenAVIForWriting( const char *filename );
+qboolean CL_OpenMP4ForWriting( const char *filename );
 void CL_TakeVideoFrame( void );
 void CL_WriteAVIVideoFrame( const byte *imageBuffer, int size );
 void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size );

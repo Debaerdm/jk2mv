@@ -229,6 +229,8 @@ if (BuildMVMP OR BuildMVDED)
 			"sys/sys_main.cpp"
 			"sys/sys_event.cpp"
 			"sys/sys_win32.cpp"
+			"sys/sys_spawn.cpp"
+			"sys/sys_spawn.h"
 		)
 	else()
 		set(MVMPDEDSysFiles
@@ -241,6 +243,8 @@ if (BuildMVMP OR BuildMVDED)
 			"sys/sys_main.cpp"
 			"sys/sys_event.cpp"
 			"sys/sys_unix.cpp"
+			"sys/sys_spawn.cpp"
+			"sys/sys_spawn.h"
 		)
 	endif()
 	
