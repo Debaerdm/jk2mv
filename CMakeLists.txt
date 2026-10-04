@@ -43,6 +43,7 @@ option(BuildMVMP "Whether to create targets for the client (jk2mvmp & jk2mvmenu)
 option(BuildMVDED "Whether to create targets for the dedicated server (jk2mvded)" ON)
 option(BuildMVSDK "Whether to build and integrate the mvsdk modules" ON)
 option(BuildTests "Whether to build the test suite (requires Google Test)" OFF)
+option(SmokeTests "Whether to register the engine smoke tests with ctest (Linux, needs Python 3, Mesa and SDL offscreen)" OFF)
 
 set(SystemProcessor "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Option to override CMAKE_SYSTEM_PROCESSOR")
 

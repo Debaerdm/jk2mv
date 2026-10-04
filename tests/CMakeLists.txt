@@ -47,8 +47,10 @@ endfunction()
 # Unit tests
 add_subdirectory(unit)
 
-# Integration tests (future)
-# add_subdirectory(integration)
+# Smoke tests: the real engine binaries on a generated stub game directory
+if(SmokeTests)
+  add_subdirectory(smoke)
+endif()
 
 # Performance tests (future)
 # add_subdirectory(performance)

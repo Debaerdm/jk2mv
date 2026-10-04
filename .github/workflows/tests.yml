@@ -90,20 +90,60 @@ jobs:
       shell: bash
       run: ctest -C ${{ matrix.build_type }} --output-on-failure --verbose
 
+  # Builds the whole engine and runs the unit tests plus the smoke tests,
+  # which start jk2mvded (31 bots on a generated map) and a headless jk2mvmp
+  # (SDL offscreen + Mesa llvmpipe) on a stub game directory.
+  engine-smoke:
+    name: Engine build + smoke tests (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake python3 libsdl2-dev libgl-dev libopenal-dev \
+          libjpeg-dev libpng-dev libgl1-mesa-dri libegl1 libegl-mesa0
+
+    - name: Configure CMake
+      run: cmake -S "$GITHUB_WORKSPACE" -B "${{ env.BUILD_DIR }}" -DCMAKE_BUILD_TYPE=Release -DBuildTests=ON -DSmokeTests=ON -DUseInternalMiniZip=ON
+
+    - name: Build
+      run: cmake --build "${{ env.BUILD_DIR }}" --parallel $(nproc)
+
+    - name: Run Tests
+      working-directory: ${{ env.BUILD_DIR }}/tests
+      run: ctest --output-on-failure
+
+    - uses: actions/upload-artifact@v4
+      if: ${{ failure() }}
+      with:
+        name: smoke-logs
+        path: |
+          ${{ env.BUILD_DIR }}/tests/smoke/*/server.log
+          ${{ env.BUILD_DIR }}/tests/smoke/*/client.log
+          ${{ env.BUILD_DIR }}/tests/smoke/*/base/screenshots/*.tga
+
   test-results:
     name: Test Results Summary
     runs-on: ubuntu-22.04
-    needs: [test-linux, test-windows]
+    needs: [test-linux, test-windows, engine-smoke]
     if: always()
     steps:
     - name: Check Test Status
       run: |
-        if [[ "${{ needs.test-linux.result }}" == "success" ]] && [[ "${{ needs.test-windows.result }}" == "success" ]]; then
+        if [[ "${{ needs.test-linux.result }}" == "success" ]] && [[ "${{ needs.test-windows.result }}" == "success" ]] && [[ "${{ needs.engine-smoke.result }}" == "success" ]]; then
           echo "✅ All tests passed!"
           exit 0
         else
           echo "❌ Some tests failed!"
           echo "Linux: ${{ needs.test-linux.result }}"
           echo "Windows: ${{ needs.test-windows.result }}"
+          echo "Engine + smoke: ${{ needs.engine-smoke.result }}"
           exit 1
         fi
