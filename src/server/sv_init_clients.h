@@ -66,13 +66,8 @@ void SV_Startup( void ) {
 
 	svs.clients = (struct client_s *)Z_Malloc (sizeof(client_t) * sv_maxclients->integer, TAG_CLIENTS, qtrue );
 	if ( com_dedicated->integer ) {
-		svs.numSnapshotEntities = sv_maxclients->integer * PACKET_BACKUP * 64;
 		Cvar_Set( "r_ghoul2animsmooth", "0");
 		Cvar_Set( "r_ghoul2unsqashaftersmooth", "0");
-
-	} else {
-		// we don't need nearly as many when playing locally
-		svs.numSnapshotEntities = sv_maxclients->integer * 4 * 64;
 	}
 	svs.initialized = qtrue;
 
@@ -135,14 +130,34 @@ void SV_ChangeMaxClients( void ) {
 
 	// free the old clients on the hunk
 	Hunk_FreeTempMemory( oldClients );
+}
 
-	// allocate new snapshot entities
-	if ( com_dedicated->integer ) {
-		svs.numSnapshotEntities = sv_maxclients->integer * PACKET_BACKUP * 64;
-	} else {
-		// we don't need nearly as many when playing locally
-		svs.numSnapshotEntities = sv_maxclients->integer * 4 * 64;
+/*
+===============
+SV_SizeSnapshotEntities
+
+Sizes the snapshot entity ring for sv_maxclients, taking a latched
+sv_snapshotEntityBudget now.  Called on every map load, before the ring
+is allocated.
+===============
+*/
+void SV_SizeSnapshotEntities( void ) {
+	int		budget;
+
+	// take a latched value now
+	Cvar_Get( "sv_snapshotEntityBudget", XSTRING( SNAPSHOT_ENTITY_BUDGET_DEFAULT ), CVAR_ARCHIVE | CVAR_LATCH );
+	budget = SV_ClampSnapshotEntityBudget( sv_snapshotEntityBudget->integer );
+	if ( budget != sv_snapshotEntityBudget->integer ) {
+		Cvar_Set( "sv_snapshotEntityBudget", va( "%i", budget ) );
 	}
+	sv_snapshotEntityBudget->modified = qfalse;
+
+	// we don't need nearly as many frames when playing locally
+	svs.numSnapshotEntities = SV_SnapshotEntityRingSize( sv_maxclients->integer,
+		com_dedicated->integer ? PACKET_BACKUP : 4, budget );
+
+	Com_DPrintf( "Snapshot entity ring: %i entities, %i KB\n", svs.numSnapshotEntities,
+		(int)( (long long)svs.numSnapshotEntities * sizeof( entityState_t ) / 1024 ) );
 }
 
 #endif // SV_INIT_CLIENTS_H

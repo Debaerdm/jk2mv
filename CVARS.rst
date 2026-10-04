@@ -869,6 +869,37 @@ Server-Side
    cause a lot of commands to be sent to a client in a short interval on a busy
    server.
 
+..
+
+:Name: sv_snapshotEntityBudget
+:Valid: 64-1024
+:Default: "256"
+:Description:
+   Size of the ring that keeps the entities of recent snapshots, so a client
+   can be sent only what changed since the last snapshot it received. The
+   ring holds the last 32 snapshots of every client slot (4 on a listen
+   server) at this many entities per snapshot on average. A client whose last
+   received snapshot has already left the ring gets a full snapshot instead,
+   several KB rather than a few hundred bytes, and that happens when the
+   server is busiest: big fights, many bots (each one builds a snapshot every
+   server frame), high ``sv_fps``. With 32 slots seeing 200 entities each at
+   ``sv_fps`` 40, 64 keeps 250 ms of history and 256 about a second. 64 is
+   the size of earlier versions, 256 the most entities a client takes in a
+   snapshot. Latched: takes effect on the next map load or ``map_restart``.
+   The ring is allocated when a map loads, at 296 bytes per entity:
+   sv_maxclients x 32 x value x 296 bytes on a dedicated server, rounded up
+   to a power of two (exact for 8, 16 or 32 slots; 17 to 31 slots cost as
+   much as 32, and the default 8 slots at 256 take 18.5 MB):
+
+   | 64: 592 KB per slot, 18.5 MB for 32 slots
+   | 128: 1.2 MB per slot, 37 MB for 32 slots
+   | 256: 2.3 MB per slot, 74 MB for 32 slots
+   | 512: 4.6 MB per slot, 148 MB for 32 slots
+   | 1024: 9.3 MB per slot, 296 MB for 32 slots
+
+   A listen server needs an eighth of that, and never less than 592 KB. A
+   32-bit server may fail to allocate the largest rings.
+
 ==================
 Undocumented Cvars
 ==================

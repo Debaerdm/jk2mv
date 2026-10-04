@@ -93,11 +93,11 @@ static void SV_BuildClientSnapshot( client_t *client ) {
 	frame->first_entity = svs.nextSnapshotEntities;
 	for ( i = 0 ; i < entityNumbers.numSnapshotEntities ; i++ ) {
 		ent = SV_GentityNum(entityNumbers.snapshotEntities[i]);
-		state = &svs.snapshotEntities[svs.nextSnapshotEntities % svs.numSnapshotEntities];
+		state = SV_SnapshotEntity( svs.nextSnapshotEntities );
 		*state = ent->s;
 		svs.nextSnapshotEntities++;
 		// this should never hit, map should always be restarted first in SV_Frame
-		if ( svs.nextSnapshotEntities >= 0x7FFFFFFE ) {
+		if ( svs.nextSnapshotEntities >= SNAPSHOT_ENTITIES_LIMIT ) {
 			Com_Error(ERR_FATAL, "svs.nextSnapshotEntities wrapped");
 		}
 		frame->num_entities++;
