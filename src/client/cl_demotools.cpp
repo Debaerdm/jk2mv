@@ -1,0 +1,546 @@
+// cl_demotools.cpp -- demo playback tools: transport controls, timeline,
+// free camera, camera paths and photo mode.
+//
+// Everything here only acts while a demo is playing, so none of it can be
+// used in a live game.
+
+#include "client.h"
+#include "cl_campath.h"
+
+extern console_t con;
+
+#define MAX_CAM_KEYS	256
+
+cvar_t	*cl_demoTimeline;
+cvar_t	*cl_freecamSpeed;
+
+static struct {
+	// view of the last full screen world scene drawn by cgame
+	qboolean	haveView;
+	vec3_t		viewOrigin;
+	vec3_t		viewAngles;
+	float		viewFov;
+
+	// camera
+	qboolean	freecam;
+	qboolean	playing;			// following the camera path
+	vec3_t		origin;
+	vec3_t		angles;
+	float		fov;				// 0 keeps the game's fov
+	int64_t		lastFrameUsec;
+
+	camKey_t	keys[MAX_CAM_KEYS];
+	int			numKeys;
+
+	// timeline
+	int			startServerTime;
+	float		pausedTimescale;	// speed to restore after demo_pause
+
+	// photo mode
+	qboolean	photo;
+	int			photoHideHud;
+	float		photoTimescale;
+	qboolean	photoFreecam;
+} dt;
+
+static qboolean CL_DemoToolsCheck( void ) {
+	if ( !clc.demoplaying ) {
+		Com_Printf( "This command only works during demo playback.\n" );
+		return qfalse;
+	}
+	return qtrue;
+}
+
+static qboolean CL_DemoCamActive( void ) {
+	return (qboolean)( clc.demoplaying && ( dt.freecam || ( dt.playing && dt.numKeys > 0 ) ) );
+}
+
+static float CL_Timescale( void ) {
+	return com_timescale ? com_timescale->value : 1.0f;
+}
+
+static void CL_SetTimescale( float scale ) {
+	Cvar_Set( "timescale", va( "%g", scale ) );
+}
+
+/*
+===============================================================================
+
+TRANSPORT CONTROLS
+
+===============================================================================
+*/
+
+static void CL_DemoPause_f( void ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+	if ( CL_Timescale() > 0.0f ) {
+		dt.pausedTimescale = CL_Timescale();
+		CL_SetTimescale( 0.0f );
+		Com_Printf( "demo paused\n" );
+	} else {
+		CL_SetTimescale( dt.pausedTimescale > 0.0f ? dt.pausedTimescale : 1.0f );
+		Com_Printf( "demo resumed\n" );
+	}
+}
+
+static void CL_DemoSpeed_f( void ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf( "usage: demo_speed <0.05 - 16>, currently %g\n", CL_Timescale() );
+		return;
+	}
+	CL_SetTimescale( Com_Clamp( 0.05f, 16.0f, (float)atof( Cmd_Argv( 1 ) ) ) );
+}
+
+static void CL_DemoScaleSpeed( float factor ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+	float scale = CL_Timescale() > 0.0f ? CL_Timescale() : dt.pausedTimescale > 0.0f ? dt.pausedTimescale : 1.0f;
+	scale = Com_Clamp( 0.0625f, 16.0f, scale * factor );
+	CL_SetTimescale( scale );
+	Com_Printf( "demo speed %gx\n", scale );
+}
+
+static void CL_DemoFaster_f( void ) {
+	CL_DemoScaleSpeed( 2.0f );
+}
+
+static void CL_DemoSlower_f( void ) {
+	CL_DemoScaleSpeed( 0.5f );
+}
+
+static void CL_DemoStep_f( void ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+	if ( CL_Timescale() > 0.0f ) {
+		dt.pausedTimescale = CL_Timescale();
+		CL_SetTimescale( 0.0f );
+	}
+	// advances the paused demo by that much game time on the next frame
+	com_demoStepMsec = Cmd_Argc() > 1 ? Com_Clampi( 1, 1000, atoi( Cmd_Argv( 1 ) ) ) : 50;
+}
+
+/*
+===============================================================================
+
+FREE CAMERA AND CAMERA PATHS
+
+===============================================================================
+*/
+
+static void CL_DemoCamStartFromView( void ) {
+	if ( dt.haveView ) {
+		VectorCopy( dt.viewOrigin, dt.origin );
+		VectorCopy( dt.viewAngles, dt.angles );
+	}
+	dt.fov = 0.0f;
+	dt.lastFrameUsec = 0;
+	// mouse look continues from the camera angles
+	VectorCopy( dt.angles, cl.viewangles );
+}
+
+static void CL_DemoFreecam_f( void ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+	dt.freecam = (qboolean)!dt.freecam;
+	if ( dt.freecam ) {
+		dt.playing = qfalse;
+		CL_DemoCamStartFromView();
+		Com_Printf( "free camera on: move with the movement keys and the mouse\n" );
+	} else {
+		Com_Printf( "free camera off\n" );
+	}
+}
+
+static void CL_CamAdd_f( void ) {
+	camKey_t	key;
+	int			n;
+
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+
+	key.time = cl.serverTime;
+	if ( CL_DemoCamActive() ) {
+		VectorCopy( dt.origin, key.origin );
+		VectorCopy( dt.angles, key.angles );
+		key.fov = dt.fov > 0.0f ? dt.fov : dt.viewFov;
+	} else if ( dt.haveView ) {
+		VectorCopy( dt.viewOrigin, key.origin );
+		VectorCopy( dt.viewAngles, key.angles );
+		key.fov = dt.viewFov;
+	} else {
+		Com_Printf( "no view to record yet\n" );
+		return;
+	}
+	key.timescale = CL_Timescale() > 0.0f ? CL_Timescale() : 1.0f;
+
+	n = CamPath_Insert( dt.keys, dt.numKeys, MAX_CAM_KEYS, &key );
+	if ( n < 0 ) {
+		Com_Printf( "camera path full (%i keys)\n", MAX_CAM_KEYS );
+		return;
+	}
+	dt.numKeys = n;
+	Com_Printf( "camera key at %i ms (%i keys)\n", key.time, dt.numKeys );
+}
+
+static void CL_CamDel_f( void ) {
+	int i;
+
+	if ( !dt.numKeys ) {
+		Com_Printf( "no camera keys\n" );
+		return;
+	}
+	// the given index, or the key nearest to the current time
+	if ( Cmd_Argc() > 1 ) {
+		i = atoi( Cmd_Argv( 1 ) );
+	} else {
+		i = 0;
+		for ( int k = 1; k < dt.numKeys; k++ ) {
+			if ( abs( dt.keys[k].time - cl.serverTime ) < abs( dt.keys[i].time - cl.serverTime ) ) {
+				i = k;
+			}
+		}
+	}
+	if ( i < 0 || i >= dt.numKeys ) {
+		Com_Printf( "no camera key %i\n", i );
+		return;
+	}
+	memmove( &dt.keys[i], &dt.keys[i + 1], ( dt.numKeys - i - 1 ) * sizeof( dt.keys[0] ) );
+	dt.numKeys--;
+	Com_Printf( "camera key %i removed (%i keys)\n", i, dt.numKeys );
+}
+
+static void CL_CamClear_f( void ) {
+	dt.numKeys = 0;
+	dt.playing = qfalse;
+	Com_Printf( "camera path cleared\n" );
+}
+
+static void CL_CamList_f( void ) {
+	for ( int i = 0; i < dt.numKeys; i++ ) {
+		const camKey_t *k = &dt.keys[i];
+		Com_Printf( "%3i: %8i ms  origin %.0f %.0f %.0f  angles %.1f %.1f %.1f  fov %.1f  speed %g\n", i, k->time,
+			k->origin[0], k->origin[1], k->origin[2], k->angles[0], k->angles[1], k->angles[2], k->fov, k->timescale );
+	}
+	Com_Printf( "%i camera keys\n", dt.numKeys );
+}
+
+static void CL_CamPlay_f( void ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+	if ( dt.numKeys < 1 && !dt.playing ) {
+		Com_Printf( "add camera keys first with cam_add\n" );
+		return;
+	}
+	dt.playing = (qboolean)!dt.playing;
+	if ( dt.playing ) {
+		dt.freecam = qfalse;
+	}
+	Com_Printf( "camera path %s\n", dt.playing ? "playing" : "stopped" );
+}
+
+static qboolean CL_CamPathName( char *path, int size ) {
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf( "usage: %s <name>\n", Cmd_Argv( 0 ) );
+		return qfalse;
+	}
+	Com_sprintf( path, size, "demos/%s", Cmd_Argv( 1 ) );
+	COM_SanitizeExtension( path, size, ".cam" );
+	return qtrue;
+}
+
+static void CL_CamSave_f( void ) {
+	char			path[MAX_QPATH];
+	fileHandle_t	f;
+
+	if ( !CL_CamPathName( path, sizeof( path ) ) ) {
+		return;
+	}
+	f = FS_FOpenFileWrite( path );
+	if ( !f ) {
+		Com_Printf( "couldn't write %s\n", path );
+		return;
+	}
+	FS_Printf( f, "jk2mvcam 1\n" );
+	for ( int i = 0; i < dt.numKeys; i++ ) {
+		const camKey_t *k = &dt.keys[i];
+		FS_Printf( f, "%i %f %f %f %f %f %f %f %f\n", k->time, k->origin[0], k->origin[1], k->origin[2],
+			k->angles[0], k->angles[1], k->angles[2], k->fov, k->timescale );
+	}
+	FS_FCloseFile( f );
+	Com_Printf( "wrote %i camera keys to %s\n", dt.numKeys, path );
+}
+
+static void CL_CamLoad_f( void ) {
+	char		path[MAX_QPATH];
+	char		*buffer;
+	const char	*p;
+	int			n = 0;
+
+	if ( !CL_CamPathName( path, sizeof( path ) ) ) {
+		return;
+	}
+	if ( FS_ReadFile( path, (void **)&buffer ) < 0 || !buffer ) {
+		Com_Printf( "couldn't read %s\n", path );
+		return;
+	}
+
+	p = buffer;
+	if ( strncmp( p, "jk2mvcam 1", 10 ) ) {
+		Com_Printf( "%s is not a camera path\n", path );
+		FS_FreeFile( buffer );
+		return;
+	}
+	p = strchr( p, '\n' );
+	while ( p && *p && n < MAX_CAM_KEYS ) {
+		camKey_t k;
+
+		if ( sscanf( p, "%i %f %f %f %f %f %f %f %f", &k.time, &k.origin[0], &k.origin[1], &k.origin[2],
+			&k.angles[0], &k.angles[1], &k.angles[2], &k.fov, &k.timescale ) == 9 ) {
+			n = CamPath_Insert( dt.keys, n, MAX_CAM_KEYS, &k );
+			if ( n < 0 ) {
+				n = MAX_CAM_KEYS;
+				break;
+			}
+		}
+		p = strchr( p + 1, '\n' );
+	}
+	FS_FreeFile( buffer );
+
+	dt.numKeys = n;
+	dt.playing = qfalse;
+	Com_Printf( "loaded %i camera keys from %s\n", dt.numKeys, path );
+}
+
+/*
+==================
+CL_PhotoMode_f
+
+Pauses the demo, frees the camera and hides the HUD; again restores all of it
+==================
+*/
+static void CL_PhotoMode_f( void ) {
+	if ( !CL_DemoToolsCheck() ) {
+		return;
+	}
+	if ( !dt.photo ) {
+		dt.photo = qtrue;
+		dt.photoHideHud = cl_demoHideHud->integer;
+		dt.photoTimescale = CL_Timescale();
+		dt.photoFreecam = dt.freecam;
+		Cvar_Set( "cl_demoHideHud", "1" );
+		if ( CL_Timescale() > 0.0f ) {
+			dt.pausedTimescale = CL_Timescale();
+			CL_SetTimescale( 0.0f );
+		}
+		if ( !dt.freecam ) {
+			dt.freecam = qtrue;
+			dt.playing = qfalse;
+			CL_DemoCamStartFromView();
+		}
+		Com_Printf( "photo mode: frame your shot, then screenshot_png. photomode again to leave.\n" );
+	} else {
+		dt.photo = qfalse;
+		Cvar_Set( "cl_demoHideHud", va( "%i", dt.photoHideHud ) );
+		CL_SetTimescale( dt.photoTimescale > 0.0f ? dt.photoTimescale : 1.0f );
+		dt.freecam = dt.photoFreecam;
+		Com_Printf( "photo mode off\n" );
+	}
+}
+
+/*
+===============================================================================
+
+PER FRAME
+
+===============================================================================
+*/
+
+/*
+==================
+CL_DemoToolsFrame
+
+Called before cgame draws a frame: moves the free camera with the usercmds
+the engine builds during playback, or follows the camera path.
+==================
+*/
+void CL_DemoToolsFrame( void ) {
+	const int64_t	now = Sys_Microseconds();
+	const float		seconds = dt.lastFrameUsec ? MIN( 0.25f, ( now - dt.lastFrameUsec ) / 1000000.0f ) : 0.0f;
+
+	dt.lastFrameUsec = now;
+
+	if ( !clc.demoplaying ) {
+		if ( dt.freecam || dt.playing || dt.photo || dt.startServerTime ) {
+			dt.freecam = dt.playing = dt.photo = qfalse;
+			dt.startServerTime = 0;
+			dt.haveView = qfalse;
+		}
+		return;
+	}
+
+	if ( !dt.startServerTime && cl.snap.valid ) {
+		dt.startServerTime = cl.snap.serverTime;
+	}
+
+	if ( dt.playing && dt.numKeys > 0 ) {
+		camView_t view;
+
+		if ( CamPath_Evaluate( dt.keys, dt.numKeys, (float)cl.serverTime, &view ) ) {
+			VectorCopy( view.origin, dt.origin );
+			VectorCopy( view.angles, dt.angles );
+			dt.fov = view.fov;
+			// speed ramps, unless paused by hand
+			if ( CL_Timescale() > 0.0f && view.timescale > 0.0f && fabsf( view.timescale - CL_Timescale() ) > 0.001f ) {
+				CL_SetTimescale( view.timescale );
+			}
+		}
+	} else if ( dt.freecam ) {
+		const usercmd_t	*cmd = &cl.cmds[cl.cmdNumber & CMD_MASK];
+		vec3_t			forward, right;
+		const float		speed = cl_freecamSpeed->value * seconds;
+
+		VectorCopy( cl.viewangles, dt.angles );
+		AngleVectors( dt.angles, forward, right, NULL );
+		VectorMA( dt.origin, speed * cmd->forwardmove / 127.0f, forward, dt.origin );
+		VectorMA( dt.origin, speed * cmd->rightmove / 127.0f, right, dt.origin );
+		dt.origin[2] += speed * cmd->upmove / 127.0f;
+	}
+}
+
+/*
+==================
+CL_DemoCamView
+
+Called for every scene cgame renders. Remembers the game's view and, while the
+demo camera is active, returns the scene seen from the camera instead.
+==================
+*/
+qboolean CL_DemoCamView( const refdef_t *fd, refdef_t *out ) {
+	// only full screen world scenes, not HUD models or picture in picture
+	const qboolean mainView = (qboolean)( !( fd->rdflags & RDF_NOWORLDMODEL ) &&
+		fd->width * fd->height * 2 >= cls.glconfig.winWidth * cls.glconfig.winHeight );
+
+	if ( !clc.demoplaying || !mainView ) {
+		if ( fd->rdflags & RDF_FREECAM ) {
+			// reserved for the engine
+			*out = *fd;
+			out->rdflags &= ~RDF_FREECAM;
+			return qtrue;
+		}
+		return qfalse;
+	}
+
+	if ( !CL_DemoCamActive() ) {
+		VectorCopy( fd->vieworg, dt.viewOrigin );
+		vectoangles( fd->viewaxis[0], dt.viewAngles );
+		// roll from the left vector
+		dt.viewAngles[ROLL] = RAD2DEG( atan2f( fd->viewaxis[1][2], fd->viewaxis[2][2] ) );
+		dt.viewFov = fd->fov_x;
+		dt.haveView = qtrue;
+		return qfalse;
+	}
+
+	*out = *fd;
+	VectorCopy( dt.origin, out->vieworg );
+	AnglesToAxis( dt.angles, out->viewaxis );
+	if ( dt.fov > 1.0f && dt.fov < 179.0f ) {
+		const float x = out->width / tanf( DEG2RAD( dt.fov ) * 0.5f );
+
+		out->fov_x = dt.fov;
+		out->fov_y = RAD2DEG( atan2f( (float)out->height, x ) ) * 2.0f;
+	}
+	// show the areas behind closed doors too, the recorder's own body, and
+	// not the view weapon
+	Com_Memset( out->areamask, 0, sizeof( out->areamask ) );
+	out->rdflags |= RDF_FREECAM;
+	return qtrue;
+}
+
+// camera position for sound and effects while the demo camera is active
+qboolean CL_DemoCamOrigin( vec3_t origin, vec3_t axis[3] ) {
+	if ( !CL_DemoCamActive() ) {
+		return qfalse;
+	}
+	VectorCopy( dt.origin, origin );
+	AnglesToAxis( dt.angles, axis );
+	return qtrue;
+}
+
+/*
+==================
+CL_DrawDemoTimeline
+
+cl_demoTimeline 1: speed, elapsed time and a progress bar at the bottom
+==================
+*/
+void CL_DrawDemoTimeline( void ) {
+	static const vec4_t	backdrop = { 0.0f, 0.0f, 0.0f, 0.6f };
+	static const vec4_t	fill = { 0.95f, 0.75f, 0.2f, 0.9f };
+	char				text[96];
+
+	if ( !clc.demoplaying || !cl_demoTimeline->integer || cls.state != CA_ACTIVE ) {
+		return;
+	}
+
+	const float	scale = CL_Timescale();
+	const int	elapsed = dt.startServerTime ? MAX( 0, cl.snap.serverTime - dt.startServerTime ) / 1000 : 0;
+	const float	progress = clc.demoLength > 0 ? Com_Clamp( 0.0f, 1.0f, FS_FTell( clc.demofile ) / (float)clc.demoLength ) : 0.0f;
+
+	Com_sprintf( text, sizeof( text ), "%s %5.2fx  %02i:%02i  %3i%%%s%s", scale > 0.0f ? ">" : "||", scale,
+		elapsed / 60, elapsed % 60, (int)( progress * 100.0f ),
+		dt.playing ? "  CAM PATH" : dt.freecam ? "  FREECAM" : "", dt.photo ? "  PHOTO" : "" );
+
+	const int	barWidth = cls.glconfig.vidWidth / 2;
+	const int	x = ( cls.glconfig.vidWidth - barWidth ) / 2;
+	const int	y = cls.glconfig.vidHeight - con.charHeight * 3;
+
+	re.SetColor( backdrop );
+	re.DrawStretchPic( x - con.charWidth, y - con.charHeight / 2, barWidth + 2 * con.charWidth, con.charHeight * 5 / 2,
+		0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
+	re.SetColor( fill );
+	re.DrawStretchPic( x, y + con.charHeight + con.charHeight / 4, barWidth * progress, con.charHeight / 2,
+		0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
+	re.SetColor( nullptr );
+	SCR_DrawSmallStringExt( x, y, text, g_color_table[ColorIndex(COLOR_WHITE)], qtrue );
+}
+
+void CL_InitDemoTools( void ) {
+	cl_demoTimeline = Cvar_Get( "cl_demoTimeline", "0", CVAR_ARCHIVE | CVAR_GLOBAL );
+	cl_freecamSpeed = Cvar_Get( "cl_freecamSpeed", "400", CVAR_ARCHIVE | CVAR_GLOBAL );
+
+	Cmd_AddCommand( "demo_pause", CL_DemoPause_f );
+	Cmd_AddCommand( "demo_speed", CL_DemoSpeed_f );
+	Cmd_AddCommand( "demo_faster", CL_DemoFaster_f );
+	Cmd_AddCommand( "demo_slower", CL_DemoSlower_f );
+	Cmd_AddCommand( "demo_step", CL_DemoStep_f );
+	Cmd_AddCommand( "demo_freecam", CL_DemoFreecam_f );
+	Cmd_AddCommand( "cam_add", CL_CamAdd_f );
+	Cmd_AddCommand( "cam_del", CL_CamDel_f );
+	Cmd_AddCommand( "cam_clear", CL_CamClear_f );
+	Cmd_AddCommand( "cam_list", CL_CamList_f );
+	Cmd_AddCommand( "cam_play", CL_CamPlay_f );
+	Cmd_AddCommand( "cam_save", CL_CamSave_f );
+	Cmd_AddCommand( "cam_load", CL_CamLoad_f );
+	Cmd_AddCommand( "photomode", CL_PhotoMode_f );
+}
+
+void CL_ShutdownDemoTools( void ) {
+	static const char * const commands[] = {
+		"demo_pause", "demo_speed", "demo_faster", "demo_slower", "demo_step", "demo_freecam",
+		"cam_add", "cam_del", "cam_clear", "cam_list", "cam_play", "cam_save", "cam_load", "photomode",
+	};
+
+	for ( size_t i = 0; i < ARRAY_LEN( commands ); i++ ) {
+		Cmd_RemoveCommand( commands[i] );
+	}
+}

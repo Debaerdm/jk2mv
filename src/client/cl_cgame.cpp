@@ -805,9 +805,17 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	case CG_S_UPDATEENTITYPOSITION:
 		S_UpdateEntityPosition( args[1], VMAP(2, const vec_t, 3) );
 		return 0;
-	case CG_S_RESPATIALIZE:
-		S_Respatialize( args[1], VMAP(2, const vec_t, 3), VMAP(3, vec3_t, 3), args[4] );
+	case CG_S_RESPATIALIZE: {
+		vec3_t camOrigin, camAxis[3];
+
+		// hear the demo from the camera
+		if ( CL_DemoCamOrigin( camOrigin, camAxis ) ) {
+			S_Respatialize( args[1], camOrigin, camAxis, qfalse );
+		} else {
+			S_Respatialize( args[1], VMAP(2, const vec_t, 3), VMAP(3, vec3_t, 3), args[4] );
+		}
 		return 0;
+	}
 	case CG_S_REGISTERSOUND:
 		return S_RegisterSound( VMAS(1) );
 	case CG_S_STARTBACKGROUNDTRACK:
@@ -868,13 +876,17 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	case CG_R_ADDADDITIVELIGHTTOSCENE:
 		re.AddAdditiveLightToScene( VMAP(1, const vec_t, 3), VMF(2), VMF(3), VMF(4), VMF(5) );
 		return 0;
-	case CG_R_RENDERSCENE:
+	case CG_R_RENDERSCENE: {
+		const refdef_t	*fd = VMAV(1, const refdef_t);
+		refdef_t		camView;
+
 		// scenes without the world are HUD models
-		if ( CL_DemoHideHud() && ( VMAV(1, const refdef_t)->rdflags & RDF_NOWORLDMODEL ) ) {
+		if ( CL_DemoHideHud() && ( fd->rdflags & RDF_NOWORLDMODEL ) ) {
 			return 0;
 		}
-		re.RenderScene( VMAV(1, const refdef_t) );
+		re.RenderScene( CL_DemoCamView( fd, &camView ) ? &camView : fd );
 		return 0;
+	}
 	case CG_R_SETCOLOR:
 		re.SetColor( VMAP(1, vec_t, 4) );
 		return 0;
@@ -1093,9 +1105,17 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	case CG_FX_FREE_SYSTEM:
 		return FX_FreeSystem();
 
-	case CG_FX_ADJUST_TIME:
-		FX_AdjustTime_Pos(args[1], VMAP(2, const vec_t, 3), VMAP(3, const vec3_t, 3));
+	case CG_FX_ADJUST_TIME: {
+		vec3_t camOrigin, camAxis[3];
+
+		// effects are culled around the demo camera
+		if ( CL_DemoCamOrigin( camOrigin, camAxis ) ) {
+			FX_AdjustTime_Pos( args[1], camOrigin, camAxis );
+		} else {
+			FX_AdjustTime_Pos(args[1], VMAP(2, const vec_t, 3), VMAP(3, const vec3_t, 3));
+		}
 		return 0;
+	}
 
 	case CG_FX_ADDPOLY:
 		const addpolyArgStruct_t *p;
@@ -1467,6 +1487,7 @@ CL_CGameRendering
 =====================
 */
 void CL_CGameRendering( stereoFrame_t stereo ) {
+	CL_DemoToolsFrame();
 	VM_Call( cgvm, CG_DRAW_ACTIVE_FRAME, cl.serverTime, stereo, clc.demoplaying );
 	VM_Debug( 0 );
 }

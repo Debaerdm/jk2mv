@@ -49,6 +49,12 @@ void R_PerformanceCounters( void ) {
 		ri.Printf( PRINT_ALL, "flare adds:%i tests:%i renders:%i\n",
 			backEnd.pc.c_flareAdds, backEnd.pc.c_flareTests, backEnd.pc.c_flareRenders );
 	}
+	else if (r_speeds->integer == 8) {
+		// driver work per frame, deterministic for a given timedemo
+		ri.Printf (PRINT_ALL, "%i draws %i binds %i state changes %i shaders %i surfaces %i verts %i tris\n",
+			backEnd.pc.c_drawCalls, backEnd.pc.c_binds, backEnd.pc.c_stateChanges, backEnd.pc.c_shaders,
+			backEnd.pc.c_surfaces, backEnd.pc.c_vertexes, backEnd.pc.c_indexes / 3 );
+	}
 	else if (r_speeds->integer == 7) {
 		const float texSize = R_SumOfUsedImages(qtrue) / (1048576.0f);
 		const float backBuff= glConfig.vidWidth * glConfig.vidHeight * glConfig.colorBits / (8.0f * 1024*1024);
@@ -481,6 +487,11 @@ void RE_SwapBuffers( int *frontEndUsec, int *backEndUsec ) {
 		RE_TakeScreenshotTGA(tr.screenshotTGAName, tr.screenshotTGASilent);
 	}
 
+	if (tr.screenshotPNG) {
+		tr.screenshotPNG = qfalse;
+		RE_TakeScreenshotPNG(tr.screenshotPNGName, tr.screenshotPNGSilent);
+	}
+
 	if (tr.screenshotJPEG) {
 		tr.screenshotJPEG = qfalse;
 		RE_TakeScreenshotJPEG(tr.screenshotJPEGName, tr.screenshotJPEGQuality, tr.screenshotJPEGSilent);
@@ -676,6 +687,30 @@ void RE_TakeScreenshotJPEG( const char *filename, int quality, qboolean silent )
 RE_TakeScreenshotTGA
 =============
 */
+/*
+=============
+RE_TakeScreenshotPNG
+=============
+*/
+void RE_TakeScreenshotPNG( const char *filename, qboolean silent )
+{
+	const int	width = glConfig.vidWidth;
+	const int	height = glConfig.vidHeight;
+	const int	bufSize = width * height * 3;
+	byte		*buffer = (byte *)ri.Hunk_AllocateTempMemory(bufSize);
+
+	RE_CaptureFrameRaw(buffer, bufSize, 1);
+	if (R_SavePNG(filename, buffer, width, height)) {
+		if (!silent) {
+			ri.Printf(PRINT_ALL, "Wrote %s\n", filename);
+		}
+	} else {
+		ri.Printf(PRINT_WARNING, "Couldn't write %s\n", filename);
+	}
+
+	ri.Hunk_FreeTempMemory(buffer);
+}
+
 void RE_TakeScreenshotTGA( const char *filename, qboolean silent )
 {
 	int		width, height;

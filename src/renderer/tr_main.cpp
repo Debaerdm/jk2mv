@@ -1176,7 +1176,7 @@ void R_AddEntitySurfaces (void) {
 		// we don't want the hacked weapon position showing in
 		// mirrors, because the true body position will already be drawn
 		//
-		if ( (ent->e.renderfx & RF_FIRST_PERSON) && tr.viewParms.isPortal) {
+		if ( R_HIDE_VIEW_WEAPON( ent->e.renderfx ) ) {
 			continue;
 		}
 
@@ -1195,7 +1195,7 @@ void R_AddEntitySurfaces (void) {
 			// self blood sprites, talk balloons, etc should not be drawn in the primary
 			// view.  We can't just do this check for all entities, because md3
 			// entities may still want to cast shadows from them
-			if ( (ent->e.renderfx & RF_THIRD_PERSON) && !tr.viewParms.isPortal) {
+			if ( R_IS_PERSONAL_MODEL( ent->e.renderfx ) ) {
 				continue;
 			}
 			shader = R_GetShaderByHandle( ent->e.customShader );
@@ -1232,7 +1232,7 @@ Ghoul2 Insert Start
 					}
 					break;
 				case MOD_BAD:		// null model axis
-					if ( (ent->e.renderfx & RF_THIRD_PERSON) && !tr.viewParms.isPortal) {
+					if ( R_IS_PERSONAL_MODEL( ent->e.renderfx ) ) {
 						break;
 					}
 

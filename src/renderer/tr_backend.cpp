@@ -43,6 +43,7 @@ void GL_Bind( image_t *image ) {
 		image->frameUsed = tr.frameCount;
 		glState.currenttextures[glState.currenttmu] = texnum;
 		qglBindTexture (GL_TEXTURE_2D, texnum);
+		backEnd.pc.c_binds++;
 	}
 }
 
@@ -95,12 +96,14 @@ void GL_BindMultitexture( image_t *image0, GLuint env0, image_t *image1, GLuint 
 		image1->frameUsed = tr.frameCount;
 		glState.currenttextures[1] = texnum1;
 		qglBindTexture( GL_TEXTURE_2D, texnum1 );
+		backEnd.pc.c_binds++;
 	}
 	if ( glState.currenttextures[0] != texnum0 ) {
 		GL_SelectTexture( 0 );
 		image0->frameUsed = tr.frameCount;
 		glState.currenttextures[0] = texnum0;
 		qglBindTexture( GL_TEXTURE_2D, texnum0 );
+		backEnd.pc.c_binds++;
 	}
 }
 
@@ -198,6 +201,7 @@ void GL_State( unsigned int stateBits )
 	{
 		return;
 	}
+	backEnd.pc.c_stateChanges++;
 
 	//
 	// check depthFunc bits

@@ -842,6 +842,50 @@ void R_ScreenShotTGA_f (void) {
 	tr.screenshotTGASilent = silent;
 }
 
+/*
+==================
+R_ScreenShotPNG_f
+
+screenshot_png [silent | filename], lossless
+==================
+*/
+void R_ScreenShotPNG_f (void) {
+	char		checkname[MAX_OSPATH];
+	static	int	lastNumber = -1;
+	qboolean	silent;
+
+	silent = (qboolean)!strcmp( ri.Cmd_Argv(1), "silent" );
+
+	if ( ri.Cmd_Argc() == 2 && !silent ) {
+		// explicit filename
+		Com_sprintf( checkname, MAX_OSPATH, "screenshots/%s.png", ri.Cmd_Argv( 1 ) );
+	} else {
+		// scan for a free filename
+		if ( lastNumber == -1 ) {
+			lastNumber = 0;
+		}
+		for ( ; lastNumber <= 9999 ; lastNumber++ ) {
+			R_ScreenshotFilename( lastNumber, checkname, ".png" );
+
+			if (!ri.FS_FileExists( checkname ))
+			{
+				break; // file doesn't exist
+			}
+		}
+
+		if ( lastNumber >= 9999 ) {
+			ri.Printf (PRINT_ALL, "ScreenShot: Couldn't create a file\n");
+			return;
+		}
+
+		lastNumber++;
+	}
+
+	Q_strncpyz(tr.screenshotPNGName, checkname, sizeof(tr.screenshotPNGName));
+	tr.screenshotPNG = qtrue;
+	tr.screenshotPNGSilent = silent;
+}
+
 //jpeg  vession
 void R_ScreenShot_f (void) {
 	char		checkname[MAX_OSPATH];
@@ -1236,6 +1280,7 @@ Ghoul2 Insert End
 	ri.Cmd_AddCommand( "skinlist", R_SkinList_f );
 	ri.Cmd_AddCommand( "screenshot", R_ScreenShot_f );
 	ri.Cmd_AddCommand( "screenshot_tga", R_ScreenShotTGA_f );
+	ri.Cmd_AddCommand( "screenshot_png", R_ScreenShotPNG_f );
 	ri.Cmd_AddCommand( "gfxinfo", GfxInfo_f );
 	ri.Cmd_AddCommand("r_we", R_WorldEffect_f);
 	ri.Cmd_AddCommand( "imagecacheinfo", RE_RegisterImages_Info_f);
@@ -1371,6 +1416,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	ri.Cmd_RemoveCommand ("skinlist");
 	ri.Cmd_RemoveCommand ("screenshot");
 	ri.Cmd_RemoveCommand ("screenshot_tga");
+	ri.Cmd_RemoveCommand ("screenshot_png");
 	ri.Cmd_RemoveCommand ("gfxinfo");
 	ri.Cmd_RemoveCommand ("r_we");
 	ri.Cmd_RemoveCommand ("imagecacheinfo");

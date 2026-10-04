@@ -221,6 +221,7 @@ typedef struct {
 	qboolean	demowaiting;	// don't record until a non-delta message is received
 	qboolean	firstDemoFrameSkipped;
 	fileHandle_t	demofile;
+	int			demoLength;			// bytes, for the demo timeline
 
 	int			timeDemoFrames;		// counter of rendered frames
 	int			timeDemoStart;		// cls.realtime before first frame
@@ -421,6 +422,21 @@ extern	cvar_t	*cl_perfOverlay;
 void CL_InitPresets( void );
 void CL_ShutdownPresets( void );
 qboolean CL_DemoHideHud( void );
+
+// cl_bench.cpp
+void CL_InitBenchmark( void );
+void CL_ShutdownBenchmark( void );
+void CL_BenchmarkFrame( void );
+void CL_BenchmarkDemoCompleted( void );
+void CL_CompleteDemoName( char *args, int argNum );
+
+// cl_demotools.cpp
+void CL_InitDemoTools( void );
+void CL_ShutdownDemoTools( void );
+void CL_DemoToolsFrame( void );
+qboolean CL_DemoCamView( const refdef_t *fd, refdef_t *out );
+qboolean CL_DemoCamOrigin( vec3_t origin, vec3_t axis[3] );
+void CL_DrawDemoTimeline( void );
 extern	cvar_t	*cl_timegraph;
 extern	cvar_t	*cl_maxpackets;
 extern	cvar_t	*cl_packetdup;

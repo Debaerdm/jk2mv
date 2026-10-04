@@ -149,6 +149,24 @@ Client-Side
 
 ..
 
+:Name: cl_demoTimeline
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   During demo playback, show the playback speed, the elapsed time, the
+   progress through the demo file and the camera mode at the bottom of the
+   screen.
+
+..
+
+:Name: cl_freecamSpeed
+:Values: Float
+:Default: "400"
+:Description:
+   Speed of the demo free camera (``demo_freecam``), in units per second.
+
+..
+
 :Name: cl_demoHideHud
 :Values: "0", "1"
 :Default: "0"
@@ -783,6 +801,30 @@ Undocumented Cvars
 Other Changes
 =============
 
+* Demo tools, only active during demo playback:
+
+  - ``demo_pause``, ``demo_speed <x>``, ``demo_faster``, ``demo_slower`` and
+    ``demo_step [ms]`` (advance a paused demo). Slow motion now plays at the
+    requested speed instead of getting stuck at 1 ms of game time per frame.
+  - ``demo_freecam``: fly freely through the demo with the movement keys and
+    the mouse; sound and effects follow the camera, and the recorder's own
+    body is visible.
+  - Camera paths: ``cam_add`` records a key (position, angles, fov, speed)
+    at the current demo time, ``cam_play`` follows the smooth path through the
+    keys (speed keys make slow motion ramps), ``cam_del [index]``,
+    ``cam_clear``, ``cam_list``, ``cam_save <name>`` and ``cam_load <name>``
+    (demos/<name>.cam).
+  - ``photomode`` pauses the demo, frees the camera and hides the HUD; again
+    restores everything.
+
+* ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
+* ``benchmark <demo> [runs] [warmup] [tag]`` plays a demo in timedemo mode
+  several times without the 1000 fps cap and prints the average fps, frame
+  time percentiles and the 1% low per run and pooled; it writes every frame
+  time to benchmarks/<demo>_<tag>.csv and the summary to a .txt file.
+  ``benchmark stop`` aborts it.
+* ``r_speeds 8`` prints the draw calls, texture binds and state changes of
+  each frame.
 * New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
   of visual cvars in one go and restarts the renderer if needed; ``preset
   classic`` resets all of them to their defaults. ``preset`` alone lists them.

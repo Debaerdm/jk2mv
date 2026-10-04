@@ -71,6 +71,9 @@ cvar_t	*mv_apienabled;
 cvar_t	*com_timestamps;
 cvar_t	*com_debugMessage;
 
+int		com_demoStepMsec;
+int		com_benchmarkActive;
+
 // com_speeds times, in microseconds
 int		time_game;
 int		time_frontend;		// renderer frontend time
@@ -2778,6 +2781,14 @@ int Com_ModifyMsec( int msec ) {
 	//
 	if ( com_fixedtime->integer ) {
 		msec = com_fixedtime->integer;
+	} else if ( com_timescale->value && com_demoplaying ) {
+		// keep the fraction, so slow motion plays at the requested speed
+		// instead of getting stuck at 1 msec per frame
+		static float carry;
+		const float scaled = msec * com_timescale->value + carry;
+
+		msec = (int)scaled;
+		carry = scaled - msec;
 	} else if ( com_timescale->value ) {
 		msec *= com_timescale->value;
 	} else if (com_cameraMode->integer) {
@@ -2785,7 +2796,7 @@ int Com_ModifyMsec( int msec ) {
 	}
 
 	// don't let it scale below 1 msec
-	if ( msec < 1 && com_timescale->value) {
+	if ( msec < 1 && com_timescale->value && !com_demoplaying ) {
 		msec = 1;
 	}
 
@@ -2817,7 +2828,13 @@ int Com_ModifyMsec( int msec ) {
 
 	if ( com_demoplaying && ( (cl_paused && cl_paused->integer) || !com_timescale->value)) {
 		msec = 0;	// if we're playing demo and brought up menu via ESC or have timescale set to 0, pause demo
+
+		// demo_step advances a paused demo once
+		if ( com_demoStepMsec > 0 && !( cl_paused && cl_paused->integer ) ) {
+			msec = com_demoStepMsec;
+		}
 	}
+	com_demoStepMsec = 0;
 
 	return msec;
 }
@@ -2900,8 +2917,10 @@ void Com_Frame( void ) {
 			// that framerate is stable at the requested value.
 			minMsec -= bias;
 		}
-	} else
-		minMsec = 1;
+	} else {
+		// timedemo; the benchmark command measures past 1000 fps
+		minMsec = com_benchmarkActive ? 0 : 1;
+	}
 
 	timeVal = Com_TimeVal(minMsec);
 	do {

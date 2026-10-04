@@ -988,6 +988,10 @@ typedef struct {
 	int		c_dlightVertexes;
 	int		c_dlightIndexes;
 
+	int		c_drawCalls;		// batches submitted, r_speeds 8
+	int		c_binds;			// texture binds that changed the texture
+	int		c_stateChanges;		// GL_State calls that changed the state
+
 	int		c_flareAdds;
 	int		c_flareTests;
 	int		c_flareRenders;
@@ -1132,6 +1136,10 @@ typedef struct {
 	qboolean				screenshotTGA;
 	qboolean				screenshotTGASilent;
 	char					screenshotTGAName[MAX_OSPATH];
+
+	qboolean				screenshotPNG;
+	qboolean				screenshotPNGSilent;
+	char					screenshotPNGName[MAX_OSPATH];
 
 	qboolean				screenshotJPEG;
 	qboolean				screenshotJPEGSilent;
@@ -1920,6 +1928,14 @@ void RE_RotatePic2 ( float x, float y, float w, float h, float s1, float t1,
 void RE_BeginFrame( stereoFrame_t stereoFrame );
 void RE_EndFrame( void );
 void RE_SwapBuffers( int *frontEndUsec, int *backEndUsec );
+
+// the view's own body: hidden in the first person view, drawn in mirrors and
+// by the demo free camera
+#define R_IS_PERSONAL_MODEL( renderfx ) \
+	( ( ( renderfx ) & RF_THIRD_PERSON ) && !tr.viewParms.isPortal && !( tr.refdef.rdflags & RDF_FREECAM ) )
+// the first person view weapon: hidden in mirrors and by the demo free camera
+#define R_HIDE_VIEW_WEAPON( renderfx ) \
+	( ( ( renderfx ) & RF_FIRST_PERSON ) && ( tr.viewParms.isPortal || ( tr.refdef.rdflags & RDF_FREECAM ) ) )
 void RE_RenderWorldEffects( void );
 void RE_GammaCorrection( void );
 void SaveJPG(const char * filename, int quality, int image_width, int image_height, byte *image_buffer, int padding);
@@ -1929,6 +1945,8 @@ int RE_CaptureFrameRaw( byte *buffer, int bufSize, int padding );
 int RE_CaptureFrameJPEG( byte *buffer, int bufSize, int quality );
 void RE_TakeScreenshotJPEG( const char *filename, int quality, qboolean silent );
 void RE_TakeScreenshotTGA( const char *filename, qboolean silent );
+void RE_TakeScreenshotPNG( const char *filename, qboolean silent );
+qboolean R_SavePNG( const char *filename, const byte *bgrBottomUp, int width, int height );
 void RE_TakeLevelshot( const char *filename );
 
 /*

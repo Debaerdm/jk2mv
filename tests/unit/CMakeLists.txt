@@ -107,3 +107,12 @@ add_jk2mv_test(test_sv_game_shutdown
 # ==============================================================================
 # Total: 22 test executables
 # ==============================================================================
+
+# ==============================================================================
+# Client: demo tools (links the real engine source)
+# ==============================================================================
+
+add_jk2mv_test(test_cl_campath
+  test_cl_campath.cpp
+  ${CMAKE_SOURCE_DIR}/src/client/cl_campath.cpp
+)

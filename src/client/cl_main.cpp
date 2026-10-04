@@ -487,6 +487,7 @@ void CL_DemoCompleted( void ) {
 		}
 	}
 
+	CL_BenchmarkDemoCompleted();
 	CL_NextDemo();
 	CL_Disconnect_f();
 	// disconnect here does long jump, don't put anything after
@@ -586,7 +587,7 @@ void CL_PlayDemo_f( void ) {
 	{ // Load "dm_15" and "dm_16" demos.
 		Com_sprintf (name, sizeof(name), "demos/%s", arg);
 
-		FS_FOpenFileRead( name, &clc.demofile, qtrue );
+		clc.demoLength = FS_FOpenFileRead( name, &clc.demofile, qtrue );
 		if (!clc.demofile)
 		{
 			if (!Q_stricmp(arg, "(null)"))
@@ -604,11 +605,11 @@ void CL_PlayDemo_f( void ) {
 	{
 		// Check for both, "dm_15" and "dm_16".
 		Com_sprintf(name, sizeof(name), "demos/%s.dm_15", arg);
-		FS_FOpenFileRead( name, &clc.demofile, qtrue );
+		clc.demoLength = FS_FOpenFileRead( name, &clc.demofile, qtrue );
 		if ( !clc.demofile )
 		{
 			Com_sprintf(name, sizeof(name), "demos/%s.dm_16", arg);
-			FS_FOpenFileRead( name, &clc.demofile, qtrue );
+			clc.demoLength = FS_FOpenFileRead( name, &clc.demofile, qtrue );
 			if ( !clc.demofile )
 			{
 				if (!Q_stricmp(arg, "(null)"))
@@ -1215,7 +1216,7 @@ static void CL_CompleteRedirect( char *args, int argNum )
 CL_CompleteDemoName
 ==================
 */
-static void CL_CompleteDemoName( char *args, int argNum )
+void CL_CompleteDemoName( char *args, int argNum )
 {
 	if( argNum == 2 )
 		Field_CompleteFilename( "demos", ".dm_15|.dm_16", qfalse );
@@ -2443,6 +2444,8 @@ void CL_Frame ( int msec ) {
 		return;
 	}
 
+	CL_BenchmarkFrame();
+
 	SP_CheckForLanguageUpdates();	// will take zero time to execute unless language changes, then will reload strings.
 									//	of course this still doesn't work for menus...
 
@@ -2973,6 +2976,8 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("snd_restart", CL_Snd_Restart_f);
 	Cmd_AddCommand ("vid_restart", CL_Vid_Restart_f);
 	CL_InitPresets();
+	CL_InitDemoTools();
+	CL_InitBenchmark();
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
 	Cmd_AddCommand ("record", CL_Record_f);
 	Cmd_AddCommand ("demo", CL_PlayDemo_f);
@@ -3060,6 +3065,8 @@ void CL_Shutdown( void ) {
 	Cmd_RemoveCommand ("snd_restart");
 	Cmd_RemoveCommand ("vid_restart");
 	CL_ShutdownPresets();
+	CL_ShutdownDemoTools();
+	CL_ShutdownBenchmark();
 	Cmd_RemoveCommand ("disconnect");
 	Cmd_RemoveCommand ("record");
 	Cmd_RemoveCommand ("demo");

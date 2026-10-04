@@ -2798,6 +2798,80 @@ static void R_CreateDefaultImage( void ) {
 	tr.defaultImage = R_CreateImage("*default", (byte *)data, DEFAULT_SIZE, DEFAULT_SIZE, qtrue, qfalse, qfalse, GL_REPEAT, PXF_GRAY );
 }
 
+/*
+================
+R_SavePNG
+
+Writes a 24-bit PNG from a bottom-up BGR buffer, as read back from GL
+================
+*/
+typedef struct {
+	byte	*data;
+	size_t	size;
+	size_t	capacity;
+} pngOutput_t;
+
+static void R_PNGWrite( png_structp png, png_bytep data, png_size_t length ) {
+	pngOutput_t *out = (pngOutput_t *)png_get_io_ptr( png );
+
+	if ( out->size + length > out->capacity ) {
+		size_t capacity = out->capacity ? out->capacity : 65536;
+		while ( capacity < out->size + length ) {
+			capacity *= 2;
+		}
+		byte *data2 = (byte *)realloc( out->data, capacity );
+		if ( !data2 ) {
+			png_error( png, "out of memory" );
+		}
+		out->data = data2;
+		out->capacity = capacity;
+	}
+	memcpy( out->data + out->size, data, length );
+	out->size += length;
+}
+
+static void R_PNGFlush( png_structp png ) {
+}
+
+qboolean R_SavePNG( const char *filename, const byte *bgrBottomUp, int width, int height ) {
+	// on the heap: locals changed after setjmp are indeterminate after a longjmp
+	pngOutput_t	*out = (pngOutput_t *)calloc( 1, sizeof( pngOutput_t ) );
+	png_structp	png = out ? png_create_write_struct( PNG_LIBPNG_VER_STRING, NULL, NULL, NULL ) : NULL;
+	png_infop	info = png ? png_create_info_struct( png ) : NULL;
+
+	if ( !info ) {
+		png_destroy_write_struct( &png, NULL );
+		free( out );
+		return qfalse;
+	}
+
+	// png_error lands here; only plain C data is alive at this point
+	if ( setjmp( png_jmpbuf( png ) ) ) {
+		png_destroy_write_struct( &png, &info );
+		free( out->data );
+		free( out );
+		return qfalse;
+	}
+
+	png_set_write_fn( png, out, R_PNGWrite, R_PNGFlush );
+	png_set_IHDR( png, info, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+		PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT );
+	// fast compression keeps the hitch of a 4K shot short
+	png_set_compression_level( png, 3 );
+	png_write_info( png, info );
+	png_set_bgr( png );
+	for ( int y = height - 1; y >= 0; y-- ) {
+		png_write_row( png, (png_bytep)( bgrBottomUp + (size_t)y * width * 3 ) );
+	}
+	png_write_end( png, info );
+	png_destroy_write_struct( &png, &info );
+
+	ri.FS_WriteFile( filename, out->data, (int)out->size );
+	free( out->data );
+	free( out );
+	return qtrue;
+}
+
 static void R_BindGlowImages( void ) {
 	// Update dynamic glow textures when vidWidth/vidHeight changes
 

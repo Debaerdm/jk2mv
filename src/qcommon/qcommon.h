@@ -837,6 +837,8 @@ extern	cvar_t	*sv_paused;
 
 // com_speeds times
 // com_speeds times, in microseconds
+extern	int		com_demoStepMsec;	// demo_step: game time to advance a paused demo by
+extern	int		com_benchmarkActive;	// benchmark command running: no 1000 fps cap in timedemo
 extern	int		time_game;
 extern	int		time_frontend;		// renderer frontend time
 extern	int		time_backend;		// renderer backend time

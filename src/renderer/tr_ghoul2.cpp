@@ -1702,7 +1702,7 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 	}
 
 	// don't add third_person objects if not in a portal
-	personalModel = (qboolean)((ent->e.renderfx & RF_THIRD_PERSON) && !tr.viewParms.isPortal);
+	personalModel = (qboolean)R_IS_PERSONAL_MODEL( ent->e.renderfx );
 
 	modelList = (int*)Z_Malloc((int)ghoul2.size() * 4, TAG_GHOUL2, qtrue);
 #ifndef DEDICATED

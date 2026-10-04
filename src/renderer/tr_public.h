@@ -3,6 +3,11 @@
 
 #include "../cgame/tr_types.h"
 
+// Engine internal refdef flag, never set by game modules (the client clears
+// it): the demo free camera, which draws the recorder's own body
+// (RF_THIRD_PERSON) and hides the first person view weapon.
+#define RDF_FREECAM		0x40000000
+
 #define	REF_API_VERSION		8
 
 
