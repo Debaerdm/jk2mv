@@ -361,7 +361,8 @@ void GL_State( unsigned int stateBits )
 		// With MSAA, alpha to coverage antialiases the cut-out edges of
 		// foliage, fences and grates: the opaque "alpha >= 0.5" stages. It
 		// would apply the alpha twice on blended stages, and can't express
-		// the other thresholds, which keep the alpha test.
+		// the other thresholds, which keep the alpha test. The stages then
+		// bind their images with sharpened alpha (R_CreateCoverageImage).
 		const qboolean alphaToCoverage = (qboolean)( r_ext_alphaToCoverage->integer && tr.msaaSamples > 1 &&
 			!( stateBits & ( GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS ) ) );
 		qboolean coverage = qfalse;

@@ -3330,6 +3330,33 @@ static shader_t *FinishShader( void ) {
 		stage--;
 	}
 
+#ifndef DEDICATED
+	// r_ext_alphaToCoverage: GL_State draws the opaque "alphaFunc GE128"
+	// stages with alpha to coverage, which needs their images with sharpened
+	// alpha (R_CreateCoverageImage), also when the cut-out texture was
+	// collapsed into the second bundle of a lightmap stage
+	if ( r_ext_alphaToCoverage->integer && tr.msaaSamples > 1 ) {
+		for ( int i = 0; i < stage; i++ ) {
+			const unsigned stateBits = stages[i].stateBits;
+
+			if ( !stages[i].active || ( stateBits & GLS_ATEST_BITS ) != GLS_ATEST_GE_80 ||
+				( stateBits & ( GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS ) ) ) {
+				continue;
+			}
+			for ( int b = 0; b < NUM_TEXTURE_BUNDLES; b++ ) {
+				const textureBundle_t *bundle = &stages[i].bundle[b];
+
+				if ( bundle->isLightmap || bundle->isVideoMap ) {
+					continue;
+				}
+				for ( int n = 0; n < MAX( 1, bundle->numImageAnimations ); n++ ) {
+					R_CreateCoverageImage( bundle->image[n] );
+				}
+			}
+		}
+	}
+#endif
+
 	if ( shader.lightmapIndex[0] >= 0 && !hasLightmapStage )
 	{
 		if (vertexLightmap)

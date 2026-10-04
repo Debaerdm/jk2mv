@@ -199,10 +199,20 @@ SURFACE SHADERS
 =============================================================
 */
 
+// a stage image, or with alpha to coverage on (GL_State of the stage done)
+// its copy with sharpened alpha (R_CreateCoverageImage)
+static void R_BindStageImage( image_t *image ) {
+	if ( glState.alphaToCoverage && image && image->coverage ) {
+		image = image->coverage;
+	}
+	GL_Bind( image );
+}
+
 /*
 =================
 R_BindAnimatedImage
 
+Called after GL_State for the stage
 =================
 */
 // de-static'd because tr_quicksprite wants it
@@ -222,7 +232,7 @@ void R_BindAnimatedImage( textureBundle_t *bundle ) {
 	}
 
 	if ( bundle->numImageAnimations <= 1 ) {
-		GL_Bind( bundle->image[0] );
+		R_BindStageImage( bundle->image[0] );
 		return;
 	}
 
@@ -248,7 +258,7 @@ void R_BindAnimatedImage( textureBundle_t *bundle ) {
 		index %= bundle->numImageAnimations;
 	}
 
-	GL_Bind( bundle->image[ index ] );
+	R_BindStageImage( bundle->image[ index ] );
 }
 
 /*
@@ -1372,13 +1382,6 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 			//
 			// set state
 			//
-			if ( pStage->bundle[0].vertexLightmap && ( r_vertexLight->integer && !r_uiFullScreen->integer ) && r_lightmap->integer )
-			{
-				GL_Bind( tr.whiteImage );
-			}
-			else
-				R_BindAnimatedImage( &pStage->bundle[0] );
-
 			if (backEnd.currentEntity && (backEnd.currentEntity->e.renderfx & RF_FORCE_ENT_ALPHA))
 			{
 				ForceAlpha((unsigned char *) tess.svars.colors, backEnd.currentEntity->e.shaderRGBA[3]);
@@ -1388,6 +1391,14 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 			{
 				GL_State( stateBits );
 			}
+
+			// after GL_State, which decides on alpha to coverage
+			if ( pStage->bundle[0].vertexLightmap && ( r_vertexLight->integer && !r_uiFullScreen->integer ) && r_lightmap->integer )
+			{
+				GL_Bind( tr.whiteImage );
+			}
+			else
+				R_BindAnimatedImage( &pStage->bundle[0] );
 
 			//
 			// draw
@@ -1581,8 +1592,8 @@ void RB_StageIteratorVertexLitTexture( void )
 	//
 	// call special shade routine
 	//
-	R_BindAnimatedImage( &tess.xstages[0]->bundle[0] );
 	GL_State( tess.xstages[0]->stateBits );
+	R_BindAnimatedImage( &tess.xstages[0]->bundle[0] );
 	R_DrawElements( input->numIndexes, input->indexes );
 
 	//

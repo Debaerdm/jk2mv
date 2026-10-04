@@ -126,6 +126,8 @@ typedef struct image_s {
 
 	int			iLastLevelUsedOn;
 
+	struct image_s	*coverage;		// copy with sharpened alpha for alpha to coverage, owned by this image
+
 } image_t;
 
 typedef enum {
@@ -1464,6 +1466,7 @@ image_t		*R_CreateImage( const char *name, byte *data, int width, int height, qb
 	qboolean allowPicmip, qboolean allowTC, int wrapClampMode, pixelFormat_t format );
 image_t *R_CreateImageNew( const char *name, byte * const *mipmaps, qboolean customMip, int width, int height,
 	const upload_t *upload, int glWrapClampMode, pixelFormat_t format );
+void		R_CreateCoverageImage( image_t *image );
 qboolean	R_GetModeInfo( int *width, int *height, float *windowAspect, int mode );
 
 void		R_SetColorMappings( void );

@@ -4,6 +4,7 @@
 
 #ifndef DEDICATED
 #include "glext.h"
+#include "tr_coverage.h"
 #endif
 
 #include <map>
@@ -78,6 +79,24 @@ static char *GenerateImageMappingName( const char *name )
 
 
 
+// r_textureMode and the anisotropy on one mipmapped texture
+static void GL_ImageTextureMode( image_t *glt ) {
+	GL_Bind (glt);
+
+	if ( !glt->upload.textureMode ) {
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	}
+
+	if ( !glt->upload.noMipMaps ) {
+		if(glConfig.textureFilterAnisotropicMax >= 2.0f) {
+			float aniso = r_ext_texture_filter_anisotropic->value;
+			aniso = Com_Clamp(1.0f, glConfig.textureFilterAnisotropicMax, aniso);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
+		}
+	}
+}
+
 /*
 ===============
 GL_TextureMode
@@ -108,19 +127,10 @@ void GL_TextureMode( const char *string ) {
 			continue;
 		}
 
-		GL_Bind (glt);
-
-		if ( !glt->upload.textureMode ) {
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-		}
-
-		if ( !glt->upload.noMipMaps ) {
-			if(glConfig.textureFilterAnisotropicMax >= 2.0f) {
-				float aniso = r_ext_texture_filter_anisotropic->value;
-				aniso = Com_Clamp(1.0f, glConfig.textureFilterAnisotropicMax, aniso);
-				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
-			}
+		GL_ImageTextureMode( glt );
+		// its alpha to coverage copy (R_CreateCoverageImage) follows it
+		if ( glt->coverage ) {
+			GL_ImageTextureMode( glt->coverage );
 		}
 	}
 }
@@ -288,7 +298,10 @@ void R_ImageList_f( void ) {
 			break;
 		}
 
-		ri.Printf( PRINT_ALL, "%s\n", image->imgName );
+		if ( image->coverage ) {
+			texBytes += image->uploadWidth*image->uploadHeight * R_BytesPerTex (image->internalFormat);
+		}
+		ri.Printf( PRINT_ALL, "%s%s\n", image->imgName, image->coverage ? " (+ alpha to coverage copy)" : "" );
 		i++;
 	}
 	ri.Printf (PRINT_ALL, " ---------\n");
@@ -826,6 +839,10 @@ static void R_Images_DeleteImageContents( image_t *pImage )
 	assert(pImage);	// should never be called with NULL
 	if (pImage)
 	{
+		if ( pImage->coverage ) {
+			qglDeleteTextures( 1, &pImage->coverage->texnum );
+			Z_Free( pImage->coverage );
+		}
 		qglDeleteTextures( 1, &pImage->texnum );
 
 		Z_Free(pImage);
@@ -1297,6 +1314,113 @@ image_t *R_CreateImageNew( const char *name, byte * const *mipmaps, qboolean cus
 	AllocatedImages[ image->imgName ] = image;
 
 	return image;
+}
+
+/*
+================
+R_CreateCoverageImage
+
+r_ext_alphaToCoverage: with MSAA, alpha to coverage replaces the alpha test
+of the opaque "alphaFunc GE128" stages and covers a share of each pixel equal
+to its alpha. The texture alpha is below 1 on soft edges and, once mipmapped,
+across thin blades and bars, which would turn see-through. Those stages bind
+this copy instead (R_BindAnimatedImage): every level as the image was
+uploaded, its alpha sharpened around the threshold (R_CoverageAlpha), so the
+same texels pass the test at every distance and only the edges get partial
+coverage. The other stages using the image keep the original. No copy when
+the image has no alpha to sharpen.
+================
+*/
+void R_CreateCoverageImage( image_t *image ) {
+	GLint		levelWidth[MAX_MIP_LEVELS * 2], levelHeight[MAX_MIP_LEVELS * 2];
+	GLint		minFilter = 0, magFilter = 0;
+	GLfloat		anisotropy = 0.0f;
+	int			numLevels = 0, size = 0;
+	qboolean	changed = qfalse;
+
+	// builtin images and lightmaps have no cut-outs
+	if ( !image || image->coverage || image->imgName[0] == '*' ) {
+		return;
+	}
+	switch ( image->internalFormat ) {	// the formats with alpha of R_GLInternalFormat
+	case GL_RGBA:
+	case GL_RGBA8:
+	case GL_RGBA4:
+	case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
+		break;
+	default:
+		return;
+	}
+
+	if ( qglActiveTextureARB ) {
+		GL_SelectTexture( image->TMU );
+	}
+	GL_Bind( image );
+	qglGetTexParameteriv( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &minFilter );
+	qglGetTexParameteriv( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &magFilter );
+	if ( !image->upload.noMipMaps && glConfig.textureFilterAnisotropicMax >= 2.0f ) {
+		qglGetTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, &anisotropy );
+	}
+	for ( numLevels = 0; numLevels < (int)ARRAY_LEN( levelWidth ); numLevels++ ) {
+		qglGetTexLevelParameteriv( GL_TEXTURE_2D, numLevels, GL_TEXTURE_WIDTH, &levelWidth[numLevels] );
+		qglGetTexLevelParameteriv( GL_TEXTURE_2D, numLevels, GL_TEXTURE_HEIGHT, &levelHeight[numLevels] );
+		if ( levelWidth[numLevels] <= 0 || levelHeight[numLevels] <= 0 ) {
+			break;
+		}
+		size += levelWidth[numLevels] * levelHeight[numLevels] * 4;
+		if ( image->upload.noMipMaps || ( levelWidth[numLevels] == 1 && levelHeight[numLevels] == 1 ) ) {
+			numLevels++;
+			break;
+		}
+	}
+
+	byte *pixels = numLevels ? (byte *)Hunk_AllocateTempMemory( size ) : NULL;
+	byte *level = pixels;
+	GLint packAlignment = 4;
+
+	// rows of RGBA bytes are always 4 byte aligned
+	qglGetIntegerv( GL_PACK_ALIGNMENT, &packAlignment );
+	qglPixelStorei( GL_PACK_ALIGNMENT, 4 );
+	for ( int i = 0; i < numLevels; i++ ) {
+		qglGetTexImage( GL_TEXTURE_2D, i, GL_RGBA, GL_UNSIGNED_BYTE, level );
+		if ( R_SharpenCoverageAlpha( level, levelWidth[i] * levelHeight[i] ) ) {
+			changed = qtrue;
+		}
+		level += levelWidth[i] * levelHeight[i] * 4;
+	}
+	qglPixelStorei( GL_PACK_ALIGNMENT, packAlignment );
+
+	if ( changed ) {
+		image_t *copy = (image_t *)ri.Malloc( sizeof( image_t ), TAG_IMAGE_T, qtrue );
+
+		*copy = *image;
+		copy->coverage = NULL;
+		copy->texnum = R_AllocTextureName();
+		GL_Bind( copy );
+		level = pixels;
+		for ( int i = 0; i < numLevels; i++ ) {
+			qglTexImage2D( GL_TEXTURE_2D, i, image->internalFormat, levelWidth[i], levelHeight[i], 0,
+				GL_RGBA, GL_UNSIGNED_BYTE, level );
+			level += levelWidth[i] * levelHeight[i] * 4;
+		}
+		qglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter );
+		qglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter );
+		if ( anisotropy > 0.0f ) {
+			qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, anisotropy );
+		}
+		qglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, image->wrapClampMode );
+		qglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, image->wrapClampMode );
+		image->coverage = copy;
+	}
+	if ( pixels ) {
+		Hunk_FreeTempMemory( pixels );
+	}
+
+	qglBindTexture( GL_TEXTURE_2D, 0 );
+	glState.currenttextures[glState.currenttmu] = 0;
+	if ( image->TMU == 1 ) {
+		GL_SelectTexture( 0 );
+	}
 }
 #endif // !DEDICATED
 

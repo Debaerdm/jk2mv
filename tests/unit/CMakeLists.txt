@@ -109,6 +109,15 @@ add_jk2mv_test(test_sv_game_shutdown
 # ==============================================================================
 
 # ==============================================================================
+# Renderer: alpha of the alpha to coverage images (links the real engine source)
+# ==============================================================================
+
+add_jk2mv_test(test_r_coverage
+  test_r_coverage.cpp
+  ${CMAKE_SOURCE_DIR}/src/renderer/tr_coverage.cpp
+)
+
+# ==============================================================================
 # Client: demo tools (links the real engine source)
 # ==============================================================================
 

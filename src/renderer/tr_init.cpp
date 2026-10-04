@@ -1148,7 +1148,8 @@ void R_Register( void )
 	r_DynamicGlowWidth = ri.Cvar_Get("r_DynamicGlowWidth", "320", CVAR_ARCHIVE | CVAR_GLOBAL | CVAR_LATCH);
 	r_DynamicGlowHeight = ri.Cvar_Get("r_DynamicGlowHeight", "240", CVAR_ARCHIVE | CVAR_GLOBAL | CVAR_LATCH);
 	r_DynamicGlowFinish = ri.Cvar_Get("r_DynamicGlowFinish", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
-	r_ext_alphaToCoverage = ri.Cvar_Get("r_ext_alphaToCoverage", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
+	// latched: the images it draws are made when the shaders load
+	r_ext_alphaToCoverage = ri.Cvar_Get("r_ext_alphaToCoverage", "0", CVAR_ARCHIVE | CVAR_GLOBAL | CVAR_LATCH);
 
 	r_colorGrade = ri.Cvar_Get("r_colorGrade", "", CVAR_ARCHIVE | CVAR_GLOBAL);
 	r_saturation = ri.Cvar_Get("r_saturation", "1", CVAR_ARCHIVE | CVAR_GLOBAL);

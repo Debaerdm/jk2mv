@@ -425,12 +425,14 @@ if (BuildMVMP)
 
 	set(MVMPRendererFiles
 		"renderer/glext.h"
+		"renderer/tr_coverage.h"
 		"renderer/tr_WorldEffects.h"
 
 		"renderer/tr_WorldEffects.cpp"
 		"renderer/tr_animation.cpp"
 		"renderer/tr_bsp.cpp"
 		"renderer/tr_cmds.cpp"
+		"renderer/tr_coverage.cpp"
 		"renderer/tr_curve.cpp"
 		"renderer/tr_flares.cpp"
 		"renderer/tr_font.cpp"

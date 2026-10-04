@@ -526,7 +526,9 @@ Client-Side
 :Default: "0"
 :Description:
    With multisampling (``r_ext_multisample``), antialias the cut-out edges of
-   foliage, fences and grates using alpha to coverage.
+   foliage, fences and grates using alpha to coverage. Their textures get a
+   copy with sharpened alpha, so leaves and bars stay solid at any distance
+   and only their edges are smoothed. Requires vid_restart.
 
 ..
 
