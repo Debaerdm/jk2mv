@@ -9,6 +9,7 @@
 #endif
 
 #include "FxUtil.h"
+#include "cl_fov.h"
 
 #if !defined(CROFFSYSTEM_H_INC)
 	#include "../qcommon/RoffSystem.h"
@@ -734,21 +735,22 @@ static void CL_CgameCvarRegister( vmCvar_t *vmCvar, const char *name, const char
 CL_FovAspectFix
 
 The engine's Hor+ for the world scenes of a cgame without
-cg_fovAspectAdjust: fov_x is taken as meant for a 4:3 screen and the scene
-widened to the real aspect, the way MVSDK's cg_fovAspectAdjust does it.
+cg_fovAspectAdjust: the scene's fov is taken as meant for a 4:3 screen and
+widened to the real aspect (CL_FovWiden), as MVSDK's cg_fovAspectAdjust
+does, keeping what the cgame did to fov_y (the underwater warp).
 ====================
 */
 qboolean CL_FovAspectFix( const refdef_t *fd, refdef_t *out ) {
-	if ( cl_cgameFovAdjust >= 0 || ( fd->rdflags & RDF_NOWORLDMODEL ) || fd->width * 3 <= fd->height * 4 ||
-		fd->fov_x <= 0.0f || fd->fov_x >= 180.0f || !CL_FovAspectFixOn() ) {
+	float	fovX, fovY;
+
+	if ( cl_cgameFovAdjust >= 0 || ( fd->rdflags & RDF_NOWORLDMODEL ) || !CL_FovAspectFixOn() ||
+		!CL_FovWiden( fd->fov_x, fd->fov_y, fd->width, fd->height, &fovX, &fovY ) ) {
 		return qfalse;
 	}
 
-	const float x = fd->height * ( 4.0f / 3.0f ) / tanf( DEG2RAD( fd->fov_x * 0.5f ) );
-
 	*out = *fd;
-	out->fov_x = RAD2DEG( 2.0f * atan2f( (float)fd->width, x ) );
-	out->fov_y = RAD2DEG( 2.0f * atan2f( (float)fd->height, x ) );
+	out->fov_x = fovX;
+	out->fov_y = fovY;
 	return qtrue;
 }
 

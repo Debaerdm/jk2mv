@@ -132,6 +132,11 @@ add_jk2mv_test(test_cl_campath
   ${CMAKE_SOURCE_DIR}/src/client/cl_campath.cpp
 )
 
+add_jk2mv_test(test_cl_fov
+  test_cl_fov.cpp
+  ${CMAKE_SOURCE_DIR}/src/client/cl_fov.cpp
+)
+
 # ==============================================================================
 # Renderer: dynamic light selection (links the real engine source)
 # ==============================================================================

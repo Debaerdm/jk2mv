@@ -370,6 +370,8 @@ if (BuildMVMP)
 		"client/cl_testscene.cpp"
 		"client/cl_campath.cpp"
 		"client/cl_campath.h"
+		"client/cl_fov.cpp"
+		"client/cl_fov.h"
 		"client/cl_input.cpp"
 		"client/cl_keys.cpp"
 		"client/cl_main.cpp"
