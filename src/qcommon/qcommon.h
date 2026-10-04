@@ -1058,16 +1058,34 @@ typedef struct {
 	huff_t		decompressor;
 } huffman_t;
 
+// Code tables of trees that no longer adapt (the netchan trees), built by
+// Huff_BuildTables. Same bits as the tree functions, which are still used
+// for what the tables can't hold.
+#define HUFF_LOOKUP_BITS	11
+
+typedef struct {
+	huff_t		*compressor;
+	huff_t		*decompressor;
+	uint32_t	code[HMAX+1];					// first bit sent in bit 0
+	byte		codeLength[HMAX+1];				// 0: sent by the tree
+	uint16_t	lookup[1 << HUFF_LOOKUP_BITS];	// next bits -> symbol | length << 9, 0: read by the tree
+} huffTables_t;
+
 void	Huff_Compress(msg_t *buf, int offset);
 void	Huff_Decompress(msg_t *buf, int offset);
 void	Huff_Init(huffman_t *huff);
 void	Huff_addRef(huff_t* huff, byte ch);
-int		Huff_Receive (node_t *node, int *ch, byte *fin);
-void	Huff_transmit (huff_t *huff, int ch, byte *fout);
+int		Huff_Receive (node_t *node, int *ch, byte *fin, int *offset);
+void	Huff_transmit (huff_t *huff, int ch, byte *fout, int *offset);
 void	Huff_offsetReceive (node_t *node, int *ch, byte *fin, int *offset);
 void	Huff_offsetTransmit (huff_t *huff, int ch, byte *fout, int *offset);
 void	Huff_putBit( int bit, byte *fout, int *offset);
 int		Huff_getBit( byte *fout, int *offset);
+void	Huff_BuildTables( huffTables_t *tables, huff_t *compressor, huff_t *decompressor );
+void	Huff_offsetReceiveTable( const huffTables_t *tables, int *ch, byte *fin, int *offset, int finSize );
+void	Huff_offsetTransmitTable( const huffTables_t *tables, int ch, byte *fout, int *offset );
+void	Huff_putBits( int value, int bits, byte *fout, int *offset );
+int		Huff_getBits( int bits, byte *fin, int *offset );
 
 extern huffman_t clientHuffTables;
 

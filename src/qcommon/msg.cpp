@@ -14,6 +14,7 @@ typedef struct {
 //#define _USINGNEWHUFFTABLE_		// Build a new frequency table to cut and paste.
 
 static huffman_t		msgHuff;
+static huffTables_t		msgHuffTables;		// codes of msgHuff, which never adapts
 
 static qboolean			msgInit = qfalse;
 #ifdef _NEWHUFFTABLE_
@@ -159,10 +160,8 @@ void MSG_WriteBits(msg_t *msg, int value, int bits) {
 		if (bits & 7) {
 			int nbits;
 			nbits = bits & 7;
-			for (i = 0; i<nbits; i++) {
-				Huff_putBit((value & 1), msg->data, &msg->bit);
-				value = (value >> 1);
-			}
+			Huff_putBits(value, nbits, msg->data, &msg->bit);
+			value = (value >> nbits);
 			bits = bits - nbits;
 		}
 		if (bits) {
@@ -170,7 +169,7 @@ void MSG_WriteBits(msg_t *msg, int value, int bits) {
 #ifdef _NEWHUFFTABLE_
 				fwrite(&value, 1, 1, fp);
 #endif // _NEWHUFFTABLE_
-				Huff_offsetTransmit(&msgHuff.compressor, (value & 0xff), msg->data, &msg->bit);
+				Huff_offsetTransmitTable(&msgHuffTables, (value & 0xff), msg->data, &msg->bit);
 				value = (value >> 8);
 			}
 		}
@@ -214,14 +213,16 @@ int MSG_ReadBits(msg_t *msg, int bits) {
 		nbits = 0;
 		if (bits & 7) {
 			nbits = bits & 7;
-			for (i = 0; i<nbits; i++) {
-				value |= (Huff_getBit(msg->data, &msg->bit) << i);
-			}
+			value = Huff_getBits(nbits, msg->data, &msg->bit);
 			bits = bits - nbits;
 		}
 		if (bits) {
+			// the table decoder peeks at the next bytes: only the ones that
+			// were received (or written), the tree reads the last few
+			int size = msg->cursize < msg->maxsize ? msg->cursize : msg->maxsize;
+
 			for (i = 0; i<bits; i += 8) {
-				Huff_offsetReceive(msgHuff.decompressor.tree, &get, msg->data, &msg->bit);
+				Huff_offsetReceiveTable(&msgHuffTables, &get, msg->data, &msg->bit, size);
 #ifdef _NEWHUFFTABLE_
 				fwrite(&get, 1, 1, fp);
 #endif // _NEWHUFFTABLE_
@@ -2593,6 +2594,7 @@ void MSG_initHuffman() {
 	int i, j;
 
 	if (Huff_ReadData(&msgHuff, "huffman.dat")) {
+		Huff_BuildTables(&msgHuffTables, &msgHuff.compressor, &msgHuff.decompressor);
 		msgInit = qtrue;
 		return;
 	}
@@ -2611,6 +2613,7 @@ void MSG_initHuffman() {
 	}
 
 	Huff_SaveData(&msgHuff, "huffman.dat");
+	Huff_BuildTables(&msgHuffTables, &msgHuff.compressor, &msgHuff.decompressor);
 }
 
 #else
@@ -2645,6 +2648,7 @@ void MSG_initHuffman() {
 		Com_Printf("%d,			// %d\n", array[i], i);
 	}
 	Com_Printf("};\n");
+	Huff_BuildTables(&msgHuffTables, &msgHuff.compressor, &msgHuff.decompressor);
 	FS_FreeFile(data);
 	Cbuf_AddText("condump dump.txt\n");
 }

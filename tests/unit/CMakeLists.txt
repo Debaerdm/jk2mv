@@ -123,3 +123,13 @@ if(UNIX)
     ${CMAKE_SOURCE_DIR}/src/sys/sys_spawn.cpp
   )
 endif()
+
+# ==============================================================================
+# qcommon: netchan Huffman tables (links the real engine sources)
+# ==============================================================================
+
+add_jk2mv_test(test_qcommon_huffman
+  test_qcommon_huffman.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/huffman.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/msg.cpp
+)

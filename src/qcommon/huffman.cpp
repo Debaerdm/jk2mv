@@ -6,10 +6,11 @@
 #include "../qcommon/q_shared.h"
 #include "qcommon.h"
 
-static int			bloc = 0;
+/* The bit position is always passed by the caller: there is no shared state,
+ * so separate messages can be encoded at the same time. */
 
 void	Huff_putBit( int bit, byte *fout, int *offset) {
-	bloc = *offset;
+	int bloc = *offset;
 	if ((bloc&7) == 0) {
 		fout[(bloc>>3)] = 0;
 	}
@@ -20,7 +21,7 @@ void	Huff_putBit( int bit, byte *fout, int *offset) {
 
 int		Huff_getBit( byte *fin, int *offset) {
 	int t;
-	bloc = *offset;
+	int bloc = *offset;
 	t = (fin[(bloc>>3)] >> (bloc&7)) & 0x1;
 	bloc++;
 	*offset = bloc;
@@ -28,19 +29,19 @@ int		Huff_getBit( byte *fin, int *offset) {
 }
 
 /* Add a bit to the output file (buffered) */
-static void add_bit (char bit, byte *fout) {
-	if ((bloc&7) == 0) {
-		fout[(bloc>>3)] = 0;
+static void add_bit (char bit, byte *fout, int *bloc) {
+	if ((*bloc&7) == 0) {
+		fout[(*bloc>>3)] = 0;
 	}
-	fout[(bloc>>3)] |= bit << (bloc&7);
-	bloc++;
+	fout[(*bloc>>3)] |= bit << (*bloc&7);
+	(*bloc)++;
 }
 
 /* Receive one bit from the input file (buffered) */
-static int get_bit (byte *fin) {
+static int get_bit (byte *fin, int *bloc) {
 	int t;
-	t = (fin[(bloc>>3)] >> (bloc&7)) & 0x1;
-	bloc++;
+	t = (fin[(*bloc>>3)] >> (*bloc&7)) & 0x1;
+	(*bloc)++;
 	return t;
 }
 
@@ -232,9 +233,9 @@ void Huff_addRef(huff_t* huff, byte ch) {
 }
 
 /* Get a symbol */
-int Huff_Receive (node_t *node, int *ch, byte *fin) {
+int Huff_Receive (node_t *node, int *ch, byte *fin, int *offset) {
 	while (node && node->symbol == INTERNAL_NODE) {
-		if (get_bit(fin)) {
+		if (get_bit(fin, offset)) {
 			node = node->right;
 		} else {
 			node = node->left;
@@ -249,9 +250,9 @@ int Huff_Receive (node_t *node, int *ch, byte *fin) {
 
 /* Get a symbol */
 void Huff_offsetReceive (node_t *node, int *ch, byte *fin, int *offset) {
-	bloc = *offset;
+	int bloc = *offset;
 	while (node && node->symbol == INTERNAL_NODE) {
-		if (get_bit(fin)) {
+		if (get_bit(fin, &bloc)) {
 			node = node->right;
 		} else {
 			node = node->left;
@@ -267,41 +268,41 @@ void Huff_offsetReceive (node_t *node, int *ch, byte *fin, int *offset) {
 }
 
 /* Send the prefix code for this node */
-static void send(node_t *node, node_t *child, byte *fout) {
+static void send(node_t *node, node_t *child, byte *fout, int *bloc) {
 	if (node->parent) {
-		send(node->parent, node, fout);
+		send(node->parent, node, fout, bloc);
 	}
 	if (child) {
 		if (node->right == child) {
-			add_bit(1, fout);
+			add_bit(1, fout, bloc);
 		} else {
-			add_bit(0, fout);
+			add_bit(0, fout, bloc);
 		}
 	}
 }
 
 /* Send a symbol */
-void Huff_transmit (huff_t *huff, int ch, byte *fout) {
+void Huff_transmit (huff_t *huff, int ch, byte *fout, int *offset) {
 	int i;
 	if (huff->loc[ch] == NULL) {
 		/* node_t hasn't been transmitted, send a NYT, then the symbol */
-		Huff_transmit(huff, NYT, fout);
+		Huff_transmit(huff, NYT, fout, offset);
 		for (i = 7; i >= 0; i--) {
-			add_bit((char)((ch >> i) & 0x1), fout);
+			add_bit((char)((ch >> i) & 0x1), fout, offset);
 		}
 	} else {
-		send(huff->loc[ch], NULL, fout);
+		send(huff->loc[ch], NULL, fout, offset);
 	}
 }
 
 void Huff_offsetTransmit (huff_t *huff, int ch, byte *fout, int *offset) {
-	bloc = *offset;
-	send(huff->loc[ch], NULL, fout);
+	int bloc = *offset;
+	send(huff->loc[ch], NULL, fout, &bloc);
 	*offset = bloc;
 }
 
 void Huff_Decompress(msg_t *mbuf, int offset) {
-	int			ch, cch, i, j, size;
+	int			ch, cch, i, j, size, bloc;
 	byte		seq[65536];
 	byte*		buffer;
 	huff_t		huff;
@@ -336,11 +337,11 @@ void Huff_Decompress(msg_t *mbuf, int offset) {
 			seq[j] = 0;
 			break;
 		}
-		Huff_Receive(huff.tree, &ch, buffer);				/* Get a character */
+		Huff_Receive(huff.tree, &ch, buffer, &bloc);		/* Get a character */
 		if ( ch == NYT ) {								/* We got a NYT, get the symbol associated with it */
 			ch = 0;
 			for ( i = 0; i < 8; i++ ) {
-				ch = (ch<<1) + get_bit(buffer);
+				ch = (ch<<1) + get_bit(buffer, &bloc);
 			}
 		}
 
@@ -355,7 +356,7 @@ void Huff_Decompress(msg_t *mbuf, int offset) {
 extern	int oldsize;
 
 void Huff_Compress(msg_t *mbuf, int offset) {
-	int			i, ch, size;
+	int			i, ch, size, bloc;
 	byte		seq[65536];
 	byte*		buffer;
 	huff_t		huff;
@@ -383,7 +384,7 @@ void Huff_Compress(msg_t *mbuf, int offset) {
 
 	for (i=0; i<size; i++ ) {
 		ch = buffer[i];
-		Huff_transmit(&huff, ch, seq);						/* Transmit symbol */
+		Huff_transmit(&huff, ch, seq, &bloc);				/* Transmit symbol */
 		Huff_addRef(&huff, (byte)ch);								/* Do update */
 	}
 
@@ -414,3 +415,149 @@ void Huff_Init(huffman_t *huff) {
 	huff->compressor.loc[NYT] = huff->compressor.tree;
 }
 
+
+/* Static code tables
+ *
+ * The netchan tree is built once by MSG_initHuffman and never adapts
+ * afterwards, so a symbol always has the same code. Huff_BuildTables reads
+ * the codes off the trees: the code of each symbol for the compressor, and
+ * the symbol at each value of the next HUFF_LOOKUP_BITS bits for the
+ * decompressor. Sending or receiving a symbol is then a table lookup and a
+ * few byte writes instead of a walk of the tree one bit at a time, with the
+ * same bits as the tree functions. What the tables can't hold (a missing
+ * symbol, a code longer than HUFF_MAX_TABLE_CODE bits or, for the decoder,
+ * than HUFF_LOOKUP_BITS bits, a broken tree) goes through the tree functions,
+ * and so does zeroed memory: tables that were never built. */
+
+#define HUFF_MAX_TABLE_CODE		25		/* a code shifted by 7 bits still fits in 32 bits */
+#define HUFF_LOOKUP_MASK		((1 << HUFF_LOOKUP_BITS) - 1)
+#define HUFF_LOOKUP_SYMBOL(e)	((e) & 511)
+#define HUFF_LOOKUP_LENGTH(e)	((e) >> 9)
+
+void Huff_BuildTables( huffTables_t *tables, huff_t *compressor, huff_t *decompressor ) {
+	int ch, i, length;
+	uint32_t code;
+	const node_t *node;
+
+	Com_Memset( tables, 0, sizeof( *tables ) );
+	tables->compressor = compressor;
+	tables->decompressor = decompressor;
+
+	/* Codes go up from the leaf like send(), which sends the bit of the
+	 * topmost node first: it ends up in bit 0 */
+	for ( ch = 0; ch <= HMAX; ch++ ) {
+		node = compressor->loc[ch];
+		if ( !node ) {
+			continue;
+		}
+		code = 0;
+		length = 0;
+		while ( node->parent && length <= HUFF_MAX_TABLE_CODE ) {
+			code = ( code << 1 ) | ( node->parent->right == node );
+			node = node->parent;
+			length++;
+		}
+		if ( length > HUFF_MAX_TABLE_CODE ) {
+			continue;
+		}
+		/* a length of 0 (the leaf is the root) stays on the tree path,
+		 * which sends nothing either */
+		tables->code[ch] = code;
+		tables->codeLength[ch] = (byte)length;
+	}
+
+	/* Walk the decompressor tree like Huff_offsetReceive, reading the bits
+	 * of the index first bit first */
+	for ( i = 0; i < ( 1 << HUFF_LOOKUP_BITS ); i++ ) {
+		node = decompressor->tree;
+		length = 0;
+		while ( node && node->symbol == INTERNAL_NODE && length < HUFF_LOOKUP_BITS ) {
+			node = ( ( i >> length ) & 1 ) ? node->right : node->left;
+			length++;
+		}
+		if ( !node || node->symbol == INTERNAL_NODE || length == 0 ||
+			node->symbol < 0 || node->symbol > HMAX ) {
+			continue;	/* stays 0: longer code, missing child or odd symbol */
+		}
+		tables->lookup[i] = (uint16_t)( node->symbol | ( length << 9 ) );
+	}
+}
+
+/* Write the low 'bits' bits of value (0 to 25), first bit in bit 0, exactly
+ * like that many Huff_putBit calls: a byte is cleared when its bit 0 is
+ * written and bytes past the last bit aren't touched */
+static Q_INLINE void put_bits( uint32_t value, int bits, byte *fout, int *offset ) {
+	int		bloc = *offset;
+	int		shift = bloc & 7;
+	int		end = shift + bits;
+	byte	*out = fout + ( bloc >> 3 );
+
+	if ( bits <= 0 ) {
+		return;
+	}
+	value <<= shift;
+	if ( shift ) {
+		*out |= (byte)value;
+	} else {
+		*out = (byte)value;
+	}
+	for ( shift = 8; shift < end; shift += 8 ) {
+		*++out = (byte)( value >> shift );
+	}
+	*offset = bloc + bits;
+}
+
+void Huff_putBits( int value, int bits, byte *fout, int *offset ) {
+	put_bits( (uint32_t)value & ( ( 1u << bits ) - 1 ), bits, fout, offset );
+}
+
+/* Read 'bits' bits (0 to 25) like that many Huff_getBit calls, the first one
+ * in bit 0, from the same bytes */
+int Huff_getBits( int bits, byte *fin, int *offset ) {
+	int			bloc = *offset;
+	int			have = 8 - ( bloc & 7 );
+	const byte	*in = fin + ( bloc >> 3 );
+	uint32_t	value;
+
+	if ( bits <= 0 ) {
+		return 0;
+	}
+	value = *in >> ( bloc & 7 );
+	while ( have < bits ) {
+		value |= (uint32_t)*++in << have;
+		have += 8;
+	}
+	*offset = bloc + bits;
+	return (int)( value & ( ( 1u << bits ) - 1 ) );
+}
+
+/* Huff_offsetTransmit with the compressor the tables were built from */
+void Huff_offsetTransmitTable( const huffTables_t *tables, int ch, byte *fout, int *offset ) {
+	if ( (unsigned)ch <= HMAX && tables->codeLength[ch] ) {
+		put_bits( tables->code[ch], tables->codeLength[ch], fout, offset );
+	} else {
+		Huff_offsetTransmit( tables->compressor, ch, fout, offset );
+	}
+}
+
+/* Huff_offsetReceive from the root of the decompressor the tables were built
+ * from. The lookup reads the three bytes from the current one, so it is only
+ * used when they are all below finSize; near the end of the data, the tree
+ * reads exactly the bytes of the code, like it always did. */
+void Huff_offsetReceiveTable( const huffTables_t *tables, int *ch, byte *fin, int *offset, int finSize ) {
+	int bloc = *offset;
+	int pos = bloc >> 3;
+
+	if ( bloc >= 0 && pos + 3 <= finSize ) {
+		const byte *in = fin + pos;
+		uint32_t window = ( in[0] | ( in[1] << 8 ) | ( in[2] << 16 ) ) >> ( bloc & 7 );
+		int entry = tables->lookup[window & HUFF_LOOKUP_MASK];
+
+		if ( entry ) {
+			*ch = HUFF_LOOKUP_SYMBOL( entry );
+			*offset = bloc + HUFF_LOOKUP_LENGTH( entry );
+			return;
+		}
+	}
+	Huff_offsetReceive( tables->decompressor ? tables->decompressor->tree : NULL, ch, fin, offset );
+}
