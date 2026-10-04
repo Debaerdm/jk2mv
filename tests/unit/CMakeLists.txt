@@ -164,6 +164,12 @@ add_jk2mv_test(test_cl_wav
   test_cl_wav.cpp
 )
 
+# Client: visual presets and cl_preset (the real source, fake cvars)
+add_jk2mv_test(test_cl_presets
+  test_cl_presets.cpp
+  ${CMAKE_SOURCE_DIR}/src/client/cl_presets.cpp
+)
+
 # ==============================================================================
 # Renderer: dynamic light selection (links the real engine source)
 # ==============================================================================

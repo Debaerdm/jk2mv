@@ -1,4 +1,5 @@
-// cl_presets.cpp -- one-command visual presets: preset classic|enhanced|ultra|competitive|movie
+// cl_presets.cpp -- one-command visual presets: preset classic|enhanced|ultra|competitive|movie,
+// and cl_preset, the preset the current settings match, for the setup menus
 
 #include "client.h"
 
@@ -51,8 +52,9 @@ static const presetCvar_t presetEnhancedCvars[] = {
 	{ "r_ext_multisample", "4" },
 	{ "r_ext_alphaToCoverage", "1" },
 	{ "r_DynamicGlow", "1" },
-	{ "r_DynamicGlowWidth", "0" },					// automatic size, sharp at any resolution
-	{ "r_DynamicGlowHeight", "0" },
+	{ "r_DynamicGlowWidth", "0" },					// automatic size, sharp at any resolution: a width
+													// of 0 is enough, so the height keeps its default
+													// and the menu's Glow Quality (width only) matches
 	{ "r_subdivisions", "2" },						// smoother curved surfaces
 	{ "r_lodCurveError", "1000" },					// keep them detailed farther away
 	{ "r_dlightMode", "1" },						// round, smooth dynamic lights
@@ -102,6 +104,24 @@ static const preset_t presets[] = {
 
 static const char * const presetNames[] = { "classic", "enhanced", "ultra", "competitive", "movie" };
 
+static cvar_t	*cl_preset;				// read only: the preset the settings match, or "custom"
+static int		presetChangeCount = -1;	// cvar modification counts summed by CL_PresetFrame
+static qboolean	presetRestart;			// a preset changed latched cvars
+
+#define PRESET_PROTECTED	( CVAR_CHEAT | CVAR_ROM | CVAR_INIT )
+
+// numbers compare by value ("1" and "1.000000"), the rest without case
+static qboolean CL_PresetValueIs( const char *current, const char *value ) {
+	char	*end1, *end2;
+	double	a = strtod( current, &end1 );
+	double	b = strtod( value, &end2 );
+
+	if ( end1 != current && !*end1 && end2 != value && !*end2 ) {
+		return (qboolean)( a == b );
+	}
+	return (qboolean)!Q_stricmp( current, value );
+}
+
 /*
 ==================
 CL_PresetSet
@@ -113,8 +133,10 @@ the registration keeps.
 ==================
 */
 static qboolean CL_PresetSet( const char *name, const char *value ) {
-	cvar_t		*cv = Cvar_FindVar( name );
-	const char	*current;
+	cvar_t			*cv = Cvar_FindVar( name );
+	const cvar_t	*copy;
+	const char		*current;
+	qboolean		restart = qfalse;
 
 	if ( !cv ) {
 		// user created, so the registration still takes the engine default
@@ -123,20 +145,28 @@ static qboolean CL_PresetSet( const char *name, const char *value ) {
 		Cvar_Get( name, value, CVAR_USER_CREATED );
 		return qfalse;
 	}
-	if ( cv->flags & ( CVAR_CHEAT | CVAR_ROM | CVAR_INIT ) ) {
+	if ( cv->flags & PRESET_PROTECTED ) {
 		Com_Printf( "  %s is protected, skipped\n", name );
 		return qfalse;
 	}
 
 	current = cv->latchedString ? cv->latchedString : cv->string;
-	if ( !Q_stricmp( current, value ) ) {
-		return qfalse;
+	if ( !CL_PresetValueIs( current, value ) ) {
+		Com_Printf( "  %s: %s -> %s\n", name, current, value );
+		Cvar_Set( name, value );
+		restart = (qboolean)( ( cv->flags & CVAR_LATCH ) != 0 );
 	}
 
-	Com_Printf( "  %s: %s -> %s\n", name, current, value );
-	Cvar_Set( name, value );
+	// The setup menus edit copies of some video cvars (ui_r_picmip...),
+	// taken when their video page opens and written back by its Apply
+	// button: keep them in step, even if the cvar had the value already, so
+	// the page shows the preset and a later Apply keeps it.
+	copy = Cvar_FindVar( va( "ui_%s", name ) );
+	if ( copy && !CL_PresetValueIs( copy->string, value ) ) {
+		Cvar_Set( copy->name, value );
+	}
 
-	return (qboolean)( ( cv->flags & CVAR_LATCH ) != 0 );
+	return restart;
 }
 
 // the preset's own value, else its base's, else NULL for the default
@@ -149,6 +179,59 @@ static const char *CL_PresetValue( const preset_t *preset, const char *name ) {
 		}
 	}
 	return NULL;
+}
+
+// what a preset sets presetDefaults[i] to: its value, else the default
+static const char *CL_PresetTarget( const preset_t *preset, size_t i ) {
+	const char *value = CL_PresetValue( preset, presetDefaults[i].name );
+
+	if ( !value ) {
+		// the registered default when there is one
+		const cvar_t *cv = Cvar_FindVar( presetDefaults[i].name );
+
+		value = cv && cv->resetString && !( cv->flags & CVAR_USER_CREATED ) ? cv->resetString : presetDefaults[i].value;
+	}
+	return value;
+}
+
+/*
+==================
+CL_PresetUpdate
+
+Sets cl_preset to the preset whose values the cvars have (the pending value
+of a latched one), or "custom". Protected cvars, which presets skip, don't
+count. At most one preset matches: any two differ by a cvar.
+==================
+*/
+static void CL_PresetUpdate( void ) {
+	const char *match = "custom";
+
+	for ( size_t p = 0; p < ARRAY_LEN( presets ); p++ ) {
+		size_t i;
+
+		for ( i = 0; i < ARRAY_LEN( presetDefaults ); i++ ) {
+			const cvar_t	*cv = Cvar_FindVar( presetDefaults[i].name );
+			const char		*current = presetDefaults[i].value;
+
+			if ( cv ) {
+				if ( cv->flags & PRESET_PROTECTED ) {
+					continue;
+				}
+				current = cv->latchedString ? cv->latchedString : cv->string;
+			}
+			if ( !CL_PresetValueIs( current, CL_PresetTarget( &presets[p], i ) ) ) {
+				break;
+			}
+		}
+		if ( i == ARRAY_LEN( presetDefaults ) ) {
+			match = presets[p].name;
+			break;
+		}
+	}
+
+	if ( strcmp( cl_preset->string, match ) ) {
+		Cvar_Set( cl_preset->name, match );
+	}
 }
 
 /*
@@ -174,29 +257,27 @@ static void CL_Preset_f( void ) {
 		for ( size_t i = 0; i < ARRAY_LEN( presets ); i++ ) {
 			Com_Printf( "  " S_COLOR_YELLOW "%-12s" S_COLOR_WHITE " %s\n", presets[i].name, presets[i].description );
 		}
+		CL_PresetUpdate();
+		Com_Printf( "the current settings: %s\n", cl_preset->string );
 		return;
 	}
 
 	Com_Printf( "preset %s:\n", preset->name );
 	for ( size_t i = 0; i < ARRAY_LEN( presetDefaults ); i++ ) {
-		const char *value = CL_PresetValue( preset, presetDefaults[i].name );
-
-		if ( !value ) {
-			// the registered default when there is one
-			const cvar_t *cv = Cvar_FindVar( presetDefaults[i].name );
-
-			value = cv && cv->resetString && !( cv->flags & CVAR_USER_CREATED ) ? cv->resetString : presetDefaults[i].value;
-		}
-		restart = (qboolean)( CL_PresetSet( presetDefaults[i].name, value ) | restart );
+		restart = (qboolean)( CL_PresetSet( presetDefaults[i].name, CL_PresetTarget( preset, i ) ) | restart );
 	}
+	CL_PresetUpdate();
 
-	if ( restart ) {
-		// right after this command, not after the rest of the script, bind
-		// or command line: what follows (a wait and a screenshot, another
-		// preset, a quit) runs with the preset applied. Restarts can't pile
-		// up this way, each one runs before the next preset can.
+	// a renderer that isn't started yet (autoexec.cfg) starts with the values
+	if ( restart && cls.rendererStarted ) {
+		// once, before this frame is drawn (CL_PresetFrame), unless a
+		// vid_restart comes first: in a script or bind, what follows a wait
+		// runs with the preset applied, a chain of presets restarts once,
+		// and a latched cvar set right after the preset is applied with it.
+		// The setup menus run a preset together with their own video
+		// changes, whose vid_restart applies both.
 		Com_Printf( "restarting the renderer to apply the preset\n" );
-		Cbuf_ExecuteText( EXEC_INSERT, "vid_restart" );
+		presetRestart = qtrue;
 	}
 }
 
@@ -206,8 +287,65 @@ static void CL_CompletePresetName( char *args, int argNum ) {
 	}
 }
 
+// any change of a preset cvar (or of cl_preset) raises this sum
+static int CL_PresetChangeCount( void ) {
+	int count = cl_preset->modificationCount;
+
+	for ( size_t i = 0; i < ARRAY_LEN( presetDefaults ); i++ ) {
+		const cvar_t *cv = Cvar_FindVar( presetDefaults[i].name );
+
+		if ( cv ) {
+			count += cv->modificationCount;
+		}
+	}
+	return count;
+}
+
+/*
+==================
+CL_PresetFrame
+
+From CL_Frame, after the commands of the frame: the vid_restart a preset
+asked for, and cl_preset kept up to date whenever a preset cvar changes, from
+the console, a menu or a config.
+==================
+*/
+void CL_PresetFrame( void ) {
+	if ( presetRestart ) {
+		presetRestart = qfalse;
+		Cbuf_ExecuteText( EXEC_NOW, "vid_restart\n" );
+	}
+
+	if ( CL_PresetChangeCount() != presetChangeCount ) {
+		CL_PresetUpdate();
+		presetChangeCount = CL_PresetChangeCount();
+	}
+}
+
+// from vid_restart, which applies the latched cvars a preset changed
+void CL_PresetRestarted( void ) {
+	presetRestart = qfalse;
+}
+
+/*
+==================
+CL_PresetUIStarted
+
+From CL_InitUI. The setup menus keep the preset picked on their video page in
+ui_presetPending until their Apply button runs it, and the patched video
+warning popup, which the menus of other mods may use too, runs it as well. A
+new UI module starts without a pending preset.
+==================
+*/
+void CL_PresetUIStarted( void ) {
+	if ( Cvar_FindVar( "ui_presetPending" ) ) {
+		Cvar_Set( "ui_presetPending", "" );
+	}
+}
+
 // from CL_InitKeyCommands, before autoexec.cfg runs, and never removed
 void CL_InitPresets( void ) {
+	cl_preset = Cvar_Get( "cl_preset", "", CVAR_ROM | CVAR_VM_NOWRITE );
 	Cmd_AddCommand( "preset", CL_Preset_f );
 	Cmd_SetCommandCompletionFunc( "preset", CL_CompletePresetName );
 }

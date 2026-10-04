@@ -81,7 +81,8 @@ def main():
            '+set', 's_initsound', '0', '+set', 'com_introplayed', '1',
            '+wait', '60', '+toggleconsole', '+wait', '30', '+screenshot_tga', SHOTS[0], '+wait', '5',
            '+vid_restart', '+wait', '30', '+screenshot_tga', SHOTS[1], '+wait', '5',
-           # the vid_restart each one queues comes after the quit
+           # both run in one frame, which ends with a single renderer
+           # restart for them, before the wait and the quit
            '+preset', 'ultra', '+preset', 'classic', '+wait', '5', '+quit']
     try:
         proc = subprocess.run(cmd, cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

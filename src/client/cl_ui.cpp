@@ -1229,6 +1229,8 @@ void CL_InitUI(qboolean mainMenu) {
 	cvar_t *ui_menulevel = Cvar_Get("ui_menulevel", "0", CVAR_ROM | CVAR_INTERNAL, qfalse);
 	Cvar_Set("ui_menulevel", "0");
 
+	CL_PresetUIStarted();
+
 	if ( (!mainMenu || mv_menuOverride->integer == 1) && mv_menuOverride->integer != -1 ) {
 		if (cl_connectedToPureServer != 0) {
 			// if sv_pure is set we only allow qvms to be loaded

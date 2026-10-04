@@ -420,6 +420,9 @@ extern	cvar_t	*cl_demoHideHud;
 extern	cvar_t	*cl_perfOverlay;
 
 void CL_InitPresets( void );
+void CL_PresetFrame( void );
+void CL_PresetRestarted( void );
+void CL_PresetUIStarted( void );
 qboolean CL_DemoHideHud( void );
 qboolean CL_FovAspectFix( const refdef_t *fd, refdef_t *out );
 extern cvar_t *cl_fovAspectFix;

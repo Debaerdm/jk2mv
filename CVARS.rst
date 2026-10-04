@@ -214,6 +214,16 @@ Client-Side
 
 ..
 
+:Name: cl_preset
+:Values: "classic", "enhanced", "ultra", "competitive", "movie", "custom"
+:Default: Read only
+:Description:
+   The preset (see ``preset``) whose values the visual cvars have, or
+   "custom" when they match none of them. The Graphics Preset row of
+   Setup > Video shows it.
+
+..
+
 :Name: con_height
 :Values: Decimal > 0
 :Default: "0.5"
@@ -1149,12 +1159,13 @@ Other Changes
   base was gone. A frame is one that ran the game, with the packets handled
   before it. ``sv_statsLog 1`` logs the same every second.
 * New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
-  of visual cvars in one go and restarts the renderer if needed, right away:
-  the commands after it in a script or bind run with the preset applied, and
-  each preset of a chain restarts the renderer in turn. Every preset
-  sets the whole group (what it doesn't change goes back to the default), so
-  ``preset classic`` is the original look. It works in autoexec.cfg too.
-  ``preset`` alone lists them.
+  of visual cvars in one go and restarts the renderer if needed, once, before
+  the next frame is drawn: in a script or bind, the commands after a ``wait``
+  run with the preset applied, a chain of presets restarts the renderer once,
+  and a latched cvar set right after the preset is applied with it. Every
+  preset sets the whole group (what it doesn't change goes back to the
+  default), so ``preset classic`` is the original look. It works in
+  autoexec.cfg too. ``preset`` alone lists them.
 * ``r_fullscreen 2`` is a borderless fullscreen window at the desktop
   resolution, without a display mode change. Alt+Enter toggles between
   windowed and the last fullscreen mode, remembered across sessions in

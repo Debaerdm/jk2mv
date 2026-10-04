@@ -1361,6 +1361,8 @@ doesn't know what graphics to reload
 */
 void CL_Vid_Restart_f( void ) {
 
+	// this applies what a preset changed: no second restart for it
+	CL_PresetRestarted();
 	// key releases are lost while the window is recreated (Alt of Alt+Enter)
 	Key_ClearStates();
 	// Settings may have changed so stop recording now
@@ -2529,6 +2531,10 @@ void CL_Frame ( int msec ) {
 	if ( !com_cl_running->integer ) {
 		return;
 	}
+
+	// the vid_restart a preset asked for, before anything draws this frame,
+	// and cl_preset kept up to date
+	CL_PresetFrame();
 
 	CL_BenchmarkFrame();
 
