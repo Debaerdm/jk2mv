@@ -6,7 +6,7 @@
 #endif
 #include "../ghoul2/G2_local.h"
 #include "matcomp.h"
-#include <algorithm>
+#include "tr_dlightselect.h"
 
 static	int			r_firstSceneDrawSurf;
 
@@ -316,37 +316,39 @@ R_SelectDlights
 
 More dynamic lights than surfaces have bits for (big fights: sabers, shots,
 explosions): keep the MAX_DLIGHTS that matter most for this view at the
-start of the scene's list. A light entirely behind the viewer can't reach
-anything visible; the others rank by brightness over distance, a light
-around the viewer counting as at half its radius.
+start of the scene's list (tr_dlightselect.cpp). The 3D view remembers what
+it kept, so the lights near the cutoff don't flicker as their radius jitters;
+scenes without a world (menus, HUD models) don't use or change that memory.
 =====================
 */
-static void R_SelectDlights( dlight_t *dlights, int count, const refdef_t *fd ) {
-	float	score[MAX_DLIGHT_POOL];
-	int		order[MAX_DLIGHT_POOL];
-	dlight_t keep[MAX_DLIGHTS];
+static_assert( MAX_DLIGHT_POOL <= DLSEL_MAX_LIGHTS && MAX_DLIGHTS <= DLSEL_MAX_KEEP, "dynamic light selection limits" );
 
+static void R_SelectDlights( const refdef_t *fd ) {
+	static dlselHistory_t	worldHistory;
+	dlselHistory_t	*history = r_dlightPriority->integer && !( fd->rdflags & RDF_NOWORLDMODEL ) ? &worldHistory : NULL;
+	const int		count = tr.refdef.num_dlights;
+	dlselLight_t	lights[MAX_DLIGHT_POOL];
+	int				chosen[MAX_DLIGHTS];
+	dlight_t		keep[MAX_DLIGHTS];
+
+	if ( count <= MAX_DLIGHTS && !history ) {
+		return;
+	}
 	for ( int i = 0; i < count; i++ ) {
-		const dlight_t	*dl = &dlights[i];
-		vec3_t			delta;
+		const dlight_t	*dl = &tr.refdef.dlights[i];
 
-		VectorSubtract( dl->origin, fd->vieworg, delta );
-		order[i] = i;
-		if ( DotProduct( delta, fd->viewaxis[0] ) < -dl->radius ) {
-			score[i] = -1.0f;
-			continue;
+		VectorCopy( dl->origin, lights[i].origin );
+		lights[i].radius = dl->radius;
+		lights[i].brightness = MAX( dl->color[0], MAX( dl->color[1], dl->color[2] ) );
+	}
+	const int numKept = R_DlightSelect( lights, count, MAX_DLIGHTS, fd->vieworg, fd->viewaxis[0], history, chosen );
+	if ( numKept < count ) {
+		for ( int i = 0; i < numKept; i++ ) {
+			keep[i] = tr.refdef.dlights[chosen[i]];
 		}
-		const float brightness = MAX( dl->color[0], MAX( dl->color[1], dl->color[2] ) ) * dl->radius * dl->radius;
-		const float dist2 = MAX( DotProduct( delta, delta ), 0.25f * dl->radius * dl->radius );
-		score[i] = brightness / MAX( dist2, 1.0f );
+		Com_Memcpy( tr.refdef.dlights, keep, numKept * sizeof( dlight_t ) );
+		tr.refdef.num_dlights = numKept;
 	}
-	// stable for equal scores, so the choice doesn't flicker between frames
-	std::stable_sort( order, order + count, [&score]( int a, int b ) { return score[a] > score[b]; } );
-	std::sort( order, order + MAX_DLIGHTS );	// keep the original order among the chosen
-	for ( int i = 0; i < MAX_DLIGHTS; i++ ) {
-		keep[i] = dlights[order[i]];
-	}
-	Com_Memcpy( dlights, keep, sizeof( keep ) );
 }
 
 /*
@@ -504,10 +506,7 @@ void RE_RenderScene( const refdef_t *fd ) {
 
 	tr.refdef.num_dlights = r_numdlights - r_firstSceneDlight;
 	tr.refdef.dlights = &backEndData->dlights[r_firstSceneDlight];
-	if ( tr.refdef.num_dlights > MAX_DLIGHTS ) {
-		R_SelectDlights( tr.refdef.dlights, tr.refdef.num_dlights, fd );
-		tr.refdef.num_dlights = MAX_DLIGHTS;
-	}
+	R_SelectDlights( fd );
 
 	tr.refdef.numPolys = r_numpolys - r_firstScenePoly;
 	tr.refdef.polys = &backEndData->polys[r_firstScenePoly];

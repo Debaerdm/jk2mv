@@ -433,8 +433,10 @@ Client-Side
    sabers, shots, explosions), 0 keeps the first 32 added, whatever they
    are; 1 collects up to 256 and keeps the 32 that matter most for the view:
    lights entirely behind the viewer are dropped, the others rank by
-   brightness and distance. No difference with 32 lights or fewer. The
-   enhanced, ultra, competitive and movie presets set 1.
+   brightness and distance. A light kept in the previous frame stays until
+   another one matters clearly more, so the choice doesn't flicker. No
+   difference with 32 lights or fewer. The enhanced, ultra, competitive and
+   movie presets set 1.
 
 ..
 

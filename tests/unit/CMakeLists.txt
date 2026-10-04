@@ -132,6 +132,15 @@ add_jk2mv_test(test_cl_campath
   ${CMAKE_SOURCE_DIR}/src/client/cl_campath.cpp
 )
 
+# ==============================================================================
+# Renderer: dynamic light selection (links the real engine source)
+# ==============================================================================
+
+add_jk2mv_test(test_tr_dlightselect
+  test_tr_dlightselect.cpp
+  ${CMAKE_SOURCE_DIR}/src/renderer/tr_dlightselect.cpp
+)
+
 if(UNIX)
   add_jk2mv_test(test_sys_spawn
     test_sys_spawn.cpp
