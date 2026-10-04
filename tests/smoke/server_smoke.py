@@ -21,6 +21,13 @@ FATAL_MARKERS = ('********************\nERROR', 'Server crashed', 'recursive err
 NUM_BOTS = 31
 
 
+def crash_logs(work):
+    """Crash logs where the engine writes them: next to the game for portable
+    builds, in ~/.jk2mv for installed ones."""
+    return set(glob.glob(os.path.join(work, 'crashlog-*.txt')) +
+               glob.glob(os.path.join(os.path.expanduser('~'), '.jk2mv', 'crashlog-*.txt')))
+
+
 def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
@@ -38,6 +45,8 @@ def main():
     cmd = [ded, '+set', 'dedicated', '1', '+set', 'fs_basepath', work, '+set', 'fs_homepath', work,
            '+set', 'ttycon', '0', '+set', 'sv_hibernateFps', '0', '+set', 'sv_maxclients', '32',
            '+map', 'ci_box', '+exec', 'smoke.cfg']
+    # ~/.jk2mv keeps the crash logs of earlier sessions: only new ones count
+    old_crashlogs = crash_logs(work)
     try:
         proc = subprocess.run(cmd, cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
         rc, out = proc.returncode, proc.stdout.decode('latin-1')
@@ -67,9 +76,7 @@ def main():
     first, second = log.find('num score ping name'), log.find('num score ping name', log.find('num score ping name') + 1)
     if first >= 0 and second >= 0 and 'ShutdownGame' not in log[first:second]:
         errors.append('map_restart did not restart the game')
-    # portable builds write crash logs next to the game, installed ones in ~/.jk2mv
-    crashlogs = (glob.glob(os.path.join(work, 'crashlog-*.txt')) +
-                 glob.glob(os.path.join(os.path.expanduser('~'), '.jk2mv', 'crashlog-*.txt')))
+    crashlogs = sorted(crash_logs(work) - old_crashlogs)
     if crashlogs:
         errors.append('crash logs written: %s' % ', '.join(crashlogs))
 
