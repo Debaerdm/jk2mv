@@ -1,5 +1,6 @@
 // test_sv_world_clip.cpp - world queries of the server on the real code:
-// unlinking from a world sector in O(1) and the order of the area query
+// unlinking from a world sector in O(1), the order of the area query, and
+// SV_Trace on an entity the game moved without relinking it
 //
 // Unlike the older server tests, this links the real engine sources: the
 // server's world module (src/server/sv_world.cpp) and the collision model
@@ -444,6 +445,34 @@ TEST(SvWorldArea, SmallerBoxKeepsTheOrder) {
 		listed += ns;
 	}
 	EXPECT_GT( listed, 3000L * 10 );
+	EXPECT_EQ( g_printed, "" );
+}
+
+// ===========================================================================
+// SV_Trace searches the entities over the whole move, not only up to where
+// the world stops it. The game moves sabers without relinking them:
+// WP_SaberPositionUpdate sets their origin and size, and SaberUpdateSelf
+// links them later in the frame. So a saber linked behind a wall can be in
+// front of it, and a trace at the wall must still hit it there.
+
+TEST(SvWorldClip, HitsASaberMovedWithoutARelink) {
+	Model world = FloorWorld();
+	world.brushes.push_back( BoxBrush( 300, -256, 0, 304, 256, 256 ) );	// a wall
+	LoadMap( world );
+	const vec3_t mins = { -16, -16, -16 }, maxs = { 16, 16, 16 };
+	sharedEntity_t *saber = BoxEntity( 1, 340, 0, 64, mins, maxs, CONTENTS_LIGHTSABER );
+	VectorSet( saber->r.currentOrigin, 250, 0, 64 );	// no relink
+
+	const vec3_t start = { 0, 0, 64 }, end = { 1000, 0, 64 };
+	const int mask = MASK_SHOT | CONTENTS_LIGHTSABER;
+	trace_t wall, t;
+	CM_BoxTrace( &wall, start, end, vec3_origin, vec3_origin, 0, mask, qfalse );
+	ASSERT_LT( wall.fraction, 1.0f );
+	ASSERT_GT( saber->r.absmin[0], wall.endpos[0] + 1 ) << "the saber is linked past the world hit";
+
+	SV_Trace( &t, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, mask, qfalse, 0, 0 );
+	EXPECT_EQ( t.entityNum, 1 );
+	EXPECT_FLOAT_EQ( t.endpos[0], 250 - 16 - 0.125f );
 	EXPECT_EQ( g_printed, "" );
 }
 

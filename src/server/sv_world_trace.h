@@ -238,9 +238,10 @@ void SV_Trace( trace_t *results, const vec3_t start, const vec3_t mins, const ve
 	clip.capsule = capsule;
 
 	// create the bounding box of the entire move
-	// we can limit it to the part of the move not
-	// already clipped off by the world, which can be
-	// a significant savings for line of sight and shot traces
+	// not only of the part before the world hit: the area query
+	// goes by the links, and the game moves sabers without
+	// relinking them (WP_SaberPositionUpdate, until SaberUpdateSelf),
+	// so a saber linked past the hit can be in front of it
 	for ( i=0 ; i<3 ; i++ ) {
 		if ( end[i] > start[i] ) {
 			clip.boxmins[i] = clip.start[i] + clip.mins[i] - 1;
