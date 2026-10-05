@@ -530,13 +530,25 @@ Client-Side
 :Description:
    With ``r_fbo``, draw each frame, HUD, menus and console included, at the
    window size times this scale, then scale it to the window. 2 renders four
-   times the pixels and averages them (supersampling): no shimmering edges or
-   textures, even where MSAA can't help. Below 1 the frame is drawn smaller
-   and stretched, a bit blurry but lighter for slow GPUs. Text, bloom and the
-   performance overlay keep their size on the screen. Screenshots and videos
-   have the render size. The scale is lowered if the GPU can't render that
-   large, and set back to 1 if the render targets can't be made; 0 or less
-   is the same as 1. Requires vid_restart.
+   times the pixels and averages them (supersampling): much less shimmering
+   of edges and textures, even where MSAA can't help. Below 1 the frame is
+   drawn smaller and stretched, a bit blurry but lighter for slow GPUs.
+   Text, bloom and the performance overlay keep their size on the screen.
+   Screenshots and videos have the render size: at 2, four times the
+   pixels, memory and disk space (see ``r_screenshotWindowSize``). The scale
+   is lowered if the GPU can't render that large, and set back to 1 if the
+   render targets can't be made; 0 or less is the same as 1. Requires
+   vid_restart.
+
+..
+
+:Name: r_screenshotWindowSize
+:Values: "0", "1"
+:Default: "0"
+:Description:
+   With ``r_renderScale``, 1 takes screenshots at the window's size, as the
+   frame is shown in it, instead of at the render size. Videos keep the
+   render size.
 
 ..
 

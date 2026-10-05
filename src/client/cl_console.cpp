@@ -359,8 +359,9 @@ If the line width has changed, reformat the buffer.
 */
 void Con_CheckResize (void)
 {
-	int		charWidth, rowwidth, width;
+	int		charWidth, charHeight, rowwidth, width;
 	float	scale;
+	const float	renderScale = SCR_RenderScale();
 
 	assert(SMALLCHAR_HEIGHT >= SMALLCHAR_WIDTH);
 
@@ -372,13 +373,21 @@ void Con_CheckResize (void)
 		charWidth = 1;
 		scale = (float)charWidth / SMALLCHAR_WIDTH;
 	}
+	charHeight = (int)(scale * SMALLCHAR_HEIGHT);
+
+	// r_renderScale: the size in pixels of the window, as without it, to the
+	// nearest pixel of the frame
+	if (renderScale != 1.0f) {
+		charWidth = MAX(1, (int)(charWidth * renderScale + 0.5f));
+		charHeight = MAX(1, (int)(charHeight * renderScale + 0.5f));
+	}
 
 	width = (cls.glconfig.vidWidth / charWidth) - 2;
 
 	if (width < 20) {
 		width = 20;
 		charWidth = cls.glconfig.vidWidth / 22;
-		scale = (float)charWidth / SMALLCHAR_WIDTH;
+		charHeight = charWidth * SMALLCHAR_HEIGHT / SMALLCHAR_WIDTH;
 	}
 
 	if (charWidth < 1) {
@@ -388,7 +397,7 @@ void Con_CheckResize (void)
 	rowwidth = width + 1 + (con_timestamps->integer ? 0 : CON_TIMESTAMP_LEN);
 
 	con.charWidth = charWidth;
-	con.charHeight = scale * SMALLCHAR_HEIGHT;
+	con.charHeight = charHeight;
 	con.linewidth = width;
 	kg.g_consoleField.widthInChars = width - 1; // Command prompt
 

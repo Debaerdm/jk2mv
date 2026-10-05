@@ -536,14 +536,18 @@ void RE_SwapBuffers( int *frontEndUsec, int *backEndUsec ) {
 
 /*
 =============
-RE_CaptureFrameRAW
+R_ReadFrame
 
-Capture current frame buffer as raw BGR data. Returns data size.
+Reads the finished frame into buffer: bottom-up rows of format (GL_BGR or
+GL_RGB), each padded to padding bytes. With shown, the window as the frame is
+shown in it instead (r_renderScale, see R_ScreenshotSize). Returns the data
+size.
 =============
 */
-int RE_CaptureFrameRaw( byte *buffer, int bufSize, int padding )
+static int R_ReadFrame( byte *buffer, int bufSize, int padding, GLenum format, qboolean shown )
 {
 	readPixelsCommand_t	*cmd;
+	int		width = glConfig.vidWidth, height = glConfig.vidHeight;
 	int		size;
 
 	if( !tr.registered ) {
@@ -555,7 +559,10 @@ int RE_CaptureFrameRaw( byte *buffer, int bufSize, int padding )
 		return 0;
 	}
 
-	size = PAD(glConfig.vidWidth * 3, padding) * glConfig.vidHeight;
+	if ( shown ) {
+		R_PostFXWindowSize( &width, &height );
+	}
+	size = PAD(width * 3, padding) * height;
 
 	// Get raw pixels from backend
 	cmd->commandId = RC_READ_PIXELS;
@@ -563,13 +570,64 @@ int RE_CaptureFrameRaw( byte *buffer, int bufSize, int padding )
 	cmd->buffer = buffer;
 	cmd->bufSize = bufSize;
 	cmd->padding = padding;
-	cmd->format = GL_BGR;
+	cmd->format = format;
+	cmd->shown = shown;
 
 	R_SyncRenderThread();
 	//
 
 	if (r_gammamethod->integer == GAMMA_HARDWARE)
 		R_GammaCorrect(buffer, size);
+
+	return size;
+}
+
+/*
+=============
+RE_CaptureFrameRAW
+
+Capture current frame buffer as raw BGR data. Returns data size.
+=============
+*/
+int RE_CaptureFrameRaw( byte *buffer, int bufSize, int padding )
+{
+	return R_ReadFrame( buffer, bufSize, padding, GL_BGR, qfalse );
+}
+
+/*
+=============
+R_CaptureJPEG
+
+The frame, or with shown the window as it shows it, as a JPEG image in
+buffer. Returns the JPEG size.
+
+The capture buffers of this file come from the heap, not from the hunk's temp
+memory: with r_renderScale a frame can take more than the hunk has free.
+=============
+*/
+static int R_CaptureJPEG( byte *buffer, int bufSize, int quality, qboolean shown )
+{
+	int		width = glConfig.vidWidth, height = glConfig.vidHeight;
+	byte	*captureBuffer;
+	int		memcount;
+	int		size = 0;
+
+	if( !tr.registered ) {
+		return 0;
+	}
+
+	if ( shown ) {
+		R_PostFXWindowSize( &width, &height );
+	}
+	memcount = width * height * 3;
+	captureBuffer = (byte *)ri.Malloc( memcount, TAG_TEMP_WORKSPACE, qfalse );
+
+	if ( R_ReadFrame( captureBuffer, memcount, 1, GL_RGB, shown ) ) {
+		size = SaveJPGToBuffer(buffer, bufSize,
+			quality, width, height, captureBuffer, 0);
+	}
+
+	ri.Free( captureBuffer );
 
 	return size;
 }
@@ -583,47 +641,7 @@ Capture current frame buffer as JPEG image. Returns JPEG size.
 */
 int RE_CaptureFrameJPEG( byte *buffer, int bufSize, int quality )
 {
-	readPixelsCommand_t	*cmd;
-	byte	*captureBuffer;
-	int		width, height;
-	size_t	memcount;
-	int		size;
-
-	if( !tr.registered ) {
-		return 0;
-	}
-
-	cmd = (readPixelsCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
-	if( !cmd ) {
-		return 0;
-	}
-
-	width = glConfig.vidWidth;
-	height = glConfig.vidHeight;
-	memcount = width * height * 3;
-
-	captureBuffer = (byte *)ri.Hunk_AllocateTempMemory(memcount);
-
-	// Get raw pixels from backend
-	cmd->commandId = RC_READ_PIXELS;
-
-	cmd->buffer = captureBuffer;
-	cmd->bufSize = memcount;
-	cmd->padding = 1;
-	cmd->format = GL_RGB;
-
-	R_SyncRenderThread();
-	//
-
-	if (r_gammamethod->integer == GAMMA_HARDWARE)
-		R_GammaCorrect(captureBuffer, memcount);
-
-	size = SaveJPGToBuffer(buffer, bufSize,
-		quality, width, height, captureBuffer, 0);
-
-	ri.Hunk_FreeTempMemory(captureBuffer);
-
-	return size;
+	return R_CaptureJPEG( buffer, bufSize, quality, qfalse );
 }
 
 /*
@@ -691,28 +709,44 @@ qboolean RE_SetFrameBlend( int subframe, int subframes ) {
 
 /*
 =============
+R_ScreenshotSize
+
+The size of the screenshots: the frame's, the render size with
+r_renderScale, or with r_screenshotWindowSize the window's, as the frame is
+shown in it. Returns qtrue in that last case.
+=============
+*/
+static qboolean R_ScreenshotSize( int *width, int *height )
+{
+	*width = glConfig.vidWidth;
+	*height = glConfig.vidHeight;
+	return (qboolean)( r_screenshotWindowSize->integer && R_PostFXWindowSize( width, height ) );
+}
+
+/*
+=============
 RE_TakeScreenshotJPEG
 =============
 */
 void RE_TakeScreenshotJPEG( const char *filename, int quality, qboolean silent )
 {
-	int		width = glConfig.vidWidth;
-	int		height = glConfig.vidHeight;
+	int		width, height;
+	const qboolean	shown = R_ScreenshotSize( &width, &height );
 	byte	*buffer;
 	int		bufSize;
 	int		size;
 
 	bufSize = width * height * 3;
-	buffer = (byte *)ri.Hunk_AllocateTempMemory(bufSize);
+	buffer = (byte *)ri.Malloc(bufSize, TAG_TEMP_WORKSPACE, qfalse);
 
-	size = RE_CaptureFrameJPEG(buffer, bufSize, quality);
+	size = R_CaptureJPEG(buffer, bufSize, quality, shown);
 	ri.FS_WriteFile(filename, buffer, size);
 
 	if ( !silent ) {
 		ri.Printf (PRINT_ALL, "Wrote %s\n", filename);
 	}
 
-	ri.Hunk_FreeTempMemory(buffer);
+	ri.Free(buffer);
 }
 
 /*
@@ -727,12 +761,12 @@ RE_TakeScreenshotPNG
 */
 void RE_TakeScreenshotPNG( const char *filename, qboolean silent )
 {
-	const int	width = glConfig.vidWidth;
-	const int	height = glConfig.vidHeight;
+	int			width, height;
+	const qboolean	shown = R_ScreenshotSize( &width, &height );
 	const int	bufSize = width * height * 3;
-	byte		*buffer = (byte *)ri.Hunk_AllocateTempMemory(bufSize);
+	byte		*buffer = (byte *)ri.Malloc(bufSize, TAG_TEMP_WORKSPACE, qfalse);
 
-	RE_CaptureFrameRaw(buffer, bufSize, 1);
+	R_ReadFrame(buffer, bufSize, 1, GL_BGR, shown);
 	if (R_SavePNG(filename, buffer, width, height)) {
 		if (!silent) {
 			ri.Printf(PRINT_ALL, "Wrote %s\n", filename);
@@ -741,7 +775,7 @@ void RE_TakeScreenshotPNG( const char *filename, qboolean silent )
 		ri.Printf(PRINT_WARNING, "Couldn't write %s\n", filename);
 	}
 
-	ri.Hunk_FreeTempMemory(buffer);
+	ri.Free(buffer);
 }
 
 void RE_TakeScreenshotTGA( const char *filename, qboolean silent )
@@ -751,14 +785,12 @@ void RE_TakeScreenshotTGA( const char *filename, qboolean silent )
 	byte	*captureBuffer;
 	int		bufSize;
 	int		captureBufSize;
-
-	width = glConfig.vidWidth;
-	height = glConfig.vidHeight;
+	const qboolean	shown = R_ScreenshotSize( &width, &height );
 
 	captureBufSize = width * height * 3;
 	bufSize = captureBufSize + 18;
 
-	buffer = (byte *)ri.Hunk_AllocateTempMemory(bufSize);
+	buffer = (byte *)ri.Malloc(bufSize, TAG_TEMP_WORKSPACE, qfalse);
 
 	Com_Memset (buffer, 0, 18);
 	buffer[2] = 2;		// uncompressed type
@@ -770,14 +802,14 @@ void RE_TakeScreenshotTGA( const char *filename, qboolean silent )
 
 	captureBuffer = buffer + 18;
 
-	RE_CaptureFrameRaw(captureBuffer, captureBufSize, 1);
+	R_ReadFrame(captureBuffer, captureBufSize, 1, GL_BGR, shown);
 	ri.FS_WriteFile(filename, buffer, bufSize);
 
 	if (!silent) {
 		ri.Printf (PRINT_ALL, "Wrote %s\n", filename);
 	}
 
-	ri.Hunk_FreeTempMemory(buffer);
+	ri.Free(buffer);
 }
 
 /*
@@ -803,9 +835,9 @@ void RE_TakeLevelshot( const char *filename )
 	const int LEVELSHOTSIZE = 256;
 
 	captureBufferSize = width * height * 3;
-	captureBuffer = (byte *)ri.Hunk_AllocateTempMemory(captureBufferSize);
+	captureBuffer = (byte *)ri.Malloc(captureBufferSize, TAG_TEMP_WORKSPACE, qfalse);
 	bufferSize = LEVELSHOTSIZE * LEVELSHOTSIZE*3 + 18;
-	buffer = (byte *)ri.Hunk_AllocateTempMemory(bufferSize);
+	buffer = (byte *)ri.Malloc(bufferSize, TAG_TEMP_WORKSPACE, qfalse);
 
 	RE_CaptureFrameRaw(captureBuffer, captureBufferSize, 1);
 
@@ -842,6 +874,6 @@ void RE_TakeLevelshot( const char *filename )
 
 	ri.Printf( PRINT_ALL, "Wrote %s\n", filename );
 
-	ri.Hunk_FreeTempMemory( buffer );
-	ri.Hunk_FreeTempMemory( captureBuffer );
+	ri.Free( buffer );
+	ri.Free( captureBuffer );
 }

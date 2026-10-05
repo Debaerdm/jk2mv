@@ -51,7 +51,7 @@ static void SCR_DrawConnectScreen(qboolean overlay)
 
 // cls.glconfig.vidWidth/vidHeight pixels per pixel of the window: with
 // r_renderScale, sizes in pixels are multiplied by it to look the same
-static float SCR_RenderScale(void)
+float SCR_RenderScale(void)
 {
 	return re.GetRenderScale ? re.GetRenderScale() : 1.0f;
 }
@@ -376,15 +376,17 @@ void SCR_DrawDebugGraph (void)
 	int		a, x, y, w, i, h;
 	float	v;
 	int		color;
+	// pixels of the window, px of the frame with r_renderScale
+	const float	px = SCR_RenderScale();
 
 	//
 	// draw the graph
 	//
-	w = cls.glconfig.vidWidth;
+	w = (int)(cls.glconfig.vidWidth / px);
 	x = 0;
 	y = cls.glconfig.vidHeight;
 	re.SetColor( g_color_table[0] );
-	re.DrawStretchPic(x, y - cl_graphheight->integer, w, cl_graphheight->integer,
+	re.DrawStretchPic(x, y - cl_graphheight->integer * px, cls.glconfig.vidWidth, cl_graphheight->integer * px,
 		0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
 	re.SetColor( nullptr );
 
@@ -398,7 +400,7 @@ void SCR_DrawDebugGraph (void)
 		if (v < 0)
 			v += cl_graphheight->integer * (1+(int)(-v / cl_graphheight->integer));
 		h = (int)v % cl_graphheight->integer;
-		re.DrawStretchPic( x+w-1-a, y - h, 1, h,
+		re.DrawStretchPic( cls.glconfig.vidWidth - (a+1) * px, y - h * px, px, h * px,
 			0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
 	}
 }

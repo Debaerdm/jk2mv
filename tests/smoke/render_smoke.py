@@ -18,9 +18,11 @@ driver and software OpenGL, and checks the screenshots:
     classic first come first served limit drops
   - video records the spinning scene at its fixed frame rate and stops with
     testscene off, which brings the menu back
-  - r_renderScale 2 and 0.5 render at twice and half the window's size
-    (screenshots included), and look the same once brought back to it,
-    bloom halo included
+  - r_renderScale 2, 1.5 and 0.5 render at that scale times the window's
+    size (screenshots included), also when the scale changes through a
+    renderer restart that keeps the window, and look the same once brought
+    back to it, bloom halo included; the window shows the frame filtered as
+    designed (r_screenshotWindowSize reads it)
 
 usage: render_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
@@ -52,10 +54,14 @@ RUNS = {
     'all': ['+set', 'r_fbo', '1', '+set', 'r_hdr', '1', '+set', 'r_bloom', '1', '+set', 'r_DynamicGlow', '1',
             '+set', 'r_ext_multisample', '4'],
     'scale2': ['+set', 'r_fbo', '1', '+set', 'r_bloom', '1', '+set', 'r_renderScale', '2'],
-    'scale05': ['+set', 'r_fbo', '1', '+set', 'r_renderScale', '0.5'],
+    'scale05': ['+set', 'r_fbo', '1', '+set', 'r_bloom', '1', '+set', 'r_renderScale', '0.5'],
+    # started at 2, then 1.5 from the renderer restart of testscene, which
+    # keeps the window. '+set' lines also apply before the renderer starts,
+    # the last one winning; seta only runs in its turn.
+    'scale15': ['+set', 'r_fbo', '1', '+set', 'r_renderScale', '2', '+seta', 'r_renderScale', '1.5'],
 }
 # r_renderScale run: (render scale, run at scale 1 it must look like)
-SCALE_RUNS = {'scale2': (2, 'bloom'), 'scale05': (0.5, 'fbo')}
+SCALE_RUNS = {'scale2': (2, 'bloom'), 'scale05': (0.5, 'bloom'), 'scale15': (1.5, 'fbo')}
 # with the console open over the bottom of the view
 CONSOLE = ['+toggleconsole', '+wait', '40']
 GRADE_RUNS = {
@@ -81,6 +87,8 @@ VIDEO_AFTER = ['+testscene', 'off', '+wait', '40']
 # 640x480 screen areas, top-down
 WALL_NEAR_LAMP = (350, 175, 375, 200)
 WALL_NEAR_RED = (205, 170, 222, 220)
+# between the red strips and the lamp, where a bloom of the wrong size shows most
+WALL_BETWEEN_LIGHTS = (256, 175, 290, 200)
 FLOOR = (100, 400, 540, 470)
 # in the dynamic light scene: the wall right behind the light, the wall far
 # above it (out of its radius), the floor under it
@@ -166,6 +174,65 @@ def compare(a, b):
     return differing, largest
 
 
+def shown_shot(name):
+    """Commands writing render_<name>_shown: the window, as the frame of
+    r_renderScale is shown in it (seta, see 'scale15')."""
+    return ['+seta', 'r_screenshotWindowSize', '1', '+screenshot_tga', 'render_%s_shown' % name, '+wait', '5',
+            '+seta', 'r_screenshotWindowSize', '0']
+
+
+def offscreen_inits(log):
+    """(render size, window size it is shown at or None) of each r_fbo start."""
+    inits = []
+    for inside in re.findall(r'rendering offscreen \(([^)]*)\)', log):
+        shown = re.search(r'scaled to (\d+x\d+)', inside)
+        inits.append((inside.split(',')[0].strip(), shown.group(1) if shown else None))
+    return inits
+
+
+def show_taps(shown, frame):
+    """For each window pixel along one axis, the texels of the frame that the
+    show pass of r_renderScale averages, and their weights: two bilinear
+    taps a quarter of the pixel's footprint either side of its center when
+    shrinking (R_RenderScaleBoxOffset), both on the center when enlarging,
+    kept between the centers of the edge texels."""
+    ratio = frame / shown
+    offset = ratio / 4 if ratio > 1 else 0.0
+    taps = []
+    for i in range(shown):
+        weights = {}
+        for s in ((i + 0.5) * ratio - offset, (i + 0.5) * ratio + offset):
+            s = min(max(s, 0.5), frame - 0.5) - 0.5
+            i0 = int(s)
+            for texel, w in ((i0, 1 - (s - i0)), (min(i0 + 1, frame - 1), s - i0)):
+                weights[texel] = weights.get(texel, 0.0) + w / 2
+        taps.append(list(weights.items()))
+    return taps
+
+
+def compare_shown(frame, window, step=3):
+    """Largest and mean channel difference between the window and the frame
+    filtered as the show pass does it, on every step-th pixel each way (rows
+    are bottom-up in both, as in GL)."""
+    xs, ys = show_taps(window.width, frame.width), show_taps(window.height, frame.height)
+    largest = total = count = 0
+    for y in range(0, window.height, step):
+        for x in range(1, window.width, step):
+            expected = [0.0, 0.0, 0.0]
+            for ty, wy in ys[y]:
+                for tx, wx in xs[x]:
+                    i = (ty * frame.width + tx) * frame.step
+                    for c in range(3):
+                        expected[c] += wx * wy * frame.pixels[i + c]
+            j = (y * window.width + x) * window.step
+            for c in range(3):
+                d = abs(window.pixels[j + c] - expected[c])
+                largest = max(largest, d)
+                total += d
+                count += 1
+    return largest, total / count
+
+
 def run(client, work, name, args, scene=SCENE, after=()):
     env = dict(os.environ, SDL_VIDEODRIVER='offscreen', LIBGL_ALWAYS_SOFTWARE='1')
     for cfg in ('jk2mvconfig.cfg', 'jk2mvglobal.cfg'):   # archived r_ settings of the previous run
@@ -211,13 +278,19 @@ def main():
     for lib in glob.glob(os.path.join(built, 'jk2mvmenu_*')):
         shutil.copy(lib, work)
 
-    shots, logs, errors, last_log = {}, {}, [], ''
-    runs = [(name, args, SCENE, ()) for name, args in RUNS.items()]
+    shots, shown, logs, errors, last_log = {}, {}, {}, [], ''
+    runs = [(name, args, SCENE, shown_shot(name) if name in SCALE_RUNS else ()) for name, args in RUNS.items()]
     runs += [(name, args, scene, ()) for name, (scene, args) in DLIGHT_RUNS.items()]
     runs += [(name, args, SCENE, CONSOLE) for name, args in GRADE_RUNS.items()]
     runs.append(('video', VIDEO_ARGS, VIDEO_SCENE, VIDEO_AFTER))
     for name, args, scene, after in runs:
         shot, errs, log = run(client, work, name, args, scene, after)
+        if name in SCALE_RUNS:
+            path = os.path.join(work, 'base', 'screenshots', 'render_%s_shown.tga' % name)
+            if os.path.isfile(path):
+                shown[name] = Shot(path)
+            else:
+                errs.append('%s: missing screenshot of the window' % name)
         errors += errs
         logs[name] = log
         if errs:
@@ -314,22 +387,40 @@ def main():
         check(shots['video'].shows_menu(), 'testscene off did not bring the main menu back')
 
         # r_renderScale: drawn at the scale times the window's size, shown at
-        # the window's size, where it looks like scale 1. Next to the lamp,
+        # the window's size, where it looks like scale 1. Each renderer start
+        # scales the window's size, the restart of testscene too, which keeps
+        # the window (rather than the render size it had). Around the lamp,
         # the bloom halo is as bright as at scale 1 (a chain of the render
-        # size would make it half as wide, 3.6 darker there at scale 2).
+        # size would make it half as wide at scale 2, 3.6 darker next to the
+        # lamp, and twice as wide at 0.5, 3.0 brighter between the lights).
+        # The window shows the frame filtered by the show pass.
         for name, (scale, ref) in SCALE_RUNS.items():
             shot = shots[name]
             size = (int(640 * scale), int(480 * scale))
+            inits = offscreen_inits(logs[name])
+            print('%s: renderer starts %s' % (name, inits))
+            check(len(inits) >= 2 and all(window == '640x480' for _, window in inits),
+                  '%s: each renderer start should scale the 640x480 window: %s' % (name, inits))
+            check(inits and inits[-1][0] == '%dx%d' % size,
+                  '%s: the last renderer start is not at %dx%d: %s' % (name, size[0], size[1], inits))
             check((shot.width, shot.height) == size,
                   '%s: screenshot of %dx%d instead of %dx%d' % (name, shot.width, shot.height, size[0], size[1]))
-            check('scaled to 640x480' in logs[name], '%s: not rendered at the render scale' % name)
             if (shot.width, shot.height) != size:
                 continue
-            for area, box in (('wall near the lamp', WALL_NEAR_LAMP), ('floor', FLOOR)):
+            for area, box in (('wall near the lamp', WALL_NEAR_LAMP), ('wall between the lights', WALL_BETWEEN_LIGHTS),
+                              ('floor', FLOOR)):
                 scaled = tuple(int(v * scale) for v in box)
                 diff = max(abs(p - q) for p, q in zip(shot.mean(scaled), shots[ref].mean(box)))
                 print('%s: %s within %.1f of %s' % (name, area, diff, ref))
                 check(diff <= 2.0, '%s: the %s differs from %s by %.1f' % (name, area, ref, diff))
+            window = shown.get(name)
+            if not window or (window.width, window.height) != (640, 480):
+                check(False, '%s: the screenshot of the window is not 640x480' % name)
+                continue
+            largest, mean = compare_shown(shot, window)
+            print('%s: the window shows the filtered frame within %.2f (mean %.2f)' % (name, largest, mean))
+            check(largest <= 2.5 and mean <= 0.75,
+                  '%s: the window differs from the filtered frame: up to %.2f, mean %.2f' % (name, largest, mean))
 
     if errors:
         print('\n'.join(last_log.splitlines()[-60:]))

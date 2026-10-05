@@ -79,7 +79,6 @@ static struct {
 	float			renderScale;	// the scale asked for
 	int				maxSize;		// largest render target the GL can make
 	int				windowWidth, windowHeight;	// the window's drawable, where frames are shown
-	float			windowDisplayScale;
 	int				shownWidth, shownHeight;	// the window size the targets were made for
 	renderTarget_t	final;			// the finished frame at the render size
 	qboolean		showPending;	// final holds a frame the window hasn't shown
@@ -403,20 +402,18 @@ R_ApplyRenderScale
 After each WIN_UpdateGLConfig, which puts the window's drawable size in
 glConfig.vidWidth/vidHeight. With r_renderScale they become the render size,
 which the renderer and the client then work at (2D included), and the
-drawable size is kept here to show the frames. The console sizes its text
-with displayScale, which follows so the text keeps its size in the window.
+drawable size is kept here to show the frames. displayScale stays the
+window's: the console converts its text size with re.GetRenderScale.
 ==================
 */
 void R_ApplyRenderScale( void ) {
 	pfx.windowWidth = glConfig.vidWidth;
 	pfx.windowHeight = glConfig.vidHeight;
-	pfx.windowDisplayScale = glConfig.displayScale;
 	if ( !pfx.scaled || pfx.windowWidth <= 0 || pfx.windowHeight <= 0 ) {
 		return;
 	}
 	R_RenderScaleSize( pfx.windowWidth, pfx.windowHeight, pfx.renderScale, pfx.maxSize,
 		&glConfig.vidWidth, &glConfig.vidHeight );
-	glConfig.displayScale *= (float)glConfig.vidHeight / pfx.windowHeight;
 }
 
 // r_renderScale on, before the targets are made at the render size
@@ -451,7 +448,6 @@ static qboolean R_RetryWithoutScale( void ) {
 	pfx.scaled = qfalse;
 	glConfig.vidWidth = pfx.windowWidth;
 	glConfig.vidHeight = pfx.windowHeight;
-	glConfig.displayScale = pfx.windowDisplayScale;
 	return R_CreateTargets();
 }
 
@@ -1134,6 +1130,40 @@ void R_PostFXShowFrame( void ) {
 	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglScissor( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	R_GPUTimerEnd( GPU_POST );
+}
+
+// r_renderScale: the size of the window the frames are shown in. Returns
+// qfalse, leaving the size alone, when they are drawn at the window's size.
+qboolean R_PostFXWindowSize( int *width, int *height ) {
+	if ( !pfx.scaled ) {
+		return qfalse;
+	}
+	*width = pfx.windowWidth;
+	*height = pfx.windowHeight;
+	return qtrue;
+}
+
+/*
+==================
+R_PostFXBindCapture
+
+Screenshots and videos (RB_ReadPixels) read the frame where the gamma pass
+finished it: the window, or with r_renderScale the final target. With shown
+(r_screenshotWindowSize) they read the window instead, once the frame is
+shown in it, which the swap then doesn't do again.
+==================
+*/
+void R_PostFXBindCapture( qboolean shown ) {
+	if ( !pfx.scaled ) {
+		return;
+	}
+	if ( shown ) {
+		R_PostFXShowFrame();
+		qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
+		qglReadBuffer( GL_BACK );
+	} else {
+		R_BindPresentTarget();
+	}
 }
 
 // r_renderScale as applied: pixels of the frame per pixel of the window's

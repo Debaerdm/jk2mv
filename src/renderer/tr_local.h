@@ -1493,6 +1493,7 @@ extern cvar_t	*r_bloomIntensity;
 extern cvar_t	*r_bloomThreshold;
 extern cvar_t	*r_exposure;
 extern cvar_t	*r_renderScale;
+extern cvar_t	*r_screenshotWindowSize;	// tr_init.cpp
 
 // tr_gputimer.cpp: GPU timestamps (r_gpuTimers)
 typedef enum {
@@ -1521,6 +1522,8 @@ void		R_ShutdownPostFX( void );
 void		R_ResizePostFX( void );
 void		R_ApplyRenderScale( void );
 void		R_PostFXShowFrame( void );
+qboolean	R_PostFXWindowSize( int *width, int *height );
+void		R_PostFXBindCapture( qboolean shown );
 float		R_PostFXRenderScale( void );
 void		R_PostFXRenderScaleInfo( void );
 GLenum		R_PostFXSceneFormat( void );
@@ -1934,6 +1937,7 @@ typedef struct {
 	int		bufSize;
 	int		padding;
 	GLenum	format;
+	qboolean	shown;	// r_renderScale: the window as shown, not the frame (r_screenshotWindowSize)
 } readPixelsCommand_t;
 
 typedef enum {

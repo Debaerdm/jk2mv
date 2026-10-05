@@ -173,6 +173,7 @@ int		max_polyverts;
 
 cvar_t	*r_modelpoolmegs;
 cvar_t *r_screenshotJpegQuality;
+cvar_t *r_screenshotWindowSize;
 
 cvar_t *r_convertModelBones;
 cvar_t *r_loadSkinsJKA;
@@ -1309,6 +1310,10 @@ Ghoul2 Insert End
 	ri.Cmd_AddCommand( "modelcacheinfo", RE_RegisterModels_Info_f);
 
 	r_screenshotJpegQuality = ri.Cvar_Get("r_screenshotJpegQuality", "95", CVAR_ARCHIVE | CVAR_GLOBAL);
+#ifndef DEDICATED
+	// r_renderScale: screenshots at the window's size, as shown
+	r_screenshotWindowSize = ri.Cvar_Get("r_screenshotWindowSize", "0", CVAR_ARCHIVE | CVAR_GLOBAL);
+#endif
 
 	r_consoleFont = ri.Cvar_Get("r_consoleFont", "1", CVAR_ARCHIVE | CVAR_GLOBAL);
 	r_consoleFont->modified = qtrue;

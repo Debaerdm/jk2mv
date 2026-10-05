@@ -1507,6 +1507,7 @@ const void *RB_ReadPixels( const void *data )
 {
 	const readPixelsCommand_t	*cmd;
 	int		memcount;
+	int		width = glConfig.vidWidth, height = glConfig.vidHeight;
 
 	cmd = (const readPixelsCommand_t *)data;
 
@@ -1515,14 +1516,20 @@ const void *RB_ReadPixels( const void *data )
 		RB_EndSurface();
 	}
 
-	memcount = PAD(glConfig.vidWidth * 3, cmd->padding) * glConfig.vidHeight;
+	// r_renderScale: the frame, or the window it is shown in
+	R_PostFXBindCapture( cmd->shown );
+	if ( cmd->shown ) {
+		R_PostFXWindowSize( &width, &height );
+	}
+
+	memcount = PAD(width * 3, cmd->padding) * height;
 
 	if ( cmd->bufSize < memcount ) {
 		ri.Error( ERR_DROP, "RB_ReadPixels: buffer too small\n" );
 	}
 
 	qglPixelStorei(GL_PACK_ALIGNMENT, cmd->padding);
-	qglReadPixels(0, 0, glConfig.vidWidth, glConfig.vidHeight,
+	qglReadPixels(0, 0, width, height,
 		cmd->format, GL_UNSIGNED_BYTE, cmd->buffer);
 
 	return (const void *)(cmd + 1);

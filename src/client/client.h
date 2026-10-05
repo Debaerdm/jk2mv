@@ -633,6 +633,7 @@ void	SCR_DrawBigString( int x, int y, const char *s, float alpha );			// draws a
 void	SCR_DrawBigStringColor( int x, int y, const char *s, const vec4_t color );	// ignores embedded color control characters
 void	SCR_DrawSmallStringExt( int x, int y, const char *string, const vec4_t setColor, qboolean forceColor );
 void	SCR_DrawSmallChar( int x, int y, int ch );
+float	SCR_RenderScale( void );	// r_renderScale: pixels of the frame per pixel of the window
 
 
 //
