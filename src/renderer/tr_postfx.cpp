@@ -635,6 +635,9 @@ qboolean R_PostFXGlowBegin( void ) {
 		return qfalse;
 	}
 	qglBindFramebuffer( GL_FRAMEBUFFER, pfx.glow.objectsFbo );
+	// all of it, not just the view the scissor is set to: the blur reads
+	// the whole target, older glow would stay around a smaller view
+	qglScissor( 0, 0, pfx.width, pfx.height );
 	qglClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
 	qglClear( GL_COLOR_BUFFER_BIT );
 	return qtrue;
@@ -643,6 +646,8 @@ qboolean R_PostFXGlowBegin( void ) {
 // glowing objects drawn: resolve them into tr.screenGlow with MSAA
 void R_PostFXGlowObjectsDone( void ) {
 	if ( pfx.samples ) {
+		// the whole target, the scissor would limit the blit to the view
+		qglScissor( 0, 0, pfx.width, pfx.height );
 		qglBindFramebuffer( GL_READ_FRAMEBUFFER, pfx.glow.objectsFbo );
 		qglBindFramebuffer( GL_DRAW_FRAMEBUFFER, pfx.glow.resolveFbo );
 		qglBlitFramebuffer( 0, 0, pfx.width, pfx.height, 0, 0, pfx.width, pfx.height, GL_COLOR_BUFFER_BIT, GL_NEAREST );

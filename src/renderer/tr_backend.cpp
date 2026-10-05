@@ -1097,7 +1097,11 @@ const void	*RB_DrawSurfs( const void *data ) {
 				qglClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
 				qglClear( GL_COLOR_BUFFER_BIT );
 			}
+			// the blur holds the whole screen: drawn over all of it, and the
+			// scissor keeps it in a view smaller than the screen (cg_viewsize)
+			qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 			RB_DrawGlowOverlay( qfalse );
+			SetViewportAndScissor();
 		} else {
 			// Copy the normal scene to texture.
 			qglDisable( GL_TEXTURE_2D );
@@ -1674,6 +1678,11 @@ static void RB_BlurGlowTexture( qboolean offscreen )
 		}
 		iBlurPasses = MAX( iBlurPasses, basePasses );
 		fIntensity = powf( fIntensity, basePasses / (float)iBlurPasses );
+	}
+	if ( offscreen && iBlurPasses < 1 ) {
+		// r_fbo: only the passes write tr.blurImage, which the overlay adds;
+		// without one it would keep an older glow on screen
+		iBlurPasses = 1;
 	}
 
 	// NOTE: The 0.25 is because we're blending 4 textures (so = 1.0) and we want a relatively normalized pixel
