@@ -387,7 +387,8 @@ Client-Side
 :Default: "0"
 :Description:
    Before/after comparison of the color settings: the left half of the screen
-   keeps the original colors.
+   keeps the original colors. With ``r_fbo 1`` the 3D view is split, and
+   only it shows the divider.
 
 ..
 

@@ -898,6 +898,12 @@ void R_PostFXEndView( int x, int y, int w, int h ) {
 	R_SetTarget( target, x + split, y, w - split, h );
 	qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, grade ? pfx.gradeProgram : pfx.copyProgram );
 	R_DrawQuad( x + split, y, x + w, y + h );
+	if ( split ) {
+		// the divider, across this view only: the HUD and menus aren't graded
+		R_SetTarget( target, x + split - 1, y, 2, h );
+		qglClearColor( 1.0f, 1.0f, 1.0f, 1.0f );
+		qglClear( GL_COLOR_BUFFER_BIT );
+	}
 	R_EndPasses();
 }
 
