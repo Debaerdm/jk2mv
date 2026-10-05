@@ -91,8 +91,9 @@ extern int tessOverflows;
 // The synthetic character: a 26-bone humanoid skeleton (with always
 // transformed bones and bones no surface uses), 48 compressed frames, and a
 // mesh of 12 surfaces in 3 LODs: off surfaces, two bolt tag surfaces (the
-// right hand one is empty in LOD 2, like in some JKA models), 1 to 4 bone
-// weights per vertex, and a surface that references 22 bones
+// right hand one has one bone and is empty in LOD 2, like in some JKA models;
+// the left hand one blends 3 bones), 1 to 4 bone weights per vertex, and a
+// surface that references 22 bones
 extern const char *const kCharGLA;		// "models/test/g2char.gla"
 extern const char *const kCharGLM;		// "models/test/g2char.glm"
 // A small prop (sword-like) to bolt onto the character: 3 bones, 2 LODs,
@@ -167,9 +168,10 @@ struct Bolts {
 	int		lumbar;			// lower_lumbar
 	int		face;			// face (never transformed in the synthetic skeleton)
 	int		headTop;		// *head_top, a tag surface of Kyle
+	int		chest;			// *uchest_r, a tag of Kyle whose vertexes blend two bones
 	int		generated;		// a point on a generated surface
 	int		flash;			// on the attached model
-	Bolts() : rHand( -1 ), lHand( -1 ), tagBone( -1 ), motion( -1 ), lumbar( -1 ), face( -1 ), headTop( -1 ), generated( -1 ), flash( -1 ) {}
+	Bolts() : rHand( -1 ), lHand( -1 ), tagBone( -1 ), motion( -1 ), lumbar( -1 ), face( -1 ), headTop( -1 ), chest( -1 ), generated( -1 ), flash( -1 ) {}
 };
 
 // Each returns false when a G2API call fails

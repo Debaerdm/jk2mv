@@ -5,14 +5,20 @@
 // game and cgame modules call, on synthetic GLA/GLM models (ghoul2_synth.cpp)
 // and, when the retail assets0.pk3 is found, on Kyle. Each scenario hashes
 // what it produced (bone matrices and their smoothing time stamps, bolt
-// matrices, the draw surfaces of the frame, skinned positions and normals,
-// collision records and vertexes) and compares the hash with a reference
-// value recorded from the code before any optimization: one bit off fails.
+// matrices, the world-space bolt positions G2API_GetBoltMatrix returns, the
+// draw surfaces of the frame, skinned positions and normals, collision records
+// and vertexes) and compares the hash with a reference value recorded from the
+// code before any optimization: one bit off fails.
 //
 // For the Ghoul2 optimizations (FE-3 caches, FE-4 SIMD, FE-5 skinning once
 // per frame):
 //  - every reference value must hold, on x86-64 and, for portable code, on
 //    ARM64 too (it checks the scalar skinning values);
+//  - ClientStaleBones guards the stale matrices of bones no surface uses any
+//    more, which the client smoothing and unsquash keep changing (the dead
+//    `if (!boneUsedList)` guard of the unsquash loops must stay dead), and
+//    TwoInstancesOneFrame two instances of one model that a cache keyed on
+//    the model alone would mix up;
 //  - G2_DUMP_DIR=<dir> writes every hashed value to <dir>/<name>.txt: dump
 //    before and after a change and diff the folders to find what moved;
 //  - only a change meant to alter results may update a value, and its commit
@@ -49,15 +55,15 @@ struct Golden {
 const Golden kGoldens[] = {
 	// the synthetic files: if these differ, the generator is not portable
 	{ "files/models/test/g2char.gla", 0xe7f5ae0f6b9d7e39ULL },
-	{ "files/models/test/g2char.glm", 0xc563ba6500418b75ULL },
+	{ "files/models/test/g2char.glm", 0xd93524f0502a7eaaULL },
 	{ "files/models/test/g2prop.gla", 0x6f1afabeffa018e8ULL },
 	{ "files/models/test/g2prop.glm", 0x431cbbfd42db9395ULL },
 
 	// kernels
 	{ "kernel/multiply_3x4", 0xceb841ad22f894c9ULL },
 	{ "kernel/uncompress", 0xf77fbcbcdd1ccacaULL },
-	{ "kernel/skin/scalar", 0x1e1ae4a8c884527eULL },
-	{ "kernel/skin/sse2", 0xa0bae6b9ce42025bULL },
+	{ "kernel/skin/scalar", 0x341ac9d7e7807a04ULL },
+	{ "kernel/skin/sse2", 0xc3b5e7fdcf74c610ULL },
 
 	// skeletons on the server (no bone smoothing), bolts, attached model, surfaces
 	{ "rest/bones", 0x834e4832bd118bafULL },
@@ -66,37 +72,54 @@ const Golden kGoldens[] = {
 	{ "reverse/bones", 0x244c0370d1c68ab1ULL },
 	{ "angles/bones", 0x862b9772241f4bfcULL },
 	{ "bolts/bones", 0x5d375cf1cd705edcULL },
-	{ "bolts/bolts", 0x60455e62edb6030bULL },
+	{ "bolts/bolts", 0x2fe89d6b0553bf5cULL },
+	{ "bolts/world", 0x275ff121469f6e9fULL },
 	{ "neworigin/bones", 0xb5ae1d0890ed160aULL },
-	{ "neworigin/bolts", 0x54fb85c03def5c66ULL },
+	{ "neworigin/bolts", 0xa20876fd2ab9d4abULL },
+	{ "neworigin/world", 0x9cb648e5d4bbd3c5ULL },
 	{ "neworigin/render/draw", 0x7a645b53d6532329ULL },
 	{ "neworigin/render/skin/scalar", 0xd61627ac047fad50ULL },
 	{ "neworigin/render/skin/sse2", 0x64b3fcd8eb332e2cULL },
 	{ "neworigin/render/bones", 0x1624939e299b5eefULL },
 	{ "surfaces/bones", 0x2ba6fad17da0ab21ULL },
-	{ "surfaces/bolts", 0x4df7e7d83e736dc5ULL },
+	{ "surfaces/bolts", 0xdb049a7b1127b835ULL },
+	{ "surfaces/world", 0x257d5cfe452f83aaULL },
 
-	// client: bone smoothing and unsquash, the render path
+	// client: bone smoothing and unsquash (stale bones included), the render
+	// path, two instances in one frame
 	{ "smooth/bones", 0x62ff5f4cc8d09cdaULL },
-	{ "smooth/bolts", 0xec8fda0380b18d06ULL },
+	{ "smooth/bolts", 0xd601d07a139e8e85ULL },
+	{ "smooth/world", 0xffcebb746cade28aULL },
+	{ "stale/bones", 0x797b365fed3ff421ULL },
+	{ "stale/bolts", 0x9f20ab02fb2e4423ULL },
+	{ "stale/world", 0xf5ee6b1885cd467fULL },
+	{ "stale/render/draw", 0x61e05d95bdfb82edULL },
+	{ "stale/render/skin/scalar", 0x1684b2f2b9280104ULL },
+	{ "stale/render/skin/sse2", 0x16ceedd67fb21878ULL },
 	{ "render/lod0/draw", 0xd506880ebf11a810ULL },
 	{ "render/lod0/skin/scalar", 0x4186f935201c0b03ULL },
 	{ "render/lod0/skin/sse2", 0x237fcf3e36d68f5bULL },
 	{ "render/lod0/bones", 0x1470c532cad8c4c3ULL },
-	{ "render/lod0/bolts", 0x10e439e199692941ULL },
+	{ "render/lod0/bolts", 0x3dfa04bbb3a0145fULL },
 	{ "render/lod1/draw", 0x6db2fa9e01a5485cULL },
 	{ "render/lod1/skin/scalar", 0x85b9567e37174818ULL },
 	{ "render/lod1/skin/sse2", 0xe2f3fa17b2e51022ULL },
 	{ "render/lod1/bones", 0x1d7650f95877181dULL },
-	{ "render/lod1/bolts", 0x0048388c9109ed9fULL },
+	{ "render/lod1/bolts", 0x180d228fca22ba89ULL },
 	{ "render/lod2/draw", 0xf33038569af9f8c4ULL },
 	{ "render/lod2/skin/scalar", 0x84c67c4c9f76192cULL },
 	{ "render/lod2/skin/sse2", 0x47fa69de0ecd05ebULL },
 	{ "render/lod2/bones", 0x10fc6bd56c40067dULL },
-	{ "render/lod2/bolts", 0x29c7e438888fccd9ULL },
+	{ "render/lod2/bolts", 0x9877e01a35471c34ULL },
 	{ "render/variants/draw", 0xaf8acd1dfe71c64dULL },
 	{ "render/variants/skin/scalar", 0x57fc183821d95989ULL },
 	{ "render/variants/skin/sse2", 0x18e693d9d01e6a6dULL },
+	{ "instances/bones", 0x8131f7f48830b785ULL },
+	{ "instances/bolts", 0x9fcfa0c342b5f467ULL },
+	{ "instances/world", 0xe683f8827f3f101cULL },
+	{ "instances/render/draw", 0x059e02f070dc85e6ULL },
+	{ "instances/render/skin/scalar", 0xb0d4edef22203fd4ULL },
+	{ "instances/render/skin/sse2", 0x161bd1fc37078937ULL },
 
 	// collision
 	{ "collision", 0x24adb185bddd584fULL },
@@ -105,27 +128,28 @@ const Golden kGoldens[] = {
 	{ "retail/files/models/players/kyle/model.glm", 0x3a2a9e659aab99d7ULL },
 	{ "retail/files/models/players/_humanoid/_humanoid.gla", 0xcb967a89b10ab841ULL },
 	{ "retail/bones", 0x3574c7b137ce3869ULL },
-	{ "retail/bolts", 0x9c061a7ed3d221b6ULL },
+	{ "retail/bolts", 0x07ae84c8f4a4a7ddULL },
+	{ "retail/world", 0x26e373dface18143ULL },
 	{ "retail/render/lod0/draw", 0x971aa6745dedd5acULL },
 	{ "retail/render/lod0/skin/scalar", 0xe8259014737824b3ULL },
 	{ "retail/render/lod0/skin/sse2", 0xf14101cbd220b449ULL },
 	{ "retail/render/lod0/bones", 0x844301a3bfb94d44ULL },
-	{ "retail/render/lod0/bolts", 0x0568cbfda3fa130bULL },
+	{ "retail/render/lod0/bolts", 0x6f6d9c558dbf3c11ULL },
 	{ "retail/render/lod1/draw", 0xf8dab51a6e4b2589ULL },
 	{ "retail/render/lod1/skin/scalar", 0xe4ebf906146b1724ULL },
 	{ "retail/render/lod1/skin/sse2", 0x7b3cda51c2b4033eULL },
 	{ "retail/render/lod1/bones", 0xac3dfb05ffcc5d3cULL },
-	{ "retail/render/lod1/bolts", 0x3621b046025187d2ULL },
+	{ "retail/render/lod1/bolts", 0xee51eaa26d0e2c1eULL },
 	{ "retail/render/lod2/draw", 0xfa56455739d44ff8ULL },
 	{ "retail/render/lod2/skin/scalar", 0x3e05a769a3469a92ULL },
 	{ "retail/render/lod2/skin/sse2", 0x2dbdf116c9ecd474ULL },
 	{ "retail/render/lod2/bones", 0x5c9c271ab6c314c6ULL },
-	{ "retail/render/lod2/bolts", 0xef89d9a9dc02ab8bULL },
+	{ "retail/render/lod2/bolts", 0x7e0b2e35b6820755ULL },
 	{ "retail/render/lod3/draw", 0x9cf2fcb3b7a12820ULL },
 	{ "retail/render/lod3/skin/scalar", 0x45540c68c0a5d21aULL },
 	{ "retail/render/lod3/skin/sse2", 0x31c2b8b42409ae0eULL },
 	{ "retail/render/lod3/bones", 0x5af8cbc39f4e5a1cULL },
-	{ "retail/render/lod3/bolts", 0x0107a2c85052bf1cULL },
+	{ "retail/render/lod3/bolts", 0xa5b3be121091f23eULL },
 	{ "retail/collision", 0x85185fe69ef27398ULL },
 };
 
@@ -166,6 +190,7 @@ void ExpectGolden( const g2t::Digest &d ) {
 
 const vec3_t kNoAngles = { 0, 0, 0 };
 const vec3_t kNoScale = { 0, 0, 0 };
+const vec3_t kWorldOrigin = { 128.0f, -64.0f, 24.0f };
 const int kT0 = 10000;
 
 void HashFile( g2t::Digest &d, const char *name ) {
@@ -213,6 +238,36 @@ int ModelOfBoneList( CGhoul2Info_v &ghoul2, const void *boneList ) {
 	return -1;
 }
 
+// What G2API_GetBoltMatrix gives the game and cgame (saber and muzzle
+// positions), for every bolt in use of every model of the instance, without
+// and with a model scale. Only the translation is hashed: the rotation goes
+// through a 270 degree turn (Create_Matrix) whose sine and cosine depend on
+// the C library, while the translation only meets the world matrix of angles
+// 0, whose sines and cosines are exact.
+void HashWorldBolts( g2t::Digest &d, g2handle_t h, int time ) {
+	static const vec3_t scale = { 1.25f, 0.75f, 1.5f };
+	CGhoul2Info_v &ghoul2 = *G2API_GetGhoul2Model( h );
+	for ( size_t i = 0; i < ghoul2.size(); i++ ) {
+		d.Label( "model" );
+		d.Int( (int)i );
+		for ( size_t b = 0; b < ghoul2[i].mBltlist.size(); b++ ) {
+			if ( ghoul2[i].mBltlist[b].boneNumber == -1 && ghoul2[i].mBltlist[b].surfaceNumber == -1 ) {
+				continue;
+			}
+			d.Int( (int)b );
+			mdxaBone_t m;
+			ASSERT_TRUE( G2API_GetBoltMatrix( h, (int)i, (int)b, &m, kNoAngles, kWorldOrigin, time, NULL, kNoScale ) );
+			d.Float( m.matrix[0][3] );
+			d.Float( m.matrix[1][3] );
+			d.Float( m.matrix[2][3] );
+			ASSERT_TRUE( G2API_GetBoltMatrix( h, (int)i, (int)b, &m, kNoAngles, kWorldOrigin, time, NULL, scale ) );
+			d.Float( m.matrix[0][3] );
+			d.Float( m.matrix[1][3] );
+			d.Float( m.matrix[2][3] );
+		}
+	}
+}
+
 bool RecordLess( const CollisionRecord_t *a, const CollisionRecord_t *b ) {
 	if ( a->mDistance != b->mDistance ) {
 		return a->mDistance < b->mDistance;
@@ -234,14 +289,20 @@ class Ghoul2Reference : public ::testing::Test {
 protected:
 	g2handle_t	handle;
 	g2t::Bolts	bolts;
+	g2handle_t	handle2;	// a second instance, for the scenes that draw two
+	g2t::Bolts	bolts2;
 
 	void SetUp() {
 		g2t::Init();
 		g2t::AddSyntheticModels();
 		handle = 0;
+		handle2 = 0;
 	}
 
 	void TearDown() {
+		if ( handle2 ) {
+			G2API_CleanGhoul2Models( &handle2 );
+		}
 		if ( handle ) {
 			G2API_CleanGhoul2Models( &handle );
 		}
@@ -252,12 +313,20 @@ protected:
 		return *G2API_GetGhoul2Model( handle );
 	}
 
-	// the skeleton build the game and cgame trigger through G2API_GetBoltMatrix
-	void BuildThroughBolt( int time ) {
+	// The skeleton build the game and cgame trigger through
+	// G2API_GetBoltMatrix; with a digest, then the world-space bolts they get
+	// back (HashWorldBolts)
+	void BuildThroughBolt( int time, g2t::Digest *world = NULL ) {
+		BuildInstance( handle, bolts.rHand, time, world );
+	}
+
+	void BuildInstance( g2handle_t h, int bolt, int time, g2t::Digest *world ) {
 		mdxaBone_t m;
-		const vec3_t origin = { 128.0f, -64.0f, 24.0f };
-		ASSERT_TRUE( G2API_GetBoltMatrix( handle, 0, bolts.rHand, &m, kNoAngles, origin, time, NULL, kNoScale ) );
-		EXPECT_EQ( time, G2()[0].mSkelFrameNum );
+		ASSERT_TRUE( G2API_GetBoltMatrix( h, 0, bolt, &m, kNoAngles, kWorldOrigin, time, NULL, kNoScale ) );
+		EXPECT_EQ( time, ( *G2API_GetGhoul2Model( h ) )[0].mSkelFrameNum );
+		if ( world ) {
+			HashWorldBolts( *world, h, time );
+		}
 	}
 
 	void BuildSkeleton( int time ) {
@@ -269,22 +338,28 @@ protected:
 	// against the skinning kernel it uses
 	void RenderFrame( int time, g2t::Digest &draw, g2t::Digest &scalar, g2t::Digest &sse2,
 					  qhandle_t customShader = 0, qhandle_t customSkin = 0, int renderfx = 0 ) {
-		trRefEntity_t ent;
-		memset( &ent, 0, sizeof( ent ) );
-		ent.e.ghoul2 = handle;
-		ent.e.radius = 64.0f;
-		ent.e.origin[0] = 256.0f;
-		ent.e.customShader = customShader;
-		ent.e.customSkin = customSkin;
-		ent.e.renderfx = renderfx;
+		RenderEntities( &handle, 1, time, draw, scalar, sse2, customShader, customSkin, renderfx );
+	}
 
+	// The same with one entity per instance, added in this order
+	void RenderEntities( const g2handle_t *handles, int numEntities, int time, g2t::Digest &draw, g2t::Digest &scalar, g2t::Digest &sse2,
+						 qhandle_t customShader = 0, qhandle_t customSkin = 0, int renderfx = 0 ) {
 		tr.refdef.time = time;
 		R_ResetRenderableSurfaces();
 		g2t::ClearDrawSurfs();
-		R_AddGhoulSurfaces( &ent );
+		for ( int e = 0; e < numEntities; e++ ) {
+			trRefEntity_t ent;
+			memset( &ent, 0, sizeof( ent ) );
+			ent.e.ghoul2 = handles[e];
+			ent.e.radius = 64.0f;
+			ent.e.origin[0] = 256.0f + 128.0f * e;
+			ent.e.customShader = customShader;
+			ent.e.customSkin = customSkin;
+			ent.e.renderfx = renderfx;
+			R_AddGhoulSurfaces( &ent );
+		}
 		ASSERT_FALSE( g2t::drawSurfs.empty() );
 
-		CGhoul2Info_v &ghoul2 = G2();
 		draw.Int( (int)g2t::drawSurfs.size() );
 		for ( int pass = 0; pass < 2; pass++ ) {
 			for ( size_t i = 0; i < g2t::drawSurfs.size(); i++ ) {
@@ -307,7 +382,19 @@ protected:
 					continue;
 				}
 
-				draw.Int( ModelOfBoneList( ghoul2, ds.surf->boneList ) );
+				// the entity (when there are several) and the model whose
+				// skeleton the surface uses
+				int entity = 0, model = -1;
+				for ( ; entity < numEntities; entity++ ) {
+					model = ModelOfBoneList( *G2API_GetGhoul2Model( handles[entity] ), ds.surf->boneList );
+					if ( model >= 0 ) {
+						break;
+					}
+				}
+				if ( numEntities > 1 ) {
+					draw.Int( entity );
+				}
+				draw.Int( model );
 				draw.Int( surface->thisSurfaceIndex );
 				draw.Int( surface->numVerts );
 				draw.String( ds.shader ? ds.shader->name : "<none>" );
@@ -559,19 +646,23 @@ TEST_F( Ghoul2Reference, BoneAngleOverrides ) {
 	ExpectGolden( bones );
 }
 
-// Bolts on tag surfaces, on bones (always transformed, never transformed,
-// used by no surface), on a generated surface, and a model bolted to another
+// Bolts on tag surfaces (one with a single bone, one blending three), on
+// bones (always transformed, never transformed, used by no surface), on a
+// generated surface, and a model bolted to another; in model space and in
+// world space
 TEST_F( Ghoul2Reference, BoltsAndAttachedModel ) {
 	ASSERT_TRUE( g2t::SetupCharacter( &handle, kT0, &bolts ) );
 	g2t::Digest bones( "bolts/bones" );
 	g2t::Digest boltDigest( "bolts/bolts" );
+	g2t::Digest world( "bolts/world" );
 	for ( int k = 0; k < 12; k++ ) {
-		BuildThroughBolt( kT0 + k * 50 + ( k * k ) % 7 );
+		BuildThroughBolt( kT0 + k * 50 + ( k * k ) % 7, &world );
 		g2t::HashBones( bones, G2() );
 		g2t::HashBolts( boltDigest, G2() );
 	}
 	ExpectGolden( bones );
 	ExpectGolden( boltDigest );
+	ExpectGolden( world );
 }
 
 // A model whose origin is one of its bolts (G2API_SetNewOrigin)
@@ -580,13 +671,15 @@ TEST_F( Ghoul2Reference, NewOrigin ) {
 	ASSERT_TRUE( G2API_SetNewOrigin( handle, bolts.lumbar ) );
 	g2t::Digest bones( "neworigin/bones" );
 	g2t::Digest boltDigest( "neworigin/bolts" );
+	g2t::Digest world( "neworigin/world" );
 	for ( int k = 0; k < 6; k++ ) {
-		BuildThroughBolt( kT0 + 30 + k * 90 );
+		BuildThroughBolt( kT0 + 30 + k * 90, &world );
 		g2t::HashBones( bones, G2() );
 		g2t::HashBolts( boltDigest, G2() );
 	}
 	ExpectGolden( bones );
 	ExpectGolden( boltDigest );
+	ExpectGolden( world );
 
 	// R_AddGhoulSurfaces has its own new origin code
 	g2t::Digest draw( "neworigin/render/draw" );
@@ -617,19 +710,21 @@ TEST_F( Ghoul2Reference, SurfaceOverridesAndRoot ) {
 	ASSERT_TRUE( g2t::AttachProp( handle, kT0, &bolts ) );
 	g2t::Digest bones( "surfaces/bones" );
 	g2t::Digest boltDigest( "surfaces/bolts" );
+	g2t::Digest world( "surfaces/world" );
 	BuildThroughBolt( kT0 + 40 );
 	ASSERT_TRUE( G2API_SetSurfaceOnOff( handle, "cloak", G2SURFACEFLAG_OFF ) );
 	ASSERT_TRUE( G2API_SetSurfaceOnOff( handle, "l_leg", G2SURFACEFLAG_OFF | G2SURFACEFLAG_NODESCENDANTS ) );
 	ASSERT_TRUE( G2API_SetSurfaceOnOff( handle, "head_cap_torso_off", 0 ) );
-	BuildThroughBolt( kT0 + 95 );
+	BuildThroughBolt( kT0 + 95, &world );
 	g2t::HashBones( bones, G2() );
 	g2t::HashBolts( boltDigest, G2() );
 	ASSERT_TRUE( G2API_SetRootSurface( handle, 0, "torso" ) );
-	BuildThroughBolt( kT0 + 160 );
+	BuildThroughBolt( kT0 + 160, &world );
 	g2t::HashBones( bones, G2() );
 	g2t::HashBolts( boltDigest, G2() );
 	ExpectGolden( bones );
 	ExpectGolden( boltDigest );
+	ExpectGolden( world );
 }
 
 //
@@ -643,15 +738,81 @@ TEST_F( Ghoul2Reference, ClientSmoothing ) {
 	ASSERT_TRUE( g2t::SetupCharacter( &handle, kT0, &bolts ) );
 	g2t::Digest bones( "smooth/bones" );
 	g2t::Digest boltDigest( "smooth/bolts" );
+	g2t::Digest world( "smooth/world" );
 	static const int times[] = { 0, 16, 32, 48, 56, 72, 88, 104, 120, 620, 636, 652 };
 	for ( size_t k = 0; k < sizeof( times ) / sizeof( times[0] ); k++ ) {
 		tr.refdef.time = kT0 + times[k];
-		BuildThroughBolt( kT0 + times[k] );
+		BuildThroughBolt( kT0 + times[k], &world );
 		g2t::HashBones( bones, G2() );
 		g2t::HashBolts( boltDigest, G2() );
 	}
 	ExpectGolden( bones );
 	ExpectGolden( boltDigest );
+	ExpectGolden( world );
+}
+
+// Client smoothing and unsquash on bones that stop being used, then are used
+// again: surfaces turned off, another root surface, the whole body back. A
+// bone no surface uses keeps the matrix of the last frame it was built, but
+// both unsquash loops still go over it (their `if (!boneUsedList)` guard is
+// dead), so each frame changes that stale matrix a little; the bolts on the
+// bone follow it, and once the bone is used again the smoothing blends its new
+// pose with it. The FE-3 caches must keep this as it is (ROADMAP.md: do not
+// "fix" the guard). Even frames build the skeleton through a bolt
+// (G2_ConstructGhoulSkeleton) and draw it, odd frames build it in
+// R_AddGhoulSurfaces: each of the two unsquash loops runs on stale bones.
+TEST_F( Ghoul2Reference, ClientStaleBones ) {
+	g2t::SetEngineCvars( true );
+	ASSERT_TRUE( g2t::CreateCharacter( &handle ) );
+	ASSERT_TRUE( g2t::AnimateCharacter( handle, kT0 ) );
+	// no bolt on a generated surface: see SurfaceOverridesAndRoot
+	ASSERT_TRUE( g2t::AddCharacterBolts( handle, &bolts, false ) );
+	ASSERT_TRUE( g2t::AttachProp( handle, kT0, &bolts ) );
+	ASSERT_GE( G2API_AddBolt( handle, 0, "ltibia" ), 0 );
+	ASSERT_GE( G2API_AddBolt( handle, 0, "rtibia" ), 0 );
+
+	g2t::Digest bones( "stale/bones" );
+	g2t::Digest boltDigest( "stale/bolts" );
+	g2t::Digest world( "stale/world" );
+	g2t::Digest draw( "stale/render/draw" );
+	g2t::Digest scalar( "stale/render/skin/scalar" );
+	g2t::Digest sse2( "stale/render/skin/sse2" );
+	for ( int k = 0; k < 24; k++ ) {
+		if ( k == 3 ) {
+			// no surface uses ltibia and ltalus any more
+			ASSERT_TRUE( G2API_SetSurfaceOnOff( handle, "cloak", G2SURFACEFLAG_OFF ) );
+			ASSERT_TRUE( G2API_SetSurfaceOnOff( handle, "l_leg", G2SURFACEFLAG_OFF | G2SURFACEFLAG_NODESCENDANTS ) );
+		} else if ( k == 9 ) {
+			// below the torso, no surface uses a leg bone. G2_SetRootSurface
+			// also drops the overrides and the bolts it finds outside the new
+			// root (the cloak comes back, the bolts on the shins go): turn the
+			// cloak off and bolt the shins again
+			ASSERT_TRUE( G2API_SetRootSurface( handle, 0, "torso" ) );
+			ASSERT_TRUE( G2API_SetSurfaceOnOff( handle, "cloak", G2SURFACEFLAG_OFF ) );
+			ASSERT_GE( G2API_AddBolt( handle, 0, "rtibia" ), 0 );
+			ASSERT_GE( G2API_AddBolt( handle, 0, "ltibia" ), 0 );
+		} else if ( k == 15 ) {
+			// the whole body again (this drops the cloak override too): the
+			// leg bones are smoothed from their stale matrices
+			ASSERT_TRUE( G2API_SetRootSurface( handle, 0, "hips" ) );
+		}
+		const int t = kT0 + 16 * k;
+		if ( !( k & 1 ) ) {
+			tr.refdef.time = t;
+			BuildThroughBolt( t, &world );
+		}
+		RenderFrame( t, draw, scalar, sse2 );
+		g2t::HashBones( bones, G2() );
+		g2t::HashBolts( boltDigest, G2() );
+	}
+	ExpectGolden( bones );
+	ExpectGolden( boltDigest );
+	ExpectGolden( world );
+	ExpectGolden( draw );
+	ExpectGolden( scalar );
+#if id386 || idx64
+	ExpectGolden( sse2 );
+#endif
 }
 
 // R_AddGhoulSurfaces then RB_SurfaceGhoul, in each LOD
@@ -721,6 +882,73 @@ TEST_F( Ghoul2Reference, RenderShadowsSkinsShader ) {
 	RenderFrame( kT0 + 70, draw, scalar, sse2 );
 	RenderFrame( kT0 + 90, draw, scalar, sse2, g2t::ShaderHandle( "custom/glow" ) );
 
+	ExpectGolden( draw );
+	ExpectGolden( scalar );
+#if id386 || idx64
+	ExpectGolden( sse2 );
+#endif
+}
+
+// Two instances of the same model in one frame, one drawn after the other,
+// that differ in surfaces (cloak and left leg off, the head replaced by its
+// cap), skin, animation and, every other frame, LOD: what FE-3 caches per
+// model and state (used bones, skin shaders) and FE-5 per surface must keep
+// them apart, whichever comes first, in the same LOD or not
+TEST_F( Ghoul2Reference, TwoInstancesOneFrame ) {
+	g2t::SetEngineCvars( true );
+	ASSERT_TRUE( g2t::SetupCharacter( &handle, kT0, &bolts ) );
+	ASSERT_TRUE( g2t::CreateCharacter( &handle2 ) );
+	ASSERT_TRUE( g2t::AnimateCharacter( handle2, kT0 - 270 ) );
+	ASSERT_TRUE( g2t::AddCharacterBolts( handle2, &bolts2, false ) );
+	ASSERT_TRUE( G2API_SetSurfaceOnOff( handle2, "cloak", G2SURFACEFLAG_OFF ) );
+	ASSERT_TRUE( G2API_SetSurfaceOnOff( handle2, "l_leg", G2SURFACEFLAG_OFF | G2SURFACEFLAG_NODESCENDANTS ) );
+	ASSERT_TRUE( G2API_SetSurfaceOnOff( handle2, "head", G2SURFACEFLAG_OFF ) );
+	ASSERT_TRUE( G2API_SetSurfaceOnOff( handle2, "head_cap_torso_off", 0 ) );
+
+	// a skin each, as every player has
+	std::vector<std::string> blue, red;
+	blue.push_back( "torso" );
+	blue.push_back( "skins/blue_torso" );
+	blue.push_back( "head" );
+	blue.push_back( "skins/blue_head" );
+	red.push_back( "torso" );
+	red.push_back( "skins/red_torso" );
+	red.push_back( "head_cap_torso_off" );
+	red.push_back( "skins/red_cap" );
+	CGhoul2Info_v &second = *G2API_GetGhoul2Model( handle2 );
+	ASSERT_TRUE( G2API_SetSkin( &G2()[0], g2t::RegisterSkin( "skins/blue", blue ) ) );
+	ASSERT_TRUE( G2API_SetSkin( &second[0], g2t::RegisterSkin( "skins/red", red ) ) );
+
+	g2t::Digest bones( "instances/bones" );
+	g2t::Digest boltDigest( "instances/bolts" );
+	g2t::Digest world( "instances/world" );
+	g2t::Digest draw( "instances/render/draw" );
+	g2t::Digest scalar( "instances/render/skin/scalar" );
+	g2t::Digest sse2( "instances/render/skin/sse2" );
+	for ( int k = 0; k < 6; k++ ) {
+		const int t = kT0 + 40 + 16 * k;
+		if ( k % 3 != 2 ) {
+			// the cgame asks both for a bolt first; on every third frame the
+			// renderer builds both skeletons itself
+			tr.refdef.time = t;
+			BuildInstance( handle, bolts.rHand, t, &world );
+			BuildInstance( handle2, bolts2.lHand, t, &world );
+		}
+		// the second in LOD 0 like the first (the same mesh surfaces) on
+		// even frames, in LOD 1 on odd ones, and then drawn first
+		ASSERT_TRUE( G2API_SetLodBias( &second[0], k & 1 ) );
+		const g2handle_t order[2] = { ( k & 1 ) ? handle2 : handle, ( k & 1 ) ? handle : handle2 };
+		RenderEntities( order, 2, t, draw, scalar, sse2 );
+		// the first: 8 surfaces and the prop's 2; the second: 6 surfaces
+		EXPECT_EQ( 16u, g2t::drawSurfs.size() );
+		g2t::HashBones( bones, G2() );
+		g2t::HashBones( bones, second );
+		g2t::HashBolts( boltDigest, G2() );
+		g2t::HashBolts( boltDigest, second );
+	}
+	ExpectGolden( bones );
+	ExpectGolden( boltDigest );
+	ExpectGolden( world );
 	ExpectGolden( draw );
 	ExpectGolden( scalar );
 #if id386 || idx64
@@ -800,13 +1028,15 @@ TEST_F( Ghoul2Retail, KyleSkeletonAndBolts ) {
 	ASSERT_TRUE( g2t::SetupKyle( &handle, kT0, &bolts ) );
 	g2t::Digest bones( "retail/bones" );
 	g2t::Digest boltDigest( "retail/bolts" );
+	g2t::Digest world( "retail/world" );
 	for ( int k = 0; k < 8; k++ ) {
-		BuildThroughBolt( kT0 + k * 61 );
+		BuildThroughBolt( kT0 + k * 61, &world );
 		g2t::HashBones( bones, G2() );
 		g2t::HashBolts( boltDigest, G2() );
 	}
 	ExpectGolden( bones );
 	ExpectGolden( boltDigest );
+	ExpectGolden( world );
 }
 
 TEST_F( Ghoul2Retail, KyleRenderLods ) {

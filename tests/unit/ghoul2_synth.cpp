@@ -366,7 +366,8 @@ const SurfDef kCharSurfDefs[kCharSurfaces] = {
 	{ "r_arm",			0,						1,	64,		0,	{ 10, 11, 12, 13, 14, -1 } },
 	{ "*r_hand",		G2SURFACEFLAG_ISBOLT,	4,	3,		2,	{ 13, -1 } },
 	{ "l_arm",			0,						1,	56,		0,	{ 16, 17, 18, 19, -1 } },
-	{ "*l_hand",		G2SURFACEFLAG_ISBOLT,	6,	3,		99,	{ 19, -1 } },
+	// its vertexes blend the hand with the forearm and the upper arm
+	{ "*l_hand",		G2SURFACEFLAG_ISBOLT,	6,	3,		99,	{ 19, 18, 17, -1 } },
 	{ "r_leg",			0,						0,	52,		0,	{ 20, 21, 22, -1 } },
 	{ "l_leg",			0,						0,	52,		0,	{ 23, 24, 25, -1 } },
 	// many bone references and 4-weight vertexes (the SSE2 kernel caches 32)
@@ -479,7 +480,7 @@ void WriteSurface( Writer &w, int surfaceIndex, const SurfDef &s, int lod, const
 		if ( tag ) {
 			// a tag triangle, sides 0 (v0 v1) longest and 2 (v2 v0)
 			// shortest as G2_ProcessSurfaceBolt expects, origin at v2;
-			// the same in every LOD
+			// the same positions in every LOD
 			static const double offsets[3][3] = { { 0, 0, -2 }, { 6, 0, -2 }, { 1, 2, -2 } };
 			const double *j = bones[s.bones[0]].joint;
 			for ( int i = 0; i < 3; i++ ) {
@@ -488,9 +489,29 @@ void WriteSurface( Writer &w, int surfaceIndex, const SurfDef &s, int lod, const
 			normal[0] = 0.0;
 			normal[1] = 0.0;
 			normal[2] = 1.0;
-			numWeights = 1;
-			refIndex[0] = 0;
-			weight[0] = 1023;
+			if ( numRefs < 3 ) {
+				// one bone, whose weight decodes to exactly 1.0f (Kyle's
+				// hand and head tags are like this)
+				numWeights = 1;
+				refIndex[0] = 0;
+				weight[0] = 1023;
+			} else {
+				// 2 or 3 weights led by the tag's own bone: the tag skinning
+				// of G2_ProcessSurfaceBolt then rounds like any blend, and
+				// the triangle keeps about its shape
+				static const int blend[3][3] = { { 0, 1, 2 }, { 0, 2, -1 }, { 0, 2, 1 } };
+				numWeights = v == 1 ? 2 : 3;
+				for ( int k = 0; k < numWeights; k++ ) {
+					refIndex[k] = blend[v][k];
+				}
+				weight[0] = rng.Range( 700, 860 );
+				int remaining = 1023 - weight[0];
+				for ( int k = 1; k < numWeights - 1; k++ ) {
+					weight[k] = rng.Range( 32, remaining - 32 );
+					remaining -= weight[k];
+				}
+				weight[numWeights - 1] = remaining;
+			}
 		} else {
 			numWeights = 1 + rng.Range( 0, 3 );
 			if ( numWeights > numRefs ) {

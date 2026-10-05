@@ -707,8 +707,9 @@ bool SetupKyle( g2handle_t *handle, int t0, Bolts *bolts ) {
 	bolts->lumbar = G2API_AddBolt( *handle, 0, "lower_lumbar" );
 	bolts->face = G2API_AddBolt( *handle, 0, "face" );
 	bolts->headTop = G2API_AddBolt( *handle, 0, "*head_top" );
+	bolts->chest = G2API_AddBolt( *handle, 0, "*uchest_r" );
 	return bolts->rHand >= 0 && bolts->lHand >= 0 && bolts->tagBone >= 0 && bolts->motion >= 0
-		&& bolts->lumbar >= 0 && bolts->face >= 0 && bolts->headTop >= 0
+		&& bolts->lumbar >= 0 && bolts->face >= 0 && bolts->headTop >= 0 && bolts->chest >= 0
 		&& G2API_SetBoneAnim( *handle, 0, "model_root", 5000, 5040, BONE_ANIM_OVERRIDE_LOOP, 1.0f, t0, -1, -1 )
 		&& G2API_SetBoneAnim( *handle, 0, "Motion", 5000, 5040, BONE_ANIM_OVERRIDE_LOOP, 1.0f, t0, -1, -1 )
 		&& G2API_SetBoneAnim( *handle, 0, "lower_lumbar", 6000, 6030, BONE_ANIM_OVERRIDE_LOOP, 1.0f, t0, -1, -1 )
