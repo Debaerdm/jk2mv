@@ -303,7 +303,14 @@ else()
 	message(FATAL_ERROR "Unsupported compiler")
 endif()
 
-if(UseLTO)
+if(UseLTO AND CMAKE_VERSION VERSION_LESS 3.9)
+	message(WARNING "UseLTO: needs CMake 3.9 or newer, building without link time optimization")
+elseif(UseLTO)
+	# CMake 3.9 to 3.11 don't know the ...3.31 above and take the policies of
+	# 3.1, without the IPO one: check_ipo_supported would stop with an error.
+	# The default also covers mvsdk, whose cmake_minimum_required resets them.
+	cmake_policy(SET CMP0069 NEW)
+	set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 	include(CheckIPOSupported)
 	check_ipo_supported(RESULT LTOSupported OUTPUT LTOError)
 	if(LTOSupported)
