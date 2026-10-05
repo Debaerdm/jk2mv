@@ -969,9 +969,11 @@ void R_PostFXBlendFrame( int subframe, int subframes ) {
 		R_DestroyBlendTargets();
 	}
 	if ( !pfx.blend.fbo ) {
+		// at least 16 bits: in 8 each frame's share would be rounded, and at
+		// 32 frames dark colors would come out black
 		if ( !( pfx.floatTextures && R_CreateTarget( &pfx.blend, w, h, GL_RGBA16F, 0 ) ) ) {
 			R_DestroyBlendTargets();
-			if ( !R_CreateTarget( &pfx.blend, w, h, GL_RGBA8, 0 ) ) {
+			if ( !R_CreateTarget( &pfx.blend, w, h, GL_RGBA16, 0 ) ) {
 				R_DestroyBlendTargets();
 				qglBindFramebuffer( GL_FRAMEBUFFER, 0 );
 				return;
