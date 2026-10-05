@@ -1334,7 +1334,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 
 	// r_fbo frame that skipped the gamma pass: show it anyway
 	if ( R_PostFXPending() ) {
-		gammaCorrectionCommand_t present;
+		gammaCorrectionCommand_t present = {};	// no frame blend
 
 		RB_GammaCorrection( &present );
 	}
