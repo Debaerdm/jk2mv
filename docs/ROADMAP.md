@@ -56,6 +56,11 @@ Légende de compatibilité : **T** = transparent (image et protocole identiques)
 | SV-14a | borner `sv_fps` à 1000 | S | S |
 | BM-18/VQ-18 | CVARS.rst : `sv_hibernateTime` fantôme, `sv_hibernateFps` vaut 4 et non 5, `con_timestamps`/`r_printMissingModels` valent 0, `r_dynamicGlow 2` et ses réglages | S | T |
 
+**Avancement.**
+- **Livré :** BM-17 (runners CI windows-2022 et macOS récents, job WinXP de nouveau bloquant), BM-1 (`Sys_Microseconds` dans `com_speeds`, `SV_Frame` et les timers du renderer), FE-2 (32 dlights), PX-11 (piste audio des AVI sous OpenAL), SV-14a (`sv_fps` borné à 1000) et BM-18/VQ-18 (CVARS.rst). S'y ajoutent les tests : 778 tests unitaires sous ctest au 2026-10-05, et les tests de fumée Linux de la phase 2 (BM-11/12).
+- **Outil prêt pour BM-3 :** `tools/bench/jk2bench.ps1` lance les runs (presets de mesure cpu, classic, gpu) et écrit un CSV ; il accepte les chemins absolus, `.\home\` et les listes de presets.
+- **Reste, à faire sur ta machine (§6) :** BM-3 (baseline) et BM-4 (images de référence). Sans elles, les critères chiffrés des phases 1 à 4 restent ouverts.
+
 **Critère de fin.** Un fichier `docs/benchmarks/baseline.md` contient, pour chaque couple (démo, preset) : médiane des fps, p99 du temps de frame, écart entre runs inférieur à 3 %, SHA-256 de chaque démo, GPU et pilote. 10 à 20 TGA de référence par démo sont archivées. `com_speeds 1` sur jk2mvded avec 8 bots n'affiche plus `all:0`. Tous les jobs CI démarrent et passent.
 
 ### Phase 1 : le remaster en une commande (6-8 semaines, environ 10 petites PR)
@@ -79,13 +84,21 @@ Contenu des presets. La commande affiche chaque changement et ne fait qu'un seul
 
 | preset | réglages |
 |---|---|
-| `enhanced` | `r_picmip 0`, `r_textureMode GL_LINEAR_MIPMAP_LINEAR`, aniso 16 (borné par `_avail`), `r_ext_multisample 4`, `r_ext_alphaToCoverage 1`, `r_DynamicGlow 1` en taille auto, `r_subdivisions 2`, `r_lodCurveError` plus élevé |
-| `ultra` | `enhanced` + MSAA 8 + `cl_autolodscale 0` (coûteux en CPU tant que la phase 4 n'est pas faite, l'overlay le montrera) |
-| `competitive` | glow coupé, `r_swapInterval 0` |
-| `movie` | `enhanced` + `cl_aviFrameRate 60` + `cl_aviMotionJpegQuality 95` |
-| `classic` | `Cvar_Reset` sur exactement la même liste |
+| `enhanced` | `r_picmip 0`, `r_textureMode GL_LINEAR_MIPMAP_LINEAR`, aniso 16 (borné par le matériel), `r_ext_multisample 4`, `r_ext_alphaToCoverage 1`, `r_DynamicGlow 1` en taille auto (`r_DynamicGlowWidth 0`), `r_subdivisions 2`, `r_lodCurveError 1000`, `r_dlightMode 1`, `r_dlightPriority 1`, `cl_fovAspectFix 1` |
+| `ultra` | `enhanced` + MSAA 8, `cl_autolodscale 0` (coûteux en CPU tant que la phase 4 n'est pas faite, l'overlay le montrera), `r_fbo 1`, `r_hdr 1`, `r_bloom 1` |
+| `competitive` | glow coupé, `r_swapInterval 0`, `r_maxFrameLatency 1`, `r_dlightPriority 1` |
+| `movie` | `enhanced` + `cl_aviFrameRate 60`, `cl_aviMotionJpegQuality 95`, `cl_aviMotionBlur 4`, `r_fbo 1`, `r_hdr 1`, `r_bloom 1` |
+| `classic` | chaque cvar de la liste à son défaut moteur (`presetDefaults` dans src/client/cl_presets.cpp) |
 
 Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `snaps`, `rate`, `cl_timeNudge`, `r_flares` (code mort, tr_backend.cpp:712), `cg_shadows 2` (ramené à 1 hors mode developer, tr_backend.cpp:438).
+
+**Avancement.**
+- **Livré :** RB-2a (`r_dynamicGlowFinish`), VQ-4, RB-11b, VQ-3 (taille de glow auto ; le glow tourne encore dans les vues miroir et portail), VQ-2 (`r_colorGrade`, `r_saturation`, `r_contrast`, `r_vibrance`, `r_colorGradeSplit`), VQ-8 (`r_ext_alphaToCoverage`), VQ-1 (`preset`), BM-16 (`cl_perfOverlay`), PX-6 (`cl_demoHideHud`) et PX-16 (`r_fullscreen 2`, Alt+Entrée).
+- **VQ-1, le menu :** Setup > Vidéo choisit le preset (avec sa description, appliqué par Apply Changes), une page Advanced règle les options opt-in (celles qui demandent un redémarrage attendent Apply Changes, et Discard les annule), et `cl_preset` donne le preset actif ou `custom`. `enhanced` ne règle plus que la largeur du glow à 0 (taille auto) : un profil réglé par l'ancien `enhanced` affiche `custom` jusqu'au prochain `preset enhanced`.
+- **`preset` dans un script ou un bind :** le rendu redémarre une seule fois, avant que la frame suivante soit dessinée. Ce qui suit un `wait` tourne avec le preset, une chaîne de presets ne redémarre qu'une fois, une cvar latched réglée juste après le preset est appliquée avec lui, et Apply Changes ne fait qu'un `vid_restart`.
+- **VQ-8, revue :** l'alpha-to-coverage garde l'herbe et les grilles pleines grâce à une copie de leurs textures à l'alpha accentué ; `r_ext_alphaToCoverage` est latched.
+- **Vérifié en jeu à l'intégration :** une démo rejouée en timedemo donne avec `preset classic` la même vue 3D au pixel près que la base 0d90b42 ; seules les jauges animées du HUD changent, autant qu'entre deux lancements du même binaire. Dans les menus, choisir Ultra sur Setup > Vidéo puis Apply Changes donne `cl_preset ultra` avec un seul redémarrage.
+- **Reste :** les critères 1, 3, 4 et 5 se mesurent sur ta machine après BM-3 et BM-4. Le critère 2 est tenu : `test_cl_presets` vérifie que `classic` remet chaque cvar à son défaut, et `smoke_client` que `classic` défait exactement `ultra`.
 
 **Critère de fin.**
 1. Avec toutes les nouvelles cvars à leur défaut, les images de référence sont identiques à celles de la baseline, à la tolérance près. Seule exception admise : les frames à 32 dlights (FE-2). Un test unitaire vérifie que `r_colorGrade ""` produit une LUT identique octet par octet.
@@ -110,7 +123,18 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 | BM-2 + BM-5 | commande `benchmark <demo> [runs]` (p50/p99/1 % low, CSV, sans plafond à 1000 fps) + compteurs `r_speeds 8` (draws, binds, états, raison de chaque flush) | M | T |
 | BM-6 | temps GPU par `GL_ARB_timer_query` (`r_gpuTimers`) | M | O |
 | BM-11/12 | CI : serveur dédié sans assets (BSP de 856 octets, 31 bots) + client headless (SDL offscreen + llvmpipe), les deux vérifiés par la recherche | M | – |
-| SV-11 | `svrecord` / `sv_autoDemo` au format dm_15/dm_16 standard | M | S |
+| SV-11 | `svrecord` / `sv_autoRecord` au format dm_15/dm_16 standard | M | S |
+
+**Avancement.**
+- **Livré :** PX-7, PX-4, PX-5, PX-12 (`screenshot_png` ; le readback asynchrone par PBO et libjpeg-turbo restent à faire), PX-13 (`photomode`), PX-9 (`video_mp4` par ffmpeg), PX-10 (`cl_aviMotionBlur`), BM-2 + BM-5 (`benchmark`, `r_speeds 8`), BM-6 (`r_gpuTimers`), BM-11/12 (`smoke_server`, `smoke_client`, `smoke_render` sous Linux) et SV-11 (démos serveur).
+- **PX-10 :** `cl_aviMotionBlur N` fait N frames de jeu par image vidéo et les moyenne dans une cible flottante, d'où un vrai flou de mouvement dans `video` et `video_mp4`. Le preset `movie` le met à 4.
+- **BM-6 :** `r_gpuTimers 1` mesure le temps GPU de la frame, du glow et des passes post. Le résultat s'affiche dans `cl_perfOverlay` et entre dans les percentiles de `benchmark`. C'est l'outil pour vérifier les critères 2 et 3 de la phase 3 sur une vraie carte.
+- **SV-11 :** `svrecord <client|all> [nom]` et `svstoprecord` (console du serveur ou rcon), plus `sv_autoRecord` (0 par défaut), enregistrent côté serveur la démo d'un client, bots compris, au format de la version du serveur (.dm_16 en 1.04, .dm_15 en 1.02 et 1.03). Les fichiers s'écrivent dans un thread à part. Le critère 4 est tenu : la relecture a rejoué six démos serveur jusqu'au bout sur le jk2mp.exe 1.04 d'origine, avec les mêmes nombres de frames que le client jk2mv, et des .dm_15 sur le 1.02a.
+- **`video_mp4` sous Windows (PX-9) :** ffmpeg n'hérite plus que de son entrée (le tube, ou NUL) et de son journal. Avant, il recevait tous les handles héritables du jeu (27 dans un essai avec les assets retail), dont le socket UDP, chaque pk3 et qconsole.log. La liste de handles de Vista est chargée à l'exécution, donc rien ne change sous XP. `test_sys_spawn` tourne aussi sous Windows, avec un petit programme d'aide ; `test_sys_spawn_winxp` refait les mêmes tests sur le chemin XP.
+- **Capture vidéo, revue :** le son de `video` et `video_mp4` suit l'horloge de la vidéo, donc un son démarre sur l'image où il est joué, quelles que soient les fps réelles (avant : jusqu'à 0,2 s de décalage selon les fps réelles). `tests/video/av_sync.py` le vérifie sur les assets retail. `cl_aviMotionBlur` s'arrête à 1000 frames de jeu par seconde, le ralenti ne donne plus de frames à -1 ms, et `cl_aviFrameRate` est lu au début de l'enregistrement. Pendant que ffmpeg finit, la fenêtre de `video_mp4` répond et compte les secondes.
+- **Outils démo, revue :** `photomode` et `demo_freecam` partent de la vue du jeu au lieu de l'intérieur de la tête (et de la vue du chemin pendant `cam_play`), les allers-retours de caméra à 180° ne donnent plus de NaN ni de saut, et `benchmark` démarre même suivi d'autres commandes.
+- **Vérifié en jeu à l'intégration :** une démo de ffa_bespin enregistrée par le client intégré, rejouée avec un chemin de 5 clés chargé par `cam_load` (ralenti à 0,5 sur un tronçon), `photomode`, `demo_freecam` et `video` (150 images à 30 fps) ; deux des 32 démos serveur d'une partie à 31 bots et un client (celle d'un bot, et celle du client, qui traverse un `map_restart`) rejouées jusqu'au bout par le client intégré et par le client de base, avec les mêmes nombres de frames.
+- **Reste :** critère 1 (démos 1.02 et mods populaires, export MP4 : la machine de test n'a pas ffmpeg), critère 2 (aucun test scripté ne vérifie encore que chaque commande refuse d'agir hors démo) et critère 3 (écart entre runs, sur ta machine).
 
 **Critère de fin.**
 1. Une démo 1.02 (.dm_15) et une démo 1.04 (.dm_16), sous base et sous 2 mods populaires, sont rejouées en caméra libre avec un chemin d'au moins 5 images clés, une rampe de ralenti et le HUD masqué, puis exportées en MP4 en une commande. Dérive audio inférieure à une frame sur 2 minutes.
@@ -133,41 +157,29 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 | VQ-2b | étalonnage appliqué avant le HUD (la v1 teinte aussi le HUD, cl_scrn.cpp:503) | S | O |
 
 **Avancement.**
-- **VQ-5 et VQ-6 sont livrés :** `r_fbo`, `r_hdr`, `r_bloom`, `r_exposure` (src/renderer/tr_postfx.cpp), dans les presets `ultra` et `movie`.
-- **`r_fbo 1` :** il supprime la copie plein écran de la passe gamma et toutes les copies du glow.
-  - Les objets lumineux se dessinent dans leur propre cible, qui partage la profondeur de la scène.
-  - Le flou alterne entre deux petites cibles 16 bits.
-  - La scène n'est plus redessinée.
-  - Sous llvmpipe en 640x480 : glow à 4,5 ms au lieu de 9,9 ms, temps GPU de la frame à 6,9 ms au lieu de 13,4 ms (`r_gpuTimers`). Le critère 2 reste à mesurer sur une vraie carte.
-- **RB-9 est livré :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie. Sans GL_ARB_fragment_program (GeForce 3/4 Ti, Radeon 8500-9250) ou si un programme est refusé, le journal le dit et les lumières classiques restent (vérifié sous llvmpipe en masquant l'extension). Les surfaces à deux faces (herbe de ffa_yavin) reçoivent la lumière des deux côtés, comme avec le mode classique.
-- **PX-3 est livré :** `cl_fovAspectFix 1`, la correction Hor+ du champ de vision en écran large, dans le preset `enhanced`. Un cgame qui a `cg_fovAspectAdjust` (MVSDK, dont les modules de base de jk2mv) élargit lui-même la vue et y place le viseur dynamique ; pour les autres, c'est le moteur qui élargit la scène.
-- **VQ-1 (phase 1), le menu est livré :** Setup > Vidéo choisit le preset (avec sa description, appliqué par Apply Changes), une page Advanced règle les options opt-in (celles qui demandent un redémarrage attendent Apply Changes, et Discard les annule), et `cl_preset` donne le preset actif ou `custom`. `enhanced` ne règle plus que la largeur du glow à 0 (taille auto) : un profil réglé par l'ancien `enhanced` affiche `custom` jusqu'au prochain `preset enhanced`.
-- **Phase 4, piste client :**
-  - FE-17 : `-ffp-contract=off` explicite pour GCC et Clang, plus l'option CMake `UseLTO`.
-  - RB-11a : `r_maxFrameLatency` (fences ARB_sync), à 1 dans le preset `competitive`.
-  - FE-16 : tests de référence Ghoul2 au bit près (`test_ghoul2`) et micro-benchmarks (`bench_ghoul2`), voir la règle sous le tableau de la phase 4.
-- **Phase 4, piste serveur :**
-  - SV-3 : `sv_snapshotEntityBudget` (128 par défaut, 64 = l'ancien anneau) dimensionne l'anneau d'entités des snapshots, arrondi à une puissance de deux et indexé par un masque. Avec 31 bots à `sv_fps 40`, l'ancien anneau ne gardait par moments que 0,6 s de snapshots, contre 1,4 s avec 128 : toute la fenêtre de delta d'un client à 20 snapshots/s, pour 38,8 Mo à 32 slots au lieu de 19,4. Un serveur local a maintenant le même anneau qu'un dédié : avec 6 bots, un joueur distant à 100 ms n'y recevait que des snapshots complets.
-  - SV-7 : (2) est livré, `SV_UnlinkEntity` sort l'entité de son secteur en O(1) sans changer l'ordre des listes. (1) est abandonné : arrêter la recherche d'entités de `SV_Trace` au point d'impact monde change des traces, car le jeu déplace les sabres sans les relier, et la variante exacte, qui juge chaque boîte sur sa position du moment, ne fait rien gagner de mesurable (0 à 0,4 % de la frame avec 31 bots). Le commentaire de `SV_Trace` dit pourquoi.
-  - BM-7 : `serverstats [secondes]` et `sv_statsLog 1` (µs par étape avec p95 et p99, frames de rattrapage, snapshots complets). Mesures préliminaires sur une machine partagée, à refaire sur une machine dédiée pour le critère 4 : à 31 bots et `sv_fps 40`, 7 ms par frame en moyenne (28 % du budget), dont 4,6 ms d'IA des bots ; le p99 va de 50 % à plus de 100 % du budget selon la charge des autres processus.
-  - SV-13 : `clientstats` (par client et par seconde : paquets, usercmds exécutés et écartés, temps dans `GAME_CLIENT_THINK`), `sv_maxUsercmdRate` (0 par défaut, 500 au minimum ; garde les usercmds les plus récents de chaque paquet) et réponses `disconnect` aux adresses inconnues limitées à 10 par seconde et par adresse. Les mesures sont dans les messages de commit.
-- **PX-10 (phase 2) est livré :** `cl_aviMotionBlur N` fait N frames de jeu par image vidéo et les moyenne dans une cible flottante, d'où un vrai flou de mouvement dans `video` et `video_mp4`. Le preset `movie` le met à 4.
-- **Capture vidéo, revue (phase 2) :** le son de `video` et `video_mp4` suit l'horloge de la vidéo, donc un son démarre sur l'image où il est joué, quelles que soient les fps réelles (avant : 90 à 180 ms de retard). `tests/video/av_sync.py` le vérifie sur les assets retail. `cl_aviMotionBlur` s'arrête à 1000 frames de jeu par seconde, le ralenti ne donne plus de frames à -1 ms, et `cl_aviFrameRate` est lu au début de l'enregistrement. Pendant que ffmpeg finit, la fenêtre de `video_mp4` répond et compte les secondes.
-- **BM-6 (phase 2) est livré :** `r_gpuTimers 1` mesure le temps GPU de la frame, du glow et des passes post. Le résultat s'affiche dans `cl_perfOverlay` et entre dans les percentiles de `benchmark`. C'est l'outil pour vérifier les critères 2 et 3 sur une vraie carte.
-- **SV-11 (phase 2) est livré :** `svrecord <client|all> [nom]` et `svstoprecord` (console du serveur ou rcon), plus `sv_autoRecord` (0 par défaut), enregistrent côté serveur la démo d'un client, bots compris, au format de la version du serveur (.dm_16 en 1.04, .dm_15 en 1.02 et 1.03). Elle se lit avec `demo` sur le client jk2mv inchangé, et les fichiers s'écrivent dans un thread à part. Le critère 4 reste à vérifier sur un client 1.04 d'origine.
-- **`video_mp4` sous Windows (PX-9, phase 2) :** ffmpeg n'hérite plus que de son entrée (le tube, ou NUL) et de son journal. Avant, il recevait tous les handles héritables du jeu (27 dans un essai avec les assets retail), dont le socket UDP, chaque pk3 et qconsole.log. La liste de handles de Vista est chargée à l'exécution, donc rien ne change sous XP. `test_sys_spawn` tourne aussi sous Windows, avec un petit programme d'aide : guillemets et barres obliques inverses comparés à `CommandLineToArgvW`, codes de sortie, tube, journal, handle non hérité. `test_sys_spawn_winxp` refait les mêmes tests sur le chemin XP.
-- **FE-9 est livré :** `r_dlightPriority 1`, en opt-in (0 par défaut, 1 dans les presets `enhanced`, `ultra`, `competitive` et `movie`). Au-delà de 32 lumières, chaque scène garde les 32 qui comptent le plus, au lieu des 32 premières ajoutées. Une hystérésis (src/renderer/tr_dlightselect.cpp, test unitaire `test_tr_dlightselect`) empêche les sabres proches du seuil de clignoter ; avec un miroir ou un portail en vue, les lumières derrière le joueur restent candidates. `testscene ... dlights` crée ce cas et `smoke_render` le vérifie.
-- **VQ-2b est livré :** avec `r_fbo 1`, l'étalonnage passe dans une table 3D appliquée à la fin de la vue 3D, avant le HUD. La passe gamma garde la table classique.
-- **Revue du rendu (G2), corrigé :** l'alpha-to-coverage (VQ-8) garde l'herbe et les grilles pleines grâce à une copie de leurs textures à l'alpha accentué. Sous `r_fbo 1`, le glow ne s'éclaircit plus aux bords de l'écran et ne laisse plus de fantôme, ses objets MSAA tiennent en 8 bits, l'étalonnage suit la vraie passe gamma, son trait de séparation reste dans la vue, et le flou vidéo sans textures flottantes accumule en 16 bits.
+- **Livré :** VQ-5, VQ-6, VQ-7, RB-9, FE-9 et VQ-2b. Hors tableau : PX-3 (`cl_fovAspectFix`, repris des idées écartées du §8). Reste VQ-11 (flou de mouvement temps réel).
+- **VQ-5 et VQ-6 :** `r_fbo`, `r_hdr`, `r_bloom`, `r_exposure` (src/renderer/tr_postfx.cpp), dans les presets `ultra` et `movie`. `r_fbo 1` supprime la copie plein écran de la passe gamma et toutes les copies du glow :
+  - les objets lumineux se dessinent dans leur propre cible, qui partage la profondeur de la scène ;
+  - le flou alterne entre deux petites cibles 16 bits ;
+  - la scène n'est plus redessinée ;
+  - sous llvmpipe en 640x480 : glow à 4,5 ms au lieu de 9,9 ms, temps GPU de la frame à 6,9 ms au lieu de 13,4 ms (`r_gpuTimers`). Le critère 2 reste à mesurer sur une vraie carte.
 - **Tonemapping :** c'est une épaule exponentielle au-dessus de 0,8 × blanc, appliquée à la fin de la vue 3D, avant le HUD. Je l'ai préférée à ACES pour que l'image d'origine reste intacte sous le genou.
-- **Outils démo (phase 2), correctifs de relecture :** `photomode` et `demo_freecam` partent de la vue du jeu au lieu de l'intérieur de la tête (et de la vue du chemin pendant `cam_play`), les allers-retours de caméra à 180° ne donnent plus de NaN ni de saut, `benchmark` démarre même suivi d'autres commandes, et `preset` redémarre le rendu avant la commande suivante.
-- **VQ-7 est livré :** `r_renderScale` (0,5 à 2, avec `r_fbo 1`) dessine toute la frame, HUD et console compris, à la taille de la fenêtre fois l'échelle (supersampling à 2, plus léger sous 1), puis la ramène à la taille de la fenêtre avant le swap. Captures et vidéos sortent à la taille de rendu, avec des tampons pris sur le tas (`r_screenshotWindowSize 1` : captures à la taille de la fenêtre, telles qu'affichées) ; bloom, texte et overlay gardent leur taille à l'écran. L'échelle 1 reste identique au pixel près, `smoke_render` vérifie 2, 1,5 et 0,5, image affichée comprise. En 1280x720 sur RTX 4080 (HDR, bloom, MSAA 4x, glow), le temps GPU médian passe d'environ 0,5 ms à 1 à 0,8 ms à 2.
-- **Banc d'essai sans assets :** la commande `testscene` et la salle de test de ci_box. Le test CI `smoke_render` vérifie :
+- **Revue du rendu sous `r_fbo 1` :** le glow ne s'éclaircit plus aux bords de l'écran et ne laisse plus de fantôme, ses objets MSAA tiennent en 8 bits, l'étalonnage suit la vraie passe gamma, son trait de séparation reste dans la vue, et le flou vidéo sans textures flottantes accumule en 16 bits.
+- **VQ-7 :** `r_renderScale` (0,5 à 2, avec `r_fbo 1`) dessine toute la frame, HUD et console compris, à la taille de la fenêtre fois l'échelle (supersampling à 2, plus léger sous 1), puis la ramène à la taille de la fenêtre avant le swap. Captures et vidéos sortent à la taille de rendu, avec des tampons pris sur le tas (`r_screenshotWindowSize 1` : captures à la taille de la fenêtre, telles qu'affichées) ; bloom, texte et overlay gardent leur taille à l'écran. L'échelle 1 reste identique au pixel près, `smoke_render` vérifie 2, 1,5 et 0,5, image affichée comprise. En 1280x720 sur RTX 4080 (HDR, bloom, MSAA 4x, glow), le temps GPU médian passe d'environ 0,5 ms à 1 à 0,8 ms à 2.
+- **RB-9 :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie. Sans GL_ARB_fragment_program (GeForce 3/4 Ti, Radeon 8500-9250) ou si un programme est refusé, le journal le dit et les lumières classiques restent (vérifié sous llvmpipe en masquant l'extension). Les surfaces à deux faces (herbe de ffa_yavin) reçoivent la lumière des deux côtés, comme avec le mode classique.
+- **FE-9 :** `r_dlightPriority 1`, en opt-in (0 par défaut, 1 dans les presets `enhanced`, `ultra`, `competitive` et `movie`). Au-delà de 32 lumières, chaque scène garde les 32 qui comptent le plus, au lieu des 32 premières ajoutées. Une hystérésis (src/renderer/tr_dlightselect.cpp, test unitaire `test_tr_dlightselect`) empêche les sabres proches du seuil de clignoter. Quand la scène a une entité miroir ou portail (duel_hangar), même hors de vue, les lumières derrière le joueur restent candidates. `testscene ... dlights` crée ce cas et `smoke_render` le vérifie.
+- **VQ-2b :** avec `r_fbo 1`, l'étalonnage passe dans une table 3D appliquée à la fin de la vue 3D, avant le HUD. La passe gamma garde la table classique.
+- **PX-3 :** `cl_fovAspectFix 1`, la correction Hor+ du champ de vision en écran large, dans le preset `enhanced`. Un cgame qui a `cg_fovAspectAdjust` (MVSDK, dont les modules de base de jk2mv) élargit lui-même la vue et y place le viseur dynamique ; pour les autres, c'est le moteur qui élargit la scène, en gardant la déformation sous l'eau.
+- **Banc d'essai sans assets :** la commande `testscene` et la salle de test de ci_box. La scène prend la place du menu principal plein écran des menus retail ; Échap ou `testscene off` ramène le menu et arrête la vidéo en cours. Le test CI `smoke_render` vérifie :
   - `r_fbo 1` identique au pixel près, avec et sans glow ;
-  - le halo du bloom ;
-  - le halo resté rouge en HDR ;
+  - le halo du bloom et le halo resté rouge en HDR ;
+  - les dlights par pixel et la priorité au-delà de 32 ;
+  - l'étalonnage avant le HUD ;
+  - la vidéo de la scène qui tourne (`spin`) ;
+  - `r_renderScale` à 2, 1,5 et 0,5 ;
   - l'absence d'erreur GL avec tous les effets et le MSAA.
-- **`testscene` avec les menus retail :** la scène prend bien la place du menu principal plein écran, qui la cachait jusqu'ici ; Échap ou `testscene off` ramène le menu et arrête la vidéo en cours. Le stub de `smoke_render` a maintenant un menu principal plein écran, pour attraper ce cas, et `smoke_render` vérifie aussi la vidéo de la scène qui tourne (`spin`).
+- **Vérifié à l'intégration :** `smoke_render` passe aussi contre le build Windows (vraies fenêtres, OpenGL du GPU). En jeu, `preset ultra` avec `r_renderScale 1.5` rend en 960x720 avec MSAA 8x, HDR et bloom, et l'affiche en 640x480.
+- **Reste :** VQ-11 ; les critères 2, 3 et 5 à mesurer sur une vraie carte (avec `r_gpuTimers`) ; le critère 1 attend les références de la phase 1 ; le critère 4 n'est vérifié qu'à la main, pour `r_dlightMode` (extension masquée sous llvmpipe).
 
 **Critère de fin.**
 1. `r_fbo 0` reste identique bit à bit aux références de la phase 1. `r_fbo 1` sans effet est identique à la tolérance près, captures et AVI compris.
@@ -216,10 +228,20 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 | BM-13/14 | soak ASan/UBSan + nombre d'instructions Callgrind par `SV_Frame` en CI | M | – |
 
 **Avancement.**
-- **SV-2 est livré :** le Huffman du netchan passe par des tables (src/qcommon/huffman.cpp).
-  - L'arbre ne change plus après `MSG_initHuffman`, donc chaque octet a un code fixe de 2 à 11 bits. Une table de codes l'écrit d'un coup, une table de 2048 entrées le lit sur les 11 bits suivants. L'arbre ne sert plus qu'aux deux derniers octets d'un message.
-  - La sortie reste identique bit à bit. test_qcommon_huffman compare avec l'ancien code, dans les deux sens et à tous les décalages. En jeu, le client et le serveur d'avant marchent avec les nouveaux, et les démos de l'un se décodent à l'identique dans l'autre.
-  - Deltas de snapshot écrits 2,6 fois plus vite, lus 1,8 fois plus vite. Le `bloc` statique partagé a disparu, comme SV-8 le demandait.
+- **Piste client :**
+  - FE-17 : `-ffp-contract=off` explicite pour GCC et Clang, plus l'option CMake `UseLTO` (qui se configure aussi avec CMake 3.9 à 3.11).
+  - RB-11a : `r_maxFrameLatency` (fences ARB_sync), à 1 dans le preset `competitive`.
+  - FE-1 : les surfaces Ghoul2 rendues viennent d'une arène par frame ; pleine, elle ne laisse tomber que le drawsurf.
+  - FE-16 : tests de référence Ghoul2 au bit près (`test_ghoul2`, 22 tests dont 3 sur le Kyle retail avec `JK2MV_TEST_BASE`) et micro-benchmarks (`bench_ghoul2`), voir la règle ci-dessus. Les valeurs n'ont pas encore tourné sur les CI Linux, macOS et v141_xp.
+  - Restent FE-3, FE-4, FE-5, RB-4 → RB-3 et RB-5.
+- **Piste serveur :**
+  - SV-2 : le Huffman du netchan passe par des tables (src/qcommon/huffman.cpp). L'arbre ne change plus après `MSG_initHuffman`, donc chaque octet a un code fixe de 2 à 11 bits : une table de codes l'écrit d'un coup, une table de 2048 entrées le lit sur les 11 bits suivants. La sortie reste identique bit à bit (`test_qcommon_huffman` compare avec l'ancien code), les clients et serveurs d'avant marchent avec les nouveaux. Deltas de snapshot écrits 2,6 fois plus vite, lus 1,7 fois plus vite. Le `bloc` statique partagé a disparu, comme SV-8 le demandait.
+  - SV-3 : `sv_snapshotEntityBudget` (128 par défaut, 64 = l'ancien anneau d'un dédié à 8, 16 ou 32 slots) dimensionne l'anneau d'entités des snapshots, arrondi à une puissance de deux et indexé par un masque. Avec 31 bots à `sv_fps 40`, l'ancien anneau ne gardait par moments que 0,6 s de snapshots, contre 1,4 s avec 128 : toute la fenêtre de delta d'un client à 20 snapshots/s, pour 37 Mio à 32 slots au lieu de 18,5. Un serveur local a maintenant le même anneau qu'un dédié.
+  - SV-7 : (2) est livré, `SV_UnlinkEntity` sort l'entité de son secteur en O(1) sans changer l'ordre des listes. (1) est abandonné : arrêter la recherche d'entités de `SV_Trace` au point d'impact monde change des traces, car le jeu déplace les sabres sans les relier et certaines brosses de bmodel dépassent les bornes de leur modèle ; la variante exacte ne fait rien gagner de mesurable (0 à 0,4 % de la frame avec 31 bots). Le commentaire de `SV_Trace` dit pourquoi.
+  - BM-7 : `serverstats [secondes]` et `sv_statsLog 1` (µs par étape avec p95 et p99, frames de rattrapage, snapshots complets et de repli, svstats.csv dans fs_homepath).
+  - SV-13 : `clientstats` (par client et par seconde : paquets, usercmds exécutés et écartés, temps dans `GAME_CLIENT_THINK`), `sv_maxUsercmdRate` (0 par défaut, 500 au minimum ; garde les usercmds les plus récents de chaque paquet) et réponses `disconnect` aux adresses inconnues limitées à 10 par seconde et par adresse.
+  - Restent BM-8/9, SV-5, SV-14b et BM-13/14.
+- **Mesures, sur une machine partagée par une quinzaine de processus :** à 31 bots, ffa_bespin, `sv_fps 40`, avec un client humain, 6,2 à 6,8 ms par frame en moyenne et un p99 de 7,3 à 8,1 ms (29 à 32 % du budget), dont 4,2 à 4,5 ms d'IA des bots ; aucune frame hors budget, aucun snapshot de repli, une seule frame de rattrapage (celle du `map_restart`). Les mesures de la branche BM-7 donnaient un p99 de 50 % à plus de 100 % du budget selon la charge des autres processus. Le critère 4 (p99 sous 25 %) n'est donc pas tenu ; il se juge sur une machine dédiée.
 
 **Critère de fin.**
 1. Les références Ghoul2 sont bit-exactes sur x86-64 et ARM64 après chaque PR.
@@ -330,7 +352,7 @@ Avant tout code (toi, un week-end) : BM-3 et BM-4, décrits au §5.
 - **Ghoul2 est partagé avec le serveur.** Il faut les tests FE-16 sur x86 et ARM et `-ffp-contract=off` avant tout refactor. Ne pas « corriger » la garde morte `if (!boneUsedList)` des deux boucles d'unsquash (tr_ghoul2.cpp) : le test FE-16 `ClientStaleBones` casse si on le fait.
 - **VQ-5 (FBO) est l'étape la plus risquée :** MSAA (résolution par blit), stéréo, `GL_FRONT`, ordre captures/AVI, macOS legacy. Le chemin par copies reste le repli `r_fbo 0`.
 - **RB-4, cache d'état GL :** il peut devenir faux près du code qui contourne les wrappers (flou du glow, gamma, tr_backend.cpp:1551-1569, 1669). Invalider le cache à ces frontières.
-- **Mémoire :** SV-3 fait passer l'anneau de 19,4 à 38,8 Mo à 32 slots (77,6 Mo avec `sv_snapshotEntityBudget 256`), plus FBO, VBO et SSAA. C'est serré sur les builds 32 bits.
+- **Mémoire :** SV-3 fait passer l'anneau de 18,5 à 37 Mio à 32 slots (74 Mio avec `sv_snapshotEntityBudget 256`), plus FBO, VBO et SSAA (`r_renderScale 2` quadruple les cibles et les tampons de capture). C'est serré sur les builds 32 bits.
 - **Mods et tick à 40 Hz :** certains mods supposent des frames de 50 ms. Tester mod par mod, en opt-in.
 - **Épuisement :** les phases 1 à 3 représentent environ un an à temps partiel. Chaque phase doit se suffire à elle-même. PX-4/6/7 peuvent être avancés pour garder la motivation. Les gros paris ne démarrent que sur preuve mesurée.
 
