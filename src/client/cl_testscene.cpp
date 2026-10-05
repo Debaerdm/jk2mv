@@ -36,9 +36,10 @@ qboolean CL_TestSceneActive( void ) {
 ==================
 CL_StopTestScene
 
-testscene off, and Escape during the scene (CL_KeyEvent): the main menu
-comes back with the next frame (CL_Frame). A video of the scene ends with
-it, as one of a demo ends with the demo (CL_Disconnect).
+testscene off, and Escape during the scene (CL_KeyEvent). After testscene
+off the main menu comes back with the next frame (CL_Frame); Escape
+reopens it itself. A video of the scene ends with it, as one of a demo
+ends with the demo (CL_Disconnect).
 ==================
 */
 void CL_StopTestScene( void ) {

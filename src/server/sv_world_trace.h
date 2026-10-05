@@ -241,7 +241,10 @@ void SV_Trace( trace_t *results, const vec3_t start, const vec3_t mins, const ve
 	// not only of the part before the world hit: the area query
 	// goes by the links, and the game moves sabers without
 	// relinking them (WP_SaberPositionUpdate, until SaberUpdateSelf),
-	// so a saber linked past the hit can be in front of it
+	// so a saber linked past the hit can be in front of it; and some
+	// bmodel brushes reach past their model's bounds (artus_topside *23
+	// by 32 units, ns_starpad *16 by 15), which a box cut at the hit
+	// could leave out
 	for ( i=0 ; i<3 ; i++ ) {
 		if ( end[i] > start[i] ) {
 			clip.boxmins[i] = clip.start[i] + clip.mins[i] - 1;
