@@ -5,8 +5,8 @@ LINES_INSERT 13 [
 ]
 
 LINES_INSERT 24 [
-			setcvartocvar	ui_preset cl_preset ;
-			setcvar			ui_presetPending none ;
+			setcvartocvar	ui_mvPreset cl_preset ;
+			setcvar			ui_mvPresetPending none ;
 ]
 
 LINES_INSERT 35 [
@@ -23,7 +23,7 @@ LINES_REPLACE 527 [
 ]
 
 LINES_REPLACE 541 [
-			rect				120 173 170 24
+			rect				120 173 170 23
 ]
 
 LINES_REPLACE 545 [
@@ -44,7 +44,7 @@ LINES_REPLACE 588 [
 ]
 
 LINES_REPLACE 603 [
-			rect				120 196 170 24
+			rect				120 196 170 23
 ]
 
 LINES_REPLACE 607 [
@@ -52,8 +52,8 @@ LINES_REPLACE 607 [
 ]
 
 LINES_INSERT 628 [
-				setcvartocvar	ui_preset cl_preset ;
-				setcvar			ui_presetPending none ;
+				setcvartocvar	ui_mvPreset cl_preset ;
+				setcvar			ui_mvPresetPending none ;
 ]
 
 LINES_INSERT 631 [
@@ -74,7 +74,7 @@ LINES_REPLACE 652 [
 ]
 
 LINES_REPLACE 667 [
-			rect				120 219 170 24
+			rect				120 219 170 23
 ]
 
 LINES_REPLACE 671 [
@@ -113,7 +113,7 @@ LINES_INSERT 706 [
 			text				@MV_ADVANCED
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				120 242 170 24
+			rect				120 242 170 23
 			font				3
 			textscale			0.9
 			textalignx			170
@@ -139,8 +139,8 @@ LINES_INSERT 706 [
 				defer			VideoSetup	videowarningMenu ;
 
 				uiScript		getvideosetup ;		// Get video settings
-				setcvartocvar	ui_preset cl_preset ;
-				setcvar			ui_presetPending none ;
+				setcvartocvar	ui_mvPreset cl_preset ;
+				setcvar			ui_mvPresetPending none ;
 				setcvar			ui_setupVideoPage advanced ;
 
 				show			setup_background ;
@@ -168,7 +168,7 @@ LINES_REPLACE 714 [
 ]
 
 LINES_REPLACE 729 [
-			rect				120 265 170 24
+			rect				120 265 170 23
 ]
 
 LINES_REPLACE 733 [
@@ -189,7 +189,7 @@ LINES_REPLACE 776 [
 ]
 
 LINES_REPLACE 791 [
-			rect				120 288 170 24
+			rect				120 288 170 23
 ]
 
 LINES_REPLACE 795 [
@@ -225,7 +225,7 @@ LINES_REPLACE 850 [
 ]
 
 LINES_REPLACE 853 [
-			rect				120 311 170 24
+			rect				120 311 170 23
 ]
 
 LINES_REPLACE 857 [
@@ -286,7 +286,7 @@ LINES_REPLACE 913 [
 ]
 
 LINES_REPLACE 916 [
-			rect				120 334 170 24
+			rect				120 334 170 23
 ]
 
 LINES_REPLACE 920 [
@@ -347,7 +347,7 @@ LINES_INSERT 948 [
 			text				@MENUS1_DEFAULTS
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				120 380 170 24
+			rect				120 380 170 23
 			font				3
 			textscale			0.9
 			textalignx			170
@@ -444,7 +444,7 @@ LINES_INSERT 1133 [
 			type                    ITEM_TYPE_MULTI
 			text                    @MV_GRAPHICS_PRESET
 			descText                @MV_GRAPHICS_PRESET_INFO
-			cvar                    "ui_preset"
+			cvar                    "ui_mvPreset"
 			cvarStrList
 			{
 				@MV_CLASSIC             classic
@@ -468,7 +468,7 @@ LINES_INSERT 1133 [
 			action
 			{
 				play                    "sound/interface/button1.wav" ;
-				setcvartocvar           ui_presetPending ui_preset ;
+				setcvartocvar           ui_mvPresetPending ui_mvPreset ;
 				uiScript                glCustom ;
 				setcvar                 ui_r_modified 1 ;
 				show                    applyChanges
@@ -492,7 +492,7 @@ LINES_INSERT 1133 [
 			type                    ITEM_TYPE_MULTI
 			text                    @MV_GRAPHICS_PRESET
 			descText                @MV_GRAPHICS_PRESET_INFO
-			cvar                    "ui_preset"
+			cvar                    "ui_mvPreset"
 			cvarStrList
 			{
 				@MENUS1_CUSTOM          custom
@@ -517,7 +517,7 @@ LINES_INSERT 1133 [
 			action
 			{
 				play                    "sound/interface/button1.wav" ;
-				setcvartocvar           ui_presetPending ui_preset ;
+				setcvartocvar           ui_mvPresetPending ui_mvPreset ;
 				uiScript                glCustom ;
 				setcvar                 ui_r_modified 1 ;
 				show                    applyChanges
@@ -539,7 +539,7 @@ LINES_INSERT 1133 [
 			name                    graphicspreset_info
 			group                   video
 			text                    @MV_PRESET_CLASSIC_INFO
-			cvarTest                "ui_preset"
+			cvarTest                "ui_mvPreset"
 			showCvar                { "classic" }
 			rect                    305 191 300 20
 			textalign               ITEM_ALIGN_CENTER
@@ -557,7 +557,7 @@ LINES_INSERT 1133 [
 			name                    graphicspreset_info
 			group                   video
 			text                    @MV_PRESET_ENHANCED_INFO
-			cvarTest                "ui_preset"
+			cvarTest                "ui_mvPreset"
 			showCvar                { "enhanced" }
 			rect                    305 191 300 20
 			textalign               ITEM_ALIGN_CENTER
@@ -575,7 +575,7 @@ LINES_INSERT 1133 [
 			name                    graphicspreset_info
 			group                   video
 			text                    @MV_PRESET_ULTRA_INFO
-			cvarTest                "ui_preset"
+			cvarTest                "ui_mvPreset"
 			showCvar                { "ultra" }
 			rect                    305 191 300 20
 			textalign               ITEM_ALIGN_CENTER
@@ -593,7 +593,7 @@ LINES_INSERT 1133 [
 			name                    graphicspreset_info
 			group                   video
 			text                    @MV_PRESET_COMPETITIVE_INFO
-			cvarTest                "ui_preset"
+			cvarTest                "ui_mvPreset"
 			showCvar                { "competitive" }
 			rect                    305 191 300 20
 			textalign               ITEM_ALIGN_CENTER
@@ -611,7 +611,7 @@ LINES_INSERT 1133 [
 			name                    graphicspreset_info
 			group                   video
 			text                    @MV_PRESET_MOVIE_INFO
-			cvarTest                "ui_preset"
+			cvarTest                "ui_mvPreset"
 			showCvar                { "movie" }
 			rect                    305 191 300 20
 			textalign               ITEM_ALIGN_CENTER
@@ -629,7 +629,7 @@ LINES_INSERT 1133 [
 			name                    graphicspreset_info
 			group                   video
 			text                    @MV_PRESET_CUSTOM_INFO
-			cvarTest                "ui_preset"
+			cvarTest                "ui_mvPreset"
 			showCvar                { "custom" }
 			rect                    305 191 300 20
 			textalign               ITEM_ALIGN_CENTER
@@ -1193,7 +1193,7 @@ LINES_REPLACE 1515 [
 ]
 
 LINES_REPLACE 1529 [
-			rect				120 403 170 24
+			rect				120 403 170 23
 ]
 
 LINES_REPLACE 1533 [
@@ -1220,212 +1220,14 @@ LINES_REPLACE 1585 [
 				hide			highlight12
 ]
 
-LINES_INSERT 1674 [
-			cvarTest			"ui_presetPending"
-			hideCvar			{ "classic" ; "enhanced" ; "ultra" ; "competitive" ; "movie" }
-]
-
-LINES_INSERT 1693 [
-
-		// vidrestart_yes when the classic preset was picked
-		itemDef
-		{
-			name				vidrestart_yes_preset
-			group				vidrestart
-			text				@MENUS0_YES
-			type				ITEM_TYPE_BUTTON
-			style				WINDOW_STYLE_EMPTY
-			rect				467 386 120 32
-			font				2
-			textscale			1
-			textalign			ITEM_ALIGN_CENTER
-			textalignx			60
-			textaligny			0
-			descText			@MENUS0_APPLY_CHANGES_AND_THEN
-			forecolor			0.65 0.65 1 1
-			cvarTest			"ui_presetPending"
-			showCvar			{ "classic" }
-			visible			-1
-			// appearance_slot		5
-
-			action
-			{
-				play			"sound/interface/button1.wav" ;
-				close		all ;
-				exec			"preset classic" ;
-				setcvar		ui_presetPending none ;
-				uiScript	updatevideosetup ;
-			}
-			mouseEnter
-			{
-				show			vidrestart_yes_button
-			}
-			mouseExit
-			{
-				hide			vidrestart_yes_button
-			}
-
-		}
-
-		// vidrestart_yes when the enhanced preset was picked
-		itemDef
-		{
-			name				vidrestart_yes_preset
-			group				vidrestart
-			text				@MENUS0_YES
-			type				ITEM_TYPE_BUTTON
-			style				WINDOW_STYLE_EMPTY
-			rect				467 386 120 32
-			font				2
-			textscale			1
-			textalign			ITEM_ALIGN_CENTER
-			textalignx			60
-			textaligny			0
-			descText			@MENUS0_APPLY_CHANGES_AND_THEN
-			forecolor			0.65 0.65 1 1
-			cvarTest			"ui_presetPending"
-			showCvar			{ "enhanced" }
-			visible			-1
-			// appearance_slot		5
-
-			action
-			{
-				play			"sound/interface/button1.wav" ;
-				close		all ;
-				exec			"preset enhanced" ;
-				setcvar		ui_presetPending none ;
-				uiScript	updatevideosetup ;
-			}
-			mouseEnter
-			{
-				show			vidrestart_yes_button
-			}
-			mouseExit
-			{
-				hide			vidrestart_yes_button
-			}
-
-		}
-
-		// vidrestart_yes when the ultra preset was picked
-		itemDef
-		{
-			name				vidrestart_yes_preset
-			group				vidrestart
-			text				@MENUS0_YES
-			type				ITEM_TYPE_BUTTON
-			style				WINDOW_STYLE_EMPTY
-			rect				467 386 120 32
-			font				2
-			textscale			1
-			textalign			ITEM_ALIGN_CENTER
-			textalignx			60
-			textaligny			0
-			descText			@MENUS0_APPLY_CHANGES_AND_THEN
-			forecolor			0.65 0.65 1 1
-			cvarTest			"ui_presetPending"
-			showCvar			{ "ultra" }
-			visible			-1
-			// appearance_slot		5
-
-			action
-			{
-				play			"sound/interface/button1.wav" ;
-				close		all ;
-				exec			"preset ultra" ;
-				setcvar		ui_presetPending none ;
-				uiScript	updatevideosetup ;
-			}
-			mouseEnter
-			{
-				show			vidrestart_yes_button
-			}
-			mouseExit
-			{
-				hide			vidrestart_yes_button
-			}
-
-		}
-
-		// vidrestart_yes when the competitive preset was picked
-		itemDef
-		{
-			name				vidrestart_yes_preset
-			group				vidrestart
-			text				@MENUS0_YES
-			type				ITEM_TYPE_BUTTON
-			style				WINDOW_STYLE_EMPTY
-			rect				467 386 120 32
-			font				2
-			textscale			1
-			textalign			ITEM_ALIGN_CENTER
-			textalignx			60
-			textaligny			0
-			descText			@MENUS0_APPLY_CHANGES_AND_THEN
-			forecolor			0.65 0.65 1 1
-			cvarTest			"ui_presetPending"
-			showCvar			{ "competitive" }
-			visible			-1
-			// appearance_slot		5
-
-			action
-			{
-				play			"sound/interface/button1.wav" ;
-				close		all ;
-				exec			"preset competitive" ;
-				setcvar		ui_presetPending none ;
-				uiScript	updatevideosetup ;
-			}
-			mouseEnter
-			{
-				show			vidrestart_yes_button
-			}
-			mouseExit
-			{
-				hide			vidrestart_yes_button
-			}
-
-		}
-
-		// vidrestart_yes when the movie preset was picked
-		itemDef
-		{
-			name				vidrestart_yes_preset
-			group				vidrestart
-			text				@MENUS0_YES
-			type				ITEM_TYPE_BUTTON
-			style				WINDOW_STYLE_EMPTY
-			rect				467 386 120 32
-			font				2
-			textscale			1
-			textalign			ITEM_ALIGN_CENTER
-			textalignx			60
-			textaligny			0
-			descText			@MENUS0_APPLY_CHANGES_AND_THEN
-			forecolor			0.65 0.65 1 1
-			cvarTest			"ui_presetPending"
-			showCvar			{ "movie" }
-			visible			-1
-			// appearance_slot		5
-
-			action
-			{
-				play			"sound/interface/button1.wav" ;
-				close		all ;
-				exec			"preset movie" ;
-				setcvar		ui_presetPending none ;
-				uiScript	updatevideosetup ;
-			}
-			mouseEnter
-			{
-				show			vidrestart_yes_button
-			}
-			mouseExit
-			{
-				hide			vidrestart_yes_button
-			}
-
-		}
+LINES_INSERT 1681 [
+				// jk2mv: the advanced video page, the preset picked on the video page
+				setcvartocvar	r_fbo ui_r_fbo ;
+				setcvartocvar	r_hdr ui_r_hdr ;
+				setcvartocvar	r_bloom ui_r_bloom ;
+				setcvartocvar	r_DynamicGlowWidth ui_r_DynamicGlowWidth ;
+				setcvartocvar	r_DynamicGlowHeight ui_r_DynamicGlowHeight ;
+				exec			"preset pending" ;
 ]
 
 LINES_INSERT 1722 [
@@ -1936,6 +1738,9 @@ LINES_INSERT 2677 [
 		//
 		//	JK2MV ADVANCED VIDEO FIELDS
 		//
+		//	The options that need a video restart edit copies (ui_r_fbo...) which the
+		//	engine keeps in step with the settings, and APPLY CHANGES writes back.
+		//
 		//----------------------------------------------------------------------------------------------
 		itemDef
 		{
@@ -1944,7 +1749,7 @@ LINES_INSERT 2677 [
 			type                    ITEM_TYPE_MULTI
 			text                    @MV_POST_PROCESSING
 			descText                @MV_POST_PROCESSING_INFO
-			cvar                    "r_fbo"
+			cvar                    "ui_r_fbo"
 			cvarFloatList
 			{
 				@MENUS0_OFF             0
@@ -1987,13 +1792,13 @@ LINES_INSERT 2677 [
 			type                    ITEM_TYPE_MULTI
 			text                    @MV_HDR
 			descText                @MV_HDR_INFO
-			cvar                    "r_hdr"
+			cvar                    "ui_r_hdr"
 			cvarFloatList
 			{
 				@MENUS0_OFF             0
 				@MENUS0_ON              1
 			}
-			cvarTest                "r_fbo"
+			cvarTest                "ui_r_fbo"
 			disableCvar             { "0" }
 
 			rect                    305 211 300 20
@@ -2030,13 +1835,13 @@ LINES_INSERT 2677 [
 			type                    ITEM_TYPE_MULTI
 			text                    @MV_BLOOM
 			descText                @MV_BLOOM_INFO
-			cvar                    "r_bloom"
+			cvar                    "ui_r_bloom"
 			cvarFloatList
 			{
 				@MENUS0_OFF             0
 				@MENUS0_ON              1
 			}
-			cvarTest                "r_fbo"
+			cvarTest                "ui_r_fbo"
 			disableCvar             { "0" }
 
 			rect                    305 231 300 20
@@ -2159,7 +1964,7 @@ LINES_INSERT 2677 [
 			type                    ITEM_TYPE_MULTI
 			text                    @MV_GLOW_QUALITY
 			descText                @MV_GLOW_QUALITY_INFO
-			cvar                    "r_DynamicGlowWidth"
+			cvar                    "ui_r_DynamicGlowWidth"
 			cvarFloatList
 			{
 				@MV_CLASSIC             320
@@ -2180,7 +1985,7 @@ LINES_INSERT 2677 [
 			action
 			{
 				play                    "sound/interface/button1.wav" ;
-				setcvar                 r_DynamicGlowHeight 240 ;
+				setcvar                 ui_r_DynamicGlowHeight 240 ;
 				setcvar                 ui_r_modified 1 ;
 				show                    applyChanges
 			}
@@ -2323,7 +2128,7 @@ LINES_INSERT 3053 [
 			text				@MV_DOWNLOADS
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				120 357 170 24
+			rect				120 357 170 23
 			font				3
 			textscale			0.9
 			textalignx			170

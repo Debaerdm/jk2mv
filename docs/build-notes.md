@@ -18,6 +18,7 @@ The source tree currently builds three main deliverables:
 - `src/renderer`: rendering backend and scene-related code.
 - `src/sys`, `src/sdl`, `src/win32`: platform and window/input integration.
 - `src/mvsdk`: SDK submodule used for menu and other game-facing pieces.
+- `assets/ui/jk2mp/*.menu_patch`: changes to the retail menus, applied when they load. They count lines of the original menus: `tools/menupatch.py show` writes the patched menu, and `tools/menupatch.py update` turns an edited copy back into the patch.
 
 ## Fork strategy
 

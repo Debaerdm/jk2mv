@@ -7,7 +7,7 @@
 L'objectif : que JK2MV devienne le build de JK2 qui **impressionne dès la première capture d'écran**, et qui **tient un 32 joueurs au sabre** sans casser un seul serveur, client ou mod 1.02/1.03/1.04. Chaque nouvel effet est financé par un gain de perf trouvé dans le même bout de code, et tout reste opt-in : l'apparence classique reste le défaut.
 
 Les trois gains phares :
-1. **`preset enhanced`** : une commande, ou un clic dans MV Options, active anisotrope 16x, MSAA 4x, anticrénelage du feuillage, glow adapté à la résolution de l'écran et étalonnage couleur avec écran partagé avant/après. Le tout aussi rapide qu'aujourd'hui, et plus rapide avec le glow allumé.
+1. **`preset enhanced`** : une commande, ou un choix dans Setup > Vidéo, active anisotrope 16x, MSAA 4x, anticrénelage du feuillage, glow adapté à la résolution de l'écran et étalonnage couleur avec écran partagé avant/après. Le tout aussi rapide qu'aujourd'hui, et plus rapide avec le glow allumé.
 2. **Director's cut** : n'importe quelle démo de 2003 rejouée avec caméra libre, trajectoires de caméra, ralenti et export MP4 en une commande, sous tous les mods.
 3. **Lumière nouvelle génération sans perte de fps** : bloom HDR, lumière de sabre calculée par pixel, supersampling. Ensuite, travail CPU (Ghoul2, VBO) et serveur pour que les grosses bastons restent fluides.
 
@@ -141,7 +141,7 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
   - Sous llvmpipe en 640x480 : glow à 4,5 ms au lieu de 9,9 ms, temps GPU de la frame à 6,9 ms au lieu de 13,4 ms (`r_gpuTimers`). Le critère 2 reste à mesurer sur une vraie carte.
 - **RB-9 est livré :** `r_dlightMode 1` (src/renderer/tr_shade.cpp), activé par le preset `enhanced`. Le fragment program reproduit la forme du halo classique, mais rond et sans la traînée verticale. `smoke_render` le vérifie. Sans GL_ARB_fragment_program (GeForce 3/4 Ti, Radeon 8500-9250) ou si un programme est refusé, le journal le dit et les lumières classiques restent (vérifié sous llvmpipe en masquant l'extension). Les surfaces à deux faces (herbe de ffa_yavin) reçoivent la lumière des deux côtés, comme avec le mode classique.
 - **PX-3 est livré :** `cl_fovAspectFix 1`, la correction Hor+ du champ de vision en écran large, dans le preset `enhanced`. Un cgame qui a `cg_fovAspectAdjust` (MVSDK, dont les modules de base de jk2mv) élargit lui-même la vue et y place le viseur dynamique ; pour les autres, c'est le moteur qui élargit la scène.
-- **VQ-1 (phase 1), le menu est livré :** Setup > Vidéo choisit le preset (avec sa description, appliqué par Apply Changes), une page Advanced règle les options opt-in, et `cl_preset` donne le preset actif ou `custom`.
+- **VQ-1 (phase 1), le menu est livré :** Setup > Vidéo choisit le preset (avec sa description, appliqué par Apply Changes), une page Advanced règle les options opt-in (celles qui demandent un redémarrage attendent Apply Changes, et Discard les annule), et `cl_preset` donne le preset actif ou `custom`. `enhanced` ne règle plus que la largeur du glow à 0 (taille auto) : un profil réglé par l'ancien `enhanced` affiche `custom` jusqu'au prochain `preset enhanced`.
 - **Phase 4, piste client :**
   - FE-17 : `-ffp-contract=off` explicite pour GCC et Clang, plus l'option CMake `UseLTO`.
   - RB-11a : `r_maxFrameLatency` (fences ARB_sync), à 1 dans le preset `competitive`.

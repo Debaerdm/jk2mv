@@ -573,184 +573,332 @@ INDEX 63
 {
    REFERENCE GRAPHICS_PRESET
    TEXT_LANGUAGE1 "Graphics Preset:"
+   TEXT_LANGUAGE2 "Préréglage graphique:"
+   TEXT_LANGUAGE3 "Grafikprofil:"
+   TEXT_LANGUAGE6 "Graphics Preset:"
+   TEXT_LANGUAGE8 "Perfil gráfico:"
 }
 INDEX 64
 {
    REFERENCE GRAPHICS_PRESET_INFO
-   TEXT_LANGUAGE1 "Set many graphics options at once, then apply the changes."
+   TEXT_LANGUAGE1 "Applies many graphics options at once, over your other changes."
+   TEXT_LANGUAGE2 "Règle beaucoup d'options d'un coup, par-dessus vos changements."
+   TEXT_LANGUAGE3 "Setzt viele Grafikoptionen auf einmal, mit Vorrang vor Änderungen."
+   TEXT_LANGUAGE6 "Applies many graphics options at once, over your other changes."
+   TEXT_LANGUAGE8 "Ajusta muchas opciones gráficas a la vez, por encima de tus cambios."
 }
 INDEX 65
 {
    REFERENCE CLASSIC
    TEXT_LANGUAGE1 "Classic"
+   TEXT_LANGUAGE2 "Classique"
+   TEXT_LANGUAGE3 "Klassisch"
+   TEXT_LANGUAGE6 "Classic"
+   TEXT_LANGUAGE8 "Clásico"
 }
 INDEX 66
 {
    REFERENCE ENHANCED
    TEXT_LANGUAGE1 "Enhanced"
+   TEXT_LANGUAGE2 "Amélioré"
+   TEXT_LANGUAGE3 "Verbessert"
+   TEXT_LANGUAGE6 "Enhanced"
+   TEXT_LANGUAGE8 "Mejorado"
 }
 INDEX 67
 {
    REFERENCE ULTRA
    TEXT_LANGUAGE1 "Ultra"
+   TEXT_LANGUAGE2 "Ultra"
+   TEXT_LANGUAGE3 "Ultra"
+   TEXT_LANGUAGE6 "Ultra"
+   TEXT_LANGUAGE8 "Ultra"
 }
 INDEX 68
 {
    REFERENCE COMPETITIVE
    TEXT_LANGUAGE1 "Competitive"
+   TEXT_LANGUAGE2 "Compétition"
+   TEXT_LANGUAGE3 "Wettkampf"
+   TEXT_LANGUAGE6 "Competitive"
+   TEXT_LANGUAGE8 "Competitivo"
 }
 INDEX 69
 {
    REFERENCE MOVIE
    TEXT_LANGUAGE1 "Movie"
+   TEXT_LANGUAGE2 "Film"
+   TEXT_LANGUAGE3 "Film"
+   TEXT_LANGUAGE6 "Movie"
+   TEXT_LANGUAGE8 "Película"
 }
 INDEX 70
 {
    REFERENCE PRESET_CLASSIC_INFO
    TEXT_LANGUAGE1 "The original look of the game."
+   TEXT_LANGUAGE2 "L'apparence d'origine du jeu."
+   TEXT_LANGUAGE3 "Das ursprüngliche Aussehen des Spiels."
+   TEXT_LANGUAGE6 "The original look of the game."
+   TEXT_LANGUAGE8 "El aspecto original del juego."
 }
 INDEX 71
 {
    REFERENCE PRESET_ENHANCED_INFO
    TEXT_LANGUAGE1 "Sharp textures, antialiasing, glow."
+   TEXT_LANGUAGE2 "Textures nettes, anticrénelage, halos."
+   TEXT_LANGUAGE3 "Scharfe Texturen, Kantenglättung, Glow."
+   TEXT_LANGUAGE6 "Sharp textures, antialiasing, glow."
+   TEXT_LANGUAGE8 "Texturas nítidas, antialiasing, brillo."
 }
 INDEX 72
 {
    REFERENCE PRESET_ULTRA_INFO
    TEXT_LANGUAGE1 "Enhanced with HDR, bloom, 8x AA."
+   TEXT_LANGUAGE2 "Amélioré avec HDR, bloom, AA 8x."
+   TEXT_LANGUAGE3 "Verbessert mit HDR, Bloom, 8x AA."
+   TEXT_LANGUAGE6 "Enhanced with HDR, bloom, 8x AA."
+   TEXT_LANGUAGE8 "Mejorado con HDR, bloom, AA 8x."
 }
 INDEX 73
 {
    REFERENCE PRESET_COMPETITIVE_INFO
    TEXT_LANGUAGE1 "Original look, lowest input lag."
+   TEXT_LANGUAGE2 "Aspect d'origine, latence minimale."
+   TEXT_LANGUAGE3 "Ursprüngliches Aussehen, minimale Latenz."
+   TEXT_LANGUAGE6 "Original look, lowest input lag."
+   TEXT_LANGUAGE8 "Aspecto original, mínima latencia."
 }
 INDEX 74
 {
    REFERENCE PRESET_MOVIE_INFO
    TEXT_LANGUAGE1 "Enhanced, HDR and bloom, for videos."
+   TEXT_LANGUAGE2 "Amélioré, HDR et bloom, pour les vidéos."
+   TEXT_LANGUAGE3 "Verbessert, HDR und Bloom, für Videos."
+   TEXT_LANGUAGE6 "Enhanced, HDR and bloom, for videos."
+   TEXT_LANGUAGE8 "Mejorado, HDR y bloom, para vídeos."
 }
 INDEX 75
 {
    REFERENCE PRESET_CUSTOM_INFO
    TEXT_LANGUAGE1 "Your own settings, not a preset."
+   TEXT_LANGUAGE2 "Vos propres réglages, pas un préréglage."
+   TEXT_LANGUAGE3 "Eigene Einstellungen, kein Profil."
+   TEXT_LANGUAGE6 "Your own settings, not a preset."
+   TEXT_LANGUAGE8 "Tus propios ajustes, no un perfil."
 }
 INDEX 76
 {
    REFERENCE ADVANCED
    TEXT_LANGUAGE1 "ADVANCED"
+   TEXT_LANGUAGE2 "AVANCÉ"
+   TEXT_LANGUAGE3 "ERWEITERT"
+   TEXT_LANGUAGE6 "ADVANCED"
+   TEXT_LANGUAGE8 "AVANZADO"
 }
 INDEX 77
 {
    REFERENCE ADVANCED_INFO
    TEXT_LANGUAGE1 "Configure advanced graphics options."
+   TEXT_LANGUAGE2 "Configurer les options graphiques avancées."
+   TEXT_LANGUAGE3 "Erweiterte Grafikoptionen einstellen."
+   TEXT_LANGUAGE6 "Configure advanced graphics options."
+   TEXT_LANGUAGE8 "Configurar las opciones gráficas avanzadas."
 }
 INDEX 78
 {
    REFERENCE POST_PROCESSING
    TEXT_LANGUAGE1 "Post-Processing:"
+   TEXT_LANGUAGE2 "Post-traitement:"
+   TEXT_LANGUAGE3 "Nachbearbeitung:"
+   TEXT_LANGUAGE6 "Post-Processing:"
+   TEXT_LANGUAGE8 "Posprocesado:"
 }
 INDEX 79
 {
    REFERENCE POST_PROCESSING_INFO
    TEXT_LANGUAGE1 "Render offscreen: faster glow, needed for HDR and bloom."
+   TEXT_LANGUAGE2 "Rendu hors écran: halos plus rapides, requis pour HDR et bloom."
+   TEXT_LANGUAGE3 "Offscreen-Rendering: schnellerer Glow, nötig für HDR und Bloom."
+   TEXT_LANGUAGE6 "Render offscreen: faster glow, needed for HDR and bloom."
+   TEXT_LANGUAGE8 "Render fuera de pantalla: brillo rápido, necesario para HDR y bloom."
 }
 INDEX 80
 {
    REFERENCE HDR
    TEXT_LANGUAGE1 "HDR:"
+   TEXT_LANGUAGE2 "HDR:"
+   TEXT_LANGUAGE3 "HDR:"
+   TEXT_LANGUAGE6 "HDR:"
+   TEXT_LANGUAGE8 "HDR:"
 }
 INDEX 81
 {
    REFERENCE HDR_INFO
    TEXT_LANGUAGE1 "Bright lights keep their color instead of turning white."
+   TEXT_LANGUAGE2 "Les lumières vives gardent leur couleur au lieu de blanchir."
+   TEXT_LANGUAGE3 "Helle Lichter behalten ihre Farbe, statt weiß zu werden."
+   TEXT_LANGUAGE6 "Bright lights keep their color instead of turning white."
+   TEXT_LANGUAGE8 "Las luces intensas conservan su color en vez de volverse blancas."
 }
 INDEX 82
 {
    REFERENCE BLOOM
    TEXT_LANGUAGE1 "Bloom:"
+   TEXT_LANGUAGE2 "Bloom:"
+   TEXT_LANGUAGE3 "Bloom:"
+   TEXT_LANGUAGE6 "Bloom:"
+   TEXT_LANGUAGE8 "Bloom:"
 }
 INDEX 83
 {
    REFERENCE BLOOM_INFO
    TEXT_LANGUAGE1 "Bright lights glow softly into their surroundings."
+   TEXT_LANGUAGE2 "Les lumières vives débordent doucement sur leur entourage."
+   TEXT_LANGUAGE3 "Helle Lichter strahlen sanft in ihre Umgebung."
+   TEXT_LANGUAGE6 "Bright lights glow softly into their surroundings."
+   TEXT_LANGUAGE8 "Las luces intensas brillan suavemente sobre su entorno."
 }
 INDEX 84
 {
    REFERENCE COLOR_GRADING
    TEXT_LANGUAGE1 "Color Grading:"
+   TEXT_LANGUAGE2 "Étalonnage couleur:"
+   TEXT_LANGUAGE3 "Farbstimmung:"
+   TEXT_LANGUAGE6 "Color Grading:"
+   TEXT_LANGUAGE8 "Gradación de color:"
 }
 INDEX 85
 {
    REFERENCE COLOR_GRADING_INFO
    TEXT_LANGUAGE1 "Color mood of the 3D view."
+   TEXT_LANGUAGE2 "Ambiance de couleur de la vue 3D."
+   TEXT_LANGUAGE3 "Farbstimmung der 3D-Ansicht."
+   TEXT_LANGUAGE6 "Color mood of the 3D view."
+   TEXT_LANGUAGE8 "Ambiente de color de la vista 3D."
 }
 INDEX 86
 {
    REFERENCE CINEMATIC
    TEXT_LANGUAGE1 "Cinematic"
+   TEXT_LANGUAGE2 "Cinéma"
+   TEXT_LANGUAGE3 "Kino"
+   TEXT_LANGUAGE6 "Cinematic"
+   TEXT_LANGUAGE8 "Cine"
 }
 INDEX 87
 {
    REFERENCE VIVID
    TEXT_LANGUAGE1 "Vivid"
+   TEXT_LANGUAGE2 "Vif"
+   TEXT_LANGUAGE3 "Lebhaft"
+   TEXT_LANGUAGE6 "Vivid"
+   TEXT_LANGUAGE8 "Vivo"
 }
 INDEX 88
 {
    REFERENCE COLD
    TEXT_LANGUAGE1 "Cold"
+   TEXT_LANGUAGE2 "Froid"
+   TEXT_LANGUAGE3 "Kalt"
+   TEXT_LANGUAGE6 "Cold"
+   TEXT_LANGUAGE8 "Frío"
 }
 INDEX 89
 {
    REFERENCE WARM
    TEXT_LANGUAGE1 "Warm"
+   TEXT_LANGUAGE2 "Chaud"
+   TEXT_LANGUAGE3 "Warm"
+   TEXT_LANGUAGE6 "Warm"
+   TEXT_LANGUAGE8 "Cálido"
 }
 INDEX 90
 {
    REFERENCE NOIR
    TEXT_LANGUAGE1 "Noir"
+   TEXT_LANGUAGE2 "Noir"
+   TEXT_LANGUAGE3 "Noir"
+   TEXT_LANGUAGE6 "Noir"
+   TEXT_LANGUAGE8 "Noir"
 }
 INDEX 91
 {
    REFERENCE PER_PIXEL_LIGHTS
    TEXT_LANGUAGE1 "Per-Pixel Lights:"
+   TEXT_LANGUAGE2 "Lumières par pixel:"
+   TEXT_LANGUAGE3 "Lichter pro Pixel:"
+   TEXT_LANGUAGE6 "Per-Pixel Lights:"
+   TEXT_LANGUAGE8 "Luces por píxel:"
 }
 INDEX 92
 {
    REFERENCE PER_PIXEL_LIGHTS_INFO
    TEXT_LANGUAGE1 "Round, smooth dynamic lights instead of the classic ones."
+   TEXT_LANGUAGE2 "Lumières dynamiques rondes et lisses au lieu des classiques."
+   TEXT_LANGUAGE3 "Runde, weiche dynamische Lichter statt der klassischen."
+   TEXT_LANGUAGE6 "Round, smooth dynamic lights instead of the classic ones."
+   TEXT_LANGUAGE8 "Luces dinámicas redondas y suaves en lugar de las clásicas."
 }
 INDEX 93
 {
    REFERENCE GLOW_QUALITY
    TEXT_LANGUAGE1 "Glow Quality:"
+   TEXT_LANGUAGE2 "Qualité des halos:"
+   TEXT_LANGUAGE3 "Glow-Qualität:"
+   TEXT_LANGUAGE6 "Glow Quality:"
+   TEXT_LANGUAGE8 "Calidad del brillo:"
 }
 INDEX 94
 {
    REFERENCE GLOW_QUALITY_INFO
    TEXT_LANGUAGE1 "Auto keeps the dynamic glow sharp at any resolution."
+   TEXT_LANGUAGE2 "Auto garde les halos nets à toute résolution."
+   TEXT_LANGUAGE3 "Auto hält den Glow bei jeder Auflösung scharf."
+   TEXT_LANGUAGE6 "Auto keeps the dynamic glow sharp at any resolution."
+   TEXT_LANGUAGE8 "Auto mantiene nítido el brillo a cualquier resolución."
 }
 INDEX 95
 {
    REFERENCE AUTO
    TEXT_LANGUAGE1 "Auto"
+   TEXT_LANGUAGE2 "Auto"
+   TEXT_LANGUAGE3 "Auto"
+   TEXT_LANGUAGE6 "Auto"
+   TEXT_LANGUAGE8 "Auto"
 }
 INDEX 96
 {
    REFERENCE WIDESCREEN_FOV
    TEXT_LANGUAGE1 "Widescreen FOV:"
+   TEXT_LANGUAGE2 "FOV écran large:"
+   TEXT_LANGUAGE3 "Breitbild-FOV:"
+   TEXT_LANGUAGE6 "Widescreen FOV:"
+   TEXT_LANGUAGE8 "FOV panorámico:"
 }
 INDEX 97
 {
    REFERENCE WIDESCREEN_FOV_INFO
    TEXT_LANGUAGE1 "Wide screens see more on the sides, not less at the top."
+   TEXT_LANGUAGE2 "Les écrans larges voient plus sur les côtés, pas moins en haut."
+   TEXT_LANGUAGE3 "Breitbilder zeigen mehr an den Seiten, nicht weniger oben."
+   TEXT_LANGUAGE6 "Wide screens see more on the sides, not less at the top."
+   TEXT_LANGUAGE8 "Las pantallas anchas ven más a los lados, no menos arriba."
 }
 INDEX 98
 {
    REFERENCE FRAME_LATENCY
    TEXT_LANGUAGE1 "Frame Latency:"
+   TEXT_LANGUAGE2 "Latence d'images:"
+   TEXT_LANGUAGE3 "Bildlatenz:"
+   TEXT_LANGUAGE6 "Frame Latency:"
+   TEXT_LANGUAGE8 "Latencia de cuadros:"
 }
 INDEX 99
 {
    REFERENCE FRAME_LATENCY_INFO
    TEXT_LANGUAGE1 "Frames prepared ahead of the GPU: 1 has the least input lag."
+   TEXT_LANGUAGE2 "Images préparées d'avance pour le GPU: 1 a le moins de latence."
+   TEXT_LANGUAGE3 "Vorbereitete Bilder für die GPU: 1 hat die geringste Latenz."
+   TEXT_LANGUAGE6 "Frames prepared ahead of the GPU: 1 has the least input lag."
+   TEXT_LANGUAGE8 "Cuadros preparados antes para la GPU: 1 tiene menos retraso."
 }

@@ -1,5 +1,5 @@
 // cl_presets.cpp -- one-command visual presets: preset classic|enhanced|ultra|competitive|movie,
-// and cl_preset, the preset the current settings match, for the setup menus
+// cl_preset, the preset the current settings match, and what the setup menus need to pick one
 
 #include "client.h"
 
@@ -104,11 +104,64 @@ static const preset_t presets[] = {
 
 static const char * const presetNames[] = { "classic", "enhanced", "ultra", "competitive", "movie" };
 
+/*
+The setup menus edit copies of video cvars, taken when a video page opens and
+written back by APPLY CHANGES before its vid_restart, so their Discard drops
+the changes. The ui modules keep the copies of the retail options (ui_r_picmip
+and the others, see UI_GetVideoSetup and UI_UpdateVideoSetup). They don't know
+the latched options of jk2mv's advanced video page, so the engine keeps those
+copies: they follow their cvar while no change on the video pages waits to be
+applied (ui_r_modified isn't 1). So Discard drops a change of the advanced
+page too, and the APPLY CHANGES of a menu that doesn't show them writes back
+the cvars' own values.
+*/
+typedef struct {
+	const char	*name;
+	const char	*copy;
+	cvar_t		*cvar;		// cached by CL_PresetFindVar
+	cvar_t		*copyCvar;
+} presetMenuCopy_t;
+
+static presetMenuCopy_t presetMenuCopies[] = {
+	{ "r_fbo",					"ui_r_fbo" },
+	{ "r_hdr",					"ui_r_hdr" },
+	{ "r_bloom",				"ui_r_bloom" },
+	{ "r_DynamicGlowWidth",		"ui_r_DynamicGlowWidth" },
+	{ "r_DynamicGlowHeight",	"ui_r_DynamicGlowHeight" },
+};
+
 static cvar_t	*cl_preset;				// read only: the preset the settings match, or "custom"
-static int		presetChangeCount = -1;	// cvar modification counts summed by CL_PresetFrame
+static int		presetChangeCount = -1;	// cvar modification counts summed by CL_PresetCheck
 static qboolean	presetRestart;			// a preset changed latched cvars
 
+// cached by CL_PresetFindVar: the cvars of presetDefaults, and the state of
+// the setup menus (a change waits for APPLY CHANGES, the preset row of the
+// video page, the preset picked there)
+static cvar_t	*presetCvars[ARRAY_LEN( presetDefaults )];
+static cvar_t	*presetMenuModified, *presetMenuShown, *presetMenuPending;
+
 #define PRESET_PROTECTED	( CVAR_CHEAT | CVAR_ROM | CVAR_INIT )
+
+/*
+==================
+CL_PresetFindVar
+
+Cvar_FindVar for the cvars read every frame, cached once registered: a
+registered cvar never moves, while cvar_restart frees a user created one
+(a preset or a set in autoexec.cfg before the registration).
+==================
+*/
+static cvar_t *CL_PresetFindVar( cvar_t **cache, const char *name ) {
+	if ( !*cache ) {
+		cvar_t *cv = Cvar_FindVar( name );
+
+		if ( !cv || ( cv->flags & CVAR_USER_CREATED ) ) {
+			return cv;
+		}
+		*cache = cv;
+	}
+	return *cache;
+}
 
 // numbers compare by value ("1" and "1.000000"), the rest without case
 static qboolean CL_PresetValueIs( const char *current, const char *value ) {
@@ -120,6 +173,15 @@ static qboolean CL_PresetValueIs( const char *current, const char *value ) {
 		return (qboolean)( a == b );
 	}
 	return (qboolean)!Q_stricmp( current, value );
+}
+
+static const preset_t *CL_PresetFind( const char *name ) {
+	for ( size_t i = 0; i < ARRAY_LEN( presets ); i++ ) {
+		if ( !Q_stricmp( name, presets[i].name ) ) {
+			return &presets[i];
+		}
+	}
+	return NULL;
 }
 
 /*
@@ -157,10 +219,9 @@ static qboolean CL_PresetSet( const char *name, const char *value ) {
 		restart = (qboolean)( ( cv->flags & CVAR_LATCH ) != 0 );
 	}
 
-	// The setup menus edit copies of some video cvars (ui_r_picmip...),
-	// taken when their video page opens and written back by its Apply
-	// button: keep them in step, even if the cvar had the value already, so
-	// the page shows the preset and a later Apply keeps it.
+	// The copies the setup menus edit (ui_r_picmip, ui_r_fbo...) follow,
+	// even if the cvar had the value already, so the video pages show the
+	// preset and a later APPLY CHANGES keeps it.
 	copy = Cvar_FindVar( va( "ui_%s", name ) );
 	if ( copy && !CL_PresetValueIs( copy->string, value ) ) {
 		Cvar_Set( copy->name, value );
@@ -187,7 +248,7 @@ static const char *CL_PresetTarget( const preset_t *preset, size_t i ) {
 
 	if ( !value ) {
 		// the registered default when there is one
-		const cvar_t *cv = Cvar_FindVar( presetDefaults[i].name );
+		const cvar_t *cv = CL_PresetFindVar( &presetCvars[i], presetDefaults[i].name );
 
 		value = cv && cv->resetString && !( cv->flags & CVAR_USER_CREATED ) ? cv->resetString : presetDefaults[i].value;
 	}
@@ -210,7 +271,7 @@ static void CL_PresetUpdate( void ) {
 		size_t i;
 
 		for ( i = 0; i < ARRAY_LEN( presetDefaults ); i++ ) {
-			const cvar_t	*cv = Cvar_FindVar( presetDefaults[i].name );
+			const cvar_t	*cv = CL_PresetFindVar( &presetCvars[i], presetDefaults[i].name );
 			const char		*current = presetDefaults[i].value;
 
 			if ( cv ) {
@@ -237,19 +298,30 @@ static void CL_PresetUpdate( void ) {
 /*
 ==================
 CL_Preset_f
+
+preset <name>, or preset pending: the APPLY CHANGES of the setup menus runs
+the preset picked on their video page (ui_mvPresetPending), if any, after the
+page's own changes and before their vid_restart, which applies both. A menu
+script can't put a cvar in a command.
 ==================
 */
 static void CL_Preset_f( void ) {
 	const preset_t	*preset = NULL;
 	qboolean		restart = qfalse;
 
-	if ( Cmd_Argc() == 2 ) {
-		for ( size_t i = 0; i < ARRAY_LEN( presets ); i++ ) {
-			if ( !Q_stricmp( Cmd_Argv( 1 ), presets[i].name ) ) {
-				preset = &presets[i];
-				break;
-			}
+	if ( Cmd_Argc() == 2 && !Q_stricmp( Cmd_Argv( 1 ), "pending" ) ) {
+		const cvar_t *pending = CL_PresetFindVar( &presetMenuPending, "ui_mvPresetPending" );
+
+		if ( !pending ) {
+			return;
 		}
+		preset = CL_PresetFind( pending->string );
+		Cvar_Set( pending->name, "" );
+		if ( !preset ) {
+			return;	// none picked, or Custom
+		}
+	} else if ( Cmd_Argc() == 2 ) {
+		preset = CL_PresetFind( Cmd_Argv( 1 ) );
 	}
 
 	if ( !preset ) {
@@ -287,18 +359,64 @@ static void CL_CompletePresetName( char *args, int argNum ) {
 	}
 }
 
-// any change of a preset cvar (or of cl_preset) raises this sum
-static int CL_PresetChangeCount( void ) {
-	int count = cl_preset->modificationCount;
+// cl_preset again whenever a preset cvar changed: any change raises the sum
+// of their modification counts
+static void CL_PresetCheck( void ) {
+	int count = 0;
 
 	for ( size_t i = 0; i < ARRAY_LEN( presetDefaults ); i++ ) {
-		const cvar_t *cv = Cvar_FindVar( presetDefaults[i].name );
+		const cvar_t *cv = CL_PresetFindVar( &presetCvars[i], presetDefaults[i].name );
 
 		if ( cv ) {
 			count += cv->modificationCount;
 		}
 	}
-	return count;
+	if ( count != presetChangeCount ) {
+		presetChangeCount = count;
+		CL_PresetUpdate();
+	}
+}
+
+/*
+==================
+CL_PresetMenuSync
+
+What the setup menus show follows the settings: the copies of the advanced
+video page follow their cvar (the pending value of a latched one), unless a
+change on the video pages waits for APPLY CHANGES (force: a new ui module,
+which has none), and the preset row of the video page (ui_mvPreset) shows
+cl_preset, unless a preset was picked there. The copies are created like the
+ui modules create theirs: hidden, read only for the console.
+==================
+*/
+static void CL_PresetMenuSync( qboolean force ) {
+	const cvar_t	*modified = CL_PresetFindVar( &presetMenuModified, "ui_r_modified" );
+	const cvar_t	*shown = CL_PresetFindVar( &presetMenuShown, "ui_mvPreset" );
+	const cvar_t	*pending = CL_PresetFindVar( &presetMenuPending, "ui_mvPresetPending" );
+
+	if ( force || !modified || !modified->integer ) {
+		for ( size_t i = 0; i < ARRAY_LEN( presetMenuCopies ); i++ ) {
+			presetMenuCopy_t	*mc = &presetMenuCopies[i];
+			const cvar_t		*cv = CL_PresetFindVar( &mc->cvar, mc->name );
+			const cvar_t		*copy = CL_PresetFindVar( &mc->copyCvar, mc->copy );
+			const char			*value;
+
+			if ( !cv ) {
+				continue;	// not registered yet
+			}
+			value = cv->latchedString ? cv->latchedString : cv->string;
+			if ( !copy || ( copy->flags & CVAR_USER_CREATED ) ) {
+				copy = Cvar_Get( mc->copy, value, CVAR_ROM | CVAR_INTERNAL );
+			}
+			if ( strcmp( copy->string, value ) ) {
+				Cvar_Set( mc->copy, value );
+			}
+		}
+	}
+
+	if ( shown && !( pending && CL_PresetFind( pending->string ) ) && strcmp( shown->string, cl_preset->string ) ) {
+		Cvar_Set( shown->name, cl_preset->string );
+	}
 }
 
 /*
@@ -306,8 +424,8 @@ static int CL_PresetChangeCount( void ) {
 CL_PresetFrame
 
 From CL_Frame, after the commands of the frame: the vid_restart a preset
-asked for, and cl_preset kept up to date whenever a preset cvar changes, from
-the console, a menu or a config.
+asked for, cl_preset kept up to date whenever a preset cvar changes, from
+the console, a menu or a config, and the setup menus with it.
 ==================
 */
 void CL_PresetFrame( void ) {
@@ -316,10 +434,8 @@ void CL_PresetFrame( void ) {
 		Cbuf_ExecuteText( EXEC_NOW, "vid_restart\n" );
 	}
 
-	if ( CL_PresetChangeCount() != presetChangeCount ) {
-		CL_PresetUpdate();
-		presetChangeCount = CL_PresetChangeCount();
-	}
+	CL_PresetCheck();
+	CL_PresetMenuSync( qfalse );
 }
 
 // from vid_restart, which applies the latched cvars a preset changed
@@ -331,20 +447,31 @@ void CL_PresetRestarted( void ) {
 ==================
 CL_PresetUIStarted
 
-From CL_InitUI. The setup menus keep the preset picked on their video page in
-ui_presetPending until their Apply button runs it, and the patched video
-warning popup, which the menus of other mods may use too, runs it as well. A
-new UI module starts without a pending preset.
+From CL_InitUI. A new ui module has no change waiting for APPLY CHANGES: no
+preset picked on the video page of the setup menus (the patched video
+warning popup, which the menus of other mods may use too, would run it), and
+the copies of the advanced video page hold the cvars' values.
 ==================
 */
 void CL_PresetUIStarted( void ) {
-	if ( Cvar_FindVar( "ui_presetPending" ) ) {
-		Cvar_Set( "ui_presetPending", "" );
+	const cvar_t *pending = CL_PresetFindVar( &presetMenuPending, "ui_mvPresetPending" );
+
+	if ( pending ) {
+		Cvar_Set( pending->name, "" );
 	}
+	CL_PresetCheck();
+	CL_PresetMenuSync( qtrue );
 }
 
 // from CL_InitKeyCommands, before autoexec.cfg runs, and never removed
 void CL_InitPresets( void ) {
+	Com_Memset( presetCvars, 0, sizeof( presetCvars ) );
+	for ( size_t i = 0; i < ARRAY_LEN( presetMenuCopies ); i++ ) {
+		presetMenuCopies[i].cvar = presetMenuCopies[i].copyCvar = NULL;
+	}
+	presetMenuModified = presetMenuShown = presetMenuPending = NULL;
+	presetChangeCount = -1;
+
 	cl_preset = Cvar_Get( "cl_preset", "", CVAR_ROM | CVAR_VM_NOWRITE );
 	Cmd_AddCommand( "preset", CL_Preset_f );
 	Cmd_SetCommandCompletionFunc( "preset", CL_CompletePresetName );

@@ -1,4 +1,4 @@
-// test_cl_presets.cpp - visual presets, cl_preset and the setup menu copies
+// test_cl_presets.cpp - visual presets, cl_preset and what the setup menus use
 //
 // Links the real src/client/cl_presets.cpp with small fakes of the engine
 // functions it calls: a cvar table with the engine's set semantics
@@ -84,6 +84,11 @@ void SetLatched( const char *name, const char *value ) {
 	Sync( *f );
 }
 
+// what a menu script does (setcvar, a multi item): a forced set
+void MenuSet( const char *name, const char *value ) {
+	Cvar_Set( name, value );
+}
+
 const char *Value( const char *name ) {
 	const FakeCvar *f = Find( name );
 	return f ? f->cv.string : "(none)";
@@ -134,7 +139,8 @@ cvar_t *Cvar_Get( const char *name, const char *value, int flags ) {
 	return &f->cv;
 }
 
-// Cvar_Set is a forced set: no latching, a pending value is dropped
+// Cvar_Set is a forced set: no latching, a pending value is dropped. Like
+// a set from a VM, it creates a missing cvar as a registered one.
 void Cvar_Set( const char *name, const char *value ) {
 	FakeCvar *f = Find( name );
 	if ( !f ) {
@@ -201,9 +207,44 @@ namespace {
 
 const char * const presetNames[] = { "classic", "enhanced", "ultra", "competitive", "movie" };
 
+// the registrations of the renderer and the client
+const struct {
+	const char	*name;
+	const char	*value;
+	int			flags;
+} registered[] = {
+	{ "r_picmip", "1", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE },
+	{ "r_ext_texture_filter_anisotropic", "2", CVAR_ARCHIVE },
+	{ "r_ext_multisample", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_ext_alphaToCoverage", "0", CVAR_ARCHIVE },
+	{ "r_DynamicGlow", "0", CVAR_ARCHIVE },
+	{ "r_DynamicGlowWidth", "320", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_DynamicGlowHeight", "240", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_subdivisions", "4", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_lodCurveError", "250", CVAR_ARCHIVE },
+	{ "r_dlightMode", "0", CVAR_ARCHIVE },
+	{ "r_fbo", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_hdr", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_bloom", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "cl_autolodscale", "1", CVAR_ARCHIVE },
+	{ "r_swapInterval", "0", CVAR_ARCHIVE },
+	{ "r_maxFrameLatency", "0", CVAR_ARCHIVE },
+	{ "cl_fovAspectFix", "0", CVAR_ARCHIVE },
+	{ "cl_aviFrameRate", "30", CVAR_ARCHIVE },
+	{ "cl_aviMotionJpegQuality", "90", CVAR_ARCHIVE },
+	{ "cl_aviMotionBlur", "0", CVAR_ARCHIVE },
+};
+
 class Presets : public ::testing::Test {
 protected:
 	void SetUp() override {
+		Start( nullptr );
+		CL_PresetFrame();
+	}
+
+	// a fresh client: the presets, then every registration but skip's
+	void Start( const char *skip ) {
 		cvars.clear();
 		epoch += 10000;
 		executed.clear();
@@ -211,29 +252,11 @@ protected:
 		cls.rendererStarted = qtrue;
 		CL_PresetRestarted();
 		CL_InitPresets();
-		// the registrations of the renderer and the client
-		Register( "r_picmip", "1", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST" );
-		Register( "r_ext_texture_filter_anisotropic", "2" );
-		Register( "r_ext_multisample", "0", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "r_ext_alphaToCoverage", "0" );
-		Register( "r_DynamicGlow", "0" );
-		Register( "r_DynamicGlowWidth", "320", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "r_DynamicGlowHeight", "240", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "r_subdivisions", "4", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "r_lodCurveError", "250" );
-		Register( "r_dlightMode", "0" );
-		Register( "r_fbo", "0", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "r_hdr", "0", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "r_bloom", "0", CVAR_ARCHIVE | CVAR_LATCH );
-		Register( "cl_autolodscale", "1" );
-		Register( "r_swapInterval", "0" );
-		Register( "r_maxFrameLatency", "0" );
-		Register( "cl_fovAspectFix", "0" );
-		Register( "cl_aviFrameRate", "30" );
-		Register( "cl_aviMotionJpegQuality", "90" );
-		Register( "cl_aviMotionBlur", "0" );
-		CL_PresetFrame();
+		for ( const auto &r : registered ) {
+			if ( !skip || Compare( r.name, skip ) ) {
+				Register( r.name, r.value, r.flags );
+			}
+		}
 	}
 };
 
@@ -332,15 +355,27 @@ TEST_F(Presets, NoRestartWithoutLatchedChanges) {
 	EXPECT_STREQ( Value( "r_maxFrameLatency" ), "1" );
 }
 
+// a preset in autoexec.cfg runs before the renderer registers its cvars
 TEST_F(Presets, UnregisteredCvarsKeepTheirEngineDefault) {
-	cvars.erase( cvars.begin() + 1 );	// r_picmip, not registered yet (autoexec.cfg)
-	ASSERT_EQ( Cvar_FindVar( "r_picmip" ), nullptr );
+	Start( "r_picmip" );
 	Preset( "enhanced" );
 	ASSERT_NE( Cvar_FindVar( "r_picmip" ), nullptr );
 	EXPECT_NE( Cvar_FindVar( "r_picmip" )->flags & CVAR_USER_CREATED, 0 );
 	Register( "r_picmip", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	EXPECT_STREQ( Value( "r_picmip" ), "0" );
 	EXPECT_STREQ( Cvar_FindVar( "r_picmip" )->resetString, "1" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "cl_preset" ), "enhanced" );
+}
+
+TEST_F(Presets, ACvarRegisteredLaterCounts) {
+	Start( "cl_fovAspectFix" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "cl_preset" ), "classic" );	// its default assumed
+	Register( "cl_fovAspectFix", "0", CVAR_ARCHIVE );
+	Cvar_Set( "cl_fovAspectFix", "1" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "cl_preset" ), "custom" );
 }
 
 // the video page edits copies (ui_r_picmip...) and its Apply writes them back
@@ -360,12 +395,135 @@ TEST_F(Presets, TheMenuCopiesFollowEvenWhenTheCvarHadTheValue) {
 	EXPECT_STREQ( Value( "ui_r_picmip" ), "0" );
 }
 
-TEST_F(Presets, ANewMenuModuleStartsWithoutAPendingPreset) {
+// the latched options of the advanced video page have copies too, which the
+// engine keeps: the ui modules don't know them
+TEST_F(Presets, TheAdvancedPageCopiesStartWithTheUI) {
+	Cvar_Set( "r_fbo", "1" );
 	CL_PresetUIStarted();
-	EXPECT_EQ( Cvar_FindVar( "ui_presetPending" ), nullptr );
-	Cvar_Set( "ui_presetPending", "ultra" );
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "1" );
+	EXPECT_STREQ( Value( "ui_r_hdr" ), "0" );
+	EXPECT_STREQ( Value( "ui_r_bloom" ), "0" );
+	EXPECT_STREQ( Value( "ui_r_DynamicGlowWidth" ), "320" );
+	EXPECT_STREQ( Value( "ui_r_DynamicGlowHeight" ), "240" );
+	// like the copies of the ui modules
+	EXPECT_NE( Cvar_FindVar( "ui_r_fbo" )->flags & CVAR_ROM, 0 );
+	EXPECT_NE( Cvar_FindVar( "ui_r_fbo" )->flags & CVAR_INTERNAL, 0 );
+	EXPECT_EQ( Cvar_FindVar( "ui_r_fbo" )->flags & CVAR_ARCHIVE, 0 );
+}
+
+TEST_F(Presets, TheCopiesFollowTheirCvarWhileNothingWaitsToBeApplied) {
 	CL_PresetUIStarted();
-	EXPECT_STREQ( Value( "ui_presetPending" ), "" );
+	Cvar_Set( "r_fbo", "1" );			// the console, a config...
+	SetLatched( "r_bloom", "1" );		// pending until the next vid_restart
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "1" );
+	EXPECT_STREQ( Value( "ui_r_bloom" ), "1" );
+	MenuSet( "ui_r_modified", "0" );	// a video page opened
+	Cvar_Set( "r_fbo", "0" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "0" );
+}
+
+// Post-Processing turned on, then the unapplied changes popup: Discard
+TEST_F(Presets, DiscardDropsAChangeOfTheAdvancedPage) {
+	CL_PresetUIStarted();
+	MenuSet( "ui_r_fbo", "1" );
+	MenuSet( "ui_r_modified", "1" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "1" );	// kept for APPLY CHANGES
+	EXPECT_STREQ( Value( "r_fbo" ), "0" );
+	MenuSet( "ui_r_modified", "0" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "0" );
+	EXPECT_STREQ( Value( "r_fbo" ), "0" );
+	EXPECT_STREQ( Value( "cl_preset" ), "classic" );
+}
+
+// ...and Apply: the menu writes the copy back (setcvartocvar) first
+TEST_F(Presets, ApplyKeepsAChangeOfTheAdvancedPage) {
+	CL_PresetUIStarted();
+	MenuSet( "ui_r_fbo", "1" );
+	MenuSet( "ui_r_modified", "1" );
+	CL_PresetFrame();
+	MenuSet( "r_fbo", Value( "ui_r_fbo" ) );
+	MenuSet( "ui_r_modified", "0" );	// updatevideosetup
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "r_fbo" ), "1" );
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "1" );
+	EXPECT_STREQ( Value( "cl_preset" ), "custom" );
+}
+
+TEST_F(Presets, ANewUIModuleStartsWithoutPendingChanges) {
+	CL_PresetUIStarted();
+	MenuSet( "ui_r_fbo", "1" );
+	MenuSet( "ui_r_modified", "1" );
+	MenuSet( "ui_mvPresetPending", "ultra" );
+	CL_PresetUIStarted();
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "0" );
+	EXPECT_STREQ( Value( "ui_mvPresetPending" ), "" );
+}
+
+TEST_F(Presets, ACopyCreatedFromTheConsoleIsTakenOver) {
+	Cvar_Get( "ui_r_hdr", "1", CVAR_USER_CREATED );		// set ui_r_hdr 1
+	CL_PresetUIStarted();
+	EXPECT_STREQ( Value( "ui_r_hdr" ), "0" );
+	EXPECT_EQ( Cvar_FindVar( "ui_r_hdr" )->flags & CVAR_USER_CREATED, 0 );
+	EXPECT_NE( Cvar_FindVar( "ui_r_hdr" )->flags & CVAR_ROM, 0 );
+}
+
+TEST_F(Presets, APresetSetsTheAdvancedPageCopiesToo) {
+	CL_PresetUIStarted();
+	MenuSet( "ui_r_modified", "1" );	// other changes wait on a video page
+	Preset( "ultra" );
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "1" );
+	EXPECT_STREQ( Value( "ui_r_bloom" ), "1" );
+	EXPECT_STREQ( Value( "ui_r_DynamicGlowWidth" ), "0" );
+}
+
+// APPLY CHANGES runs "preset pending" before its vid_restart
+TEST_F(Presets, PresetPendingRunsThePresetPickedInTheMenu) {
+	MenuSet( "ui_mvPresetPending", "ultra" );
+	Preset( "pending" );
+	EXPECT_STREQ( Value( "ui_mvPresetPending" ), "" );
+	EXPECT_STREQ( Value( "r_fbo" ), "1" );
+	EXPECT_STREQ( Value( "cl_preset" ), "ultra" );
+	CL_PresetRestarted();		// the menu's vid_restart
+	CL_PresetFrame();
+	EXPECT_EQ( Restarts(), 0 );
+}
+
+TEST_F(Presets, PresetPendingWithoutAPickChangesNothing) {
+	Preset( "pending" );					// no menu yet
+	EXPECT_EQ( Cvar_FindVar( "ui_mvPresetPending" ), nullptr );
+	for ( const char *none : { "", "none", "custom", "pending" } ) {
+		MenuSet( "ui_mvPresetPending", none );
+		Preset( "pending" );
+		EXPECT_STREQ( Value( "ui_mvPresetPending" ), "" );
+	}
+	CL_PresetFrame();
+	EXPECT_EQ( Restarts(), 0 );
+	for ( const auto &r : registered ) {
+		EXPECT_STREQ( Value( r.name ), r.value ) << r.name;
+	}
+	EXPECT_STREQ( Value( "cl_preset" ), "classic" );
+}
+
+// the preset row of the video page shows ui_mvPreset
+TEST_F(Presets, ThePresetRowShowsTheSettingsUnlessAPresetIsPicked) {
+	MenuSet( "ui_mvPreset", "classic" );			// the video page opens
+	MenuSet( "ui_mvPresetPending", "none" );
+	Preset( "enhanced" );						// from the console
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_mvPreset" ), "enhanced" );
+	MenuSet( "ui_mvPreset", "ultra" );			// picked on the row
+	MenuSet( "ui_mvPresetPending", "ultra" );
+	Cvar_Set( "r_picmip", "1" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "cl_preset" ), "custom" );
+	EXPECT_STREQ( Value( "ui_mvPreset" ), "ultra" );
+	MenuSet( "ui_mvPresetPending", "none" );		// Discard
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_mvPreset" ), "custom" );
 }
 
 TEST_F(Presets, UnknownNamesChangeNothing) {
