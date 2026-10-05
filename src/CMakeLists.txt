@@ -426,6 +426,7 @@ if (BuildMVMP)
 	set(MVMPRendererFiles
 		"renderer/glext.h"
 		"renderer/tr_coverage.h"
+		"renderer/tr_gammapass.h"
 		"renderer/tr_WorldEffects.h"
 
 		"renderer/tr_WorldEffects.cpp"
@@ -436,6 +437,7 @@ if (BuildMVMP)
 		"renderer/tr_curve.cpp"
 		"renderer/tr_flares.cpp"
 		"renderer/tr_font.cpp"
+		"renderer/tr_gammapass.cpp"
 		"renderer/tr_gputimer.cpp"
 		"renderer/tr_light.cpp"
 		"renderer/tr_marks.cpp"

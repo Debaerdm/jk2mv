@@ -5,6 +5,7 @@
 #ifndef DEDICATED
 #include "glext.h"
 #include "tr_coverage.h"
+#include "tr_gammapass.h"
 #endif
 
 #include <map>
@@ -3206,26 +3207,31 @@ static GLuint R_CreateGammaLUT( void ) {
 R_UploadGradeLUT
 
 r_fbo: the color grade is applied to the 3D view before the gamma pass, so
-its table maps framebuffer values to framebuffer values: through the classic
-gamma and overbright to what is displayed, graded there, and back. 16 bits
-per channel, the result is stored again in the framebuffer.
+its table maps framebuffer values to framebuffer values: to what the gamma
+pass shows with the classic table (gamma and overbright, as the pass samples
+it, which matters near black at r_gamma above 1), graded there, and back
+through the same mapping. 16 bits per channel, the result is stored again
+in the framebuffer.
 ==================
 */
-static void R_UploadGradeLUT( const colorGrade_t *grade, float g, int shift, const byte *gammaCorrected ) {
+static void R_UploadGradeLUT( const colorGrade_t *grade, const byte *gammaCorrected ) {
 	unsigned short *table = (unsigned short *)Hunk_AllocateTempMemory( 64 * 64 * 64 * 3 * sizeof( unsigned short ) );
 	unsigned short *write = table;
-	const float scale = 1.0f / ( 1 << shift );
+	float shown[64];
 
+	// the entries are sampled at their centers: entry i is framebuffer i / 63
+	for ( int i = 0; i < 64; i++ ) {
+		shown[i] = R_GammaPassValue( gammaCorrected, i / 63.0f ) / 255.0f;
+	}
 	for ( int z = 0; z < 64; z++ ) {
 		for ( int y = 0; y < 64; y++ ) {
 			for ( int x = 0; x < 64; x++ ) {
-				const float in[3] = { gammaCorrected[x] / 255.0f, gammaCorrected[y] / 255.0f, gammaCorrected[z] / 255.0f };
+				const float in[3] = { shown[x], shown[y], shown[z] };
 				float out[3];
 
 				R_GradeColor( grade, in, out );
 				for ( int c = 0; c < 3; c++ ) {
-					// undo the shift then the gamma of the classic table
-					const float v = powf( out[c] * scale, g );
+					const float v = R_GammaPassInverse( gammaCorrected, out[c] * 255.0f );
 					*write++ = (unsigned short)Com_Clampi( 0, 65535, (int)( v * 65535.0f + 0.5f ) );
 				}
 			}
@@ -3368,7 +3374,7 @@ void R_SetColorMappings( void ) {
 		}
 
 		if ( inView ) {
-			R_UploadGradeLUT( &grade, g, shift, gammaCorrected );
+			R_UploadGradeLUT( &grade, gammaCorrected );
 		} else if ( graded ) {
 			// grade what the classic table shows, after gamma and overbright,
 			// so contrast pivots and luma are those of the displayed image

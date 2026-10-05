@@ -117,6 +117,12 @@ add_jk2mv_test(test_r_coverage
   ${CMAKE_SOURCE_DIR}/src/renderer/tr_coverage.cpp
 )
 
+# Renderer: what the post-process gamma pass shows (color grade under r_fbo)
+add_jk2mv_test(test_r_gammapass
+  test_r_gammapass.cpp
+  ${CMAKE_SOURCE_DIR}/src/renderer/tr_gammapass.cpp
+)
+
 # ==============================================================================
 # Client: demo tools (links the real engine source)
 # ==============================================================================
