@@ -193,7 +193,9 @@ Client-Side
      jk2mv's own base modules): the mod widens the view as with
      ``cg_fovAspectAdjust 1`` and places the dynamic crosshair, the rocket
      lock box and the saber clash flares for that wider view.
-     ``cg_fovAspectAdjust`` and the config keep your own value.
+     ``cg_fovAspectAdjust`` and the config keep your own value. This
+     assumes the mod reads its ``cg_fovAspectAdjust`` as MVSDK does, through
+     the cvar it registered.
    | 1, with other mods (the original 1.02 to 1.04 modules, also used on pure
      servers without jk2mv's modules): the engine widens the view, whatever
      ``cg_fovAspectAdjust`` holds. What the mod draws over points of the
@@ -456,10 +458,12 @@ Client-Side
    Surfaces can take 32 dynamic lights per scene. With more (big fights:
    sabers, shots, explosions), 0 keeps the first 32 added, whatever they
    are; 1 collects up to 256 and keeps the 32 that matter most for the view:
-   lights entirely behind the viewer are dropped (not with a mirror or a
-   portal in sight), the others rank by brightness and distance to the
-   viewer or to a portal's camera. A light kept in the previous frame stays
-   until another one matters clearly more, so the choice doesn't flicker.
+   lights entirely behind the viewer are dropped (not when the scene has a
+   mirror or portal entity, as on duel_hangar, even out of sight), the
+   others rank by brightness and distance to the viewer or to a portal's
+   camera. A light kept in the previous frame stays until another one
+   matters clearly more, or until it is 1.5 times its radius behind the
+   viewer, so the choice doesn't flicker.
    No difference with 32 lights or fewer. The enhanced, ultra, competitive
    and movie presets set 1.
 
@@ -586,7 +590,8 @@ Client-Side
    With multisampling (``r_ext_multisample``), antialias the cut-out edges of
    foliage, fences and grates using alpha to coverage. Their textures get a
    copy with sharpened alpha, so leaves and bars stay solid at any distance
-   and only their edges are smoothed. Requires vid_restart.
+   and only their edges are smoothed. Takes effect at the next vid_restart
+   or map load.
 
 ..
 
@@ -945,15 +950,17 @@ Server-Side
    frame) the server runs per second for each client. Each one runs the
    player's movement in the game module, and a client can send up to 1000 a
    second, or many more with forged times, taking as much CPU as many
-   players. A client may go over the limit for half a second (network jitter,
-   hitches) before it applies. Above it, the server runs the newest usercmds
+   players. A client may run half a second's worth of usercmds
+   (``sv_maxUsercmdRate`` / 2) over the limit (network jitter, hitches)
+   before it applies. Above it, the server runs the newest usercmds
    of each packet and drops the older ones: the player moves over the dropped
    time in one step, so it stays in sync and loses no time, but the inputs of
    the dropped usercmds are lost and its movement, whose physics depend on the
    frame rate, runs at the capped rate. Values from 1 to 499 count as 500,
    which leaves room above players at 125 to 333 fps. Bots and the local
    player of a listen server are never capped. ``clientstats`` shows the
-   usercmds each client sends and the ones dropped.
+   usercmds the server runs for each client and the ones it drops
+   (received = run + dropped).
 
    | 0: no limit
 
@@ -1002,6 +1009,8 @@ Server-Side
    those of them sent because the client's delta base was gone, then the
    average and the longest time in microseconds of each stage. The first line
    of a new file names the columns. The file grows by about 10 MB a day.
+   It has no column naming the server: servers that log should each have
+   their own fs_homepath, as for qconsole.log.
 
 ..
 
@@ -1029,14 +1038,19 @@ Server-Side
    client whose last received snapshot has left the ring gets a full
    snapshot instead, several times larger, and that happens when the server
    is busiest: big fights, many bots, high ``sv_fps``. With 31 bots on
-   ffa_bespin at ``sv_fps`` 40, 64 (the size of earlier versions) kept at
+   ffa_bespin at ``sv_fps`` 40, 64 (the ring of earlier versions on a
+   dedicated server with 8, 16 or 32 slots) kept at
    worst the last 0.6 s of snapshots and 128 kept 1.4 s, the most a client
    at 20 snapshots per second can delta from. A listen server gets the same
    ring (earlier versions kept 4 snapshots per slot there), since its bots
    and local client build a snapshot every client frame. Latched: takes
-   effect on the next map load or ``map_restart``. The ring takes
+   effect on the next map load or ``map_restart``. A client keeps only the
+   last 2048 entities itself: once snapshots average more than about 68
+   entities, a delta from far back can be past them, and the client drops
+   that snapshot and asks for a full one a round trip later. The ring takes
    sv_maxclients x 32 x value x 296 bytes, rounded up to a power of two
-   (exact for 8, 16 or 32 slots; 17 to 31 slots cost as much as 32):
+   (exact for 8, 16 or 32 slots; 17 to 31 slots cost as much as 32), in KB
+   and MB of 1024:
 
    | 64: 592 KB per slot, 18.5 MB for 32 slots
    | 128: 1.2 MB per slot, 37 MB for 32 slots, 9.25 MB for 8
@@ -1088,8 +1102,10 @@ Other Changes
     ``cam_clear``, ``cam_list``, ``cam_save <name>`` and ``cam_load <name>``
     (demos/<name>.cam).
   - ``photomode`` pauses the demo, frees the camera and hides the HUD; again
-    restores everything. During ``cam_play``, ``photomode`` and
-    ``demo_freecam`` start from the path's current view.
+    restores everything. It starts as the game's view, view weapon
+    included; moving the camera or stepping the demo backs it off behind
+    the player, as ``demo_freecam`` does. During ``cam_play``, ``photomode``
+    and ``demo_freecam`` start from the path's current view.
 
 * ``video_mp4 [name]`` records the demo being played to videos/<name>.mp4
   (H.264 with BT.709 colors, AAC sound from the software mixer) through
@@ -1102,7 +1118,8 @@ Other Changes
   from ``cl_aviFrameRate``, the quality from ``cl_mp4Crf`` (default 18, lower
   is better, 0 - 51) and ``cl_mp4Preset`` (x264 preset, default "medium").
 * ``video`` and ``video_mp4``: a sound starts on the video frame where it was
-  played, whatever the real frame rate (it used to come 0.1 to 0.2 s late).
+  played, whatever the real frame rate (it used to be off by up to 0.2 s,
+  depending on the real frame rate).
 * ``cl_aviMotionBlur N`` (2 - 32, default 0): ``video`` and ``video_mp4`` run
   N game frames per video frame and blend them, for real motion blur (the
   window shows the frames as they come). Needs ``r_fbo 1``; recording takes
@@ -1157,7 +1174,9 @@ Other Changes
   sent with the size of their data, their entities and how many were full
   (not delta compressed), and of those, how many because the client's delta
   base was gone. A frame is one that ran the game, with the packets handled
-  before it. ``sv_statsLog 1`` logs the same every second.
+  before it. ``sv_statsLog 1`` logs the same every second. The time of the
+  command itself (printing the table), like that of any rcon command,
+  counts in the packets stage of the frame that runs it.
 * New command ``preset classic|enhanced|ultra|competitive|movie`` sets a group
   of visual cvars in one go and restarts the renderer if needed, once, before
   the next frame is drawn: in a script or bind, the commands after a ``wait``
@@ -1178,8 +1197,9 @@ Other Changes
   ``r_fullscreenLast``.
 * ``r_finish 0`` now also applies to menu and loading frames.
 * ``clientstats [reset]`` (server) lists, for each client over the last
-  second, the packets and usercmds received, the usercmds dropped by
-  ``sv_maxUsercmdRate`` and the microseconds the game module spent running
+  second, the packets received, the usercmds run (cmd/s) and those dropped
+  by ``sv_maxUsercmdRate`` (drop/s; received = run + dropped), the
+  microseconds the game module spent running
   them (``GAME_CLIENT_THINK``), with the highest values and the usercmds
   dropped since the client connected, which ``reset`` clears. Bots move in
   the game frame, so they show little time there. The output of ``status``
