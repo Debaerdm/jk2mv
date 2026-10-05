@@ -358,7 +358,7 @@ static void SV_DemoWriteSnapshot( client_t *cl, svDemo_t *demo, clientSnapshot_t
 		// entities of that snapshot rolled off the ring
 		lastframe = demo->sequence - demo->deltaSequence;
 		if ( lastframe < PACKET_BACKUP - 3 &&
-			demo->deltaFrame.first_entity > svs.nextSnapshotEntities - svs.numSnapshotEntities ) {
+			!SV_SnapshotEntitiesRolledOff( demo->deltaFrame.first_entity, svs.nextSnapshotEntities, svs.numSnapshotEntities ) ) {
 			oldframe = &demo->deltaFrame;
 		} else {
 			lastframe = 0;
