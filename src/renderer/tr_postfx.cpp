@@ -564,9 +564,15 @@ static qboolean R_CreateGlowTargets( void ) {
 	qglGenFramebuffers( 1, &pfx.glow.objectsFbo );
 	qglBindFramebuffer( GL_FRAMEBUFFER, pfx.glow.objectsFbo );
 	if ( pfx.samples ) {
+		// 8 bits per channel, as the classic glow copies them from the
+		// window: 16 bit samples would cost 236 MB at 8x MSAA in 1440p. The
+		// resolve wants the same format in tr.screenGlow; the blur targets
+		// keep 16 bits.
+		qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow );
+		qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA8, pfx.width, pfx.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
 		qglGenRenderbuffers( 1, &pfx.glow.objectsColor );
 		qglBindRenderbuffer( GL_RENDERBUFFER, pfx.glow.objectsColor );
-		qglRenderbufferStorageMultisample( GL_RENDERBUFFER, pfx.samples, GL_RGBA16, pfx.width, pfx.height );
+		qglRenderbufferStorageMultisample( GL_RENDERBUFFER, pfx.samples, GL_RGBA8, pfx.width, pfx.height );
 		qglFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, pfx.glow.objectsColor );
 	} else {
 		qglFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, tr.screenGlow, 0 );
@@ -624,11 +630,17 @@ qboolean R_PostFXGlowBegin( void ) {
 		R_DestroyGlowTargets();		// glow size changed
 	}
 	if ( !pfx.glow.tried ) {
-		pfx.glow.tried = qtrue;
 		pfx.glow.ok = R_CreateGlowTargets();
 		if ( !pfx.glow.ok ) {
 			ri.Printf( PRINT_WARNING, "r_fbo: couldn't create the glow targets, using copies\n" );
+			// nothing half made is kept, and the GL errors of the attempt
+			// don't reach RE_BeginFrame (fatal with r_ignoreGLErrors 0)
+			R_DestroyGlowTargets();
+			R_ClearGLErrors();
+			pfx.glow.width = tr.glowWidth;
+			pfx.glow.height = tr.glowHeight;
 		}
+		pfx.glow.tried = qtrue;
 	}
 	if ( !pfx.glow.ok ) {
 		qglBindFramebuffer( GL_FRAMEBUFFER, pfx.samples ? pfx.msaaFbo : pfx.scene.fbo );
