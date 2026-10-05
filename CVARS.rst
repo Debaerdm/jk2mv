@@ -1181,7 +1181,10 @@ Other Changes
   of visual cvars in one go and restarts the renderer if needed, once, before
   the next frame is drawn: in a script or bind, the commands after a ``wait``
   run with the preset applied, a chain of presets restarts the renderer once,
-  and a latched cvar set right after the preset is applied with it. Every
+  and a latched cvar set right after the preset is applied with it. Like
+  ``vid_restart``, that restart drops a capture asked for earlier in the same
+  frame (``screenshot_png`` just before ``preset``): put a ``wait`` between
+  them. Every
   preset sets the whole group (what it doesn't change goes back to the
   default), so ``preset classic`` is the original look. It works in
   autoexec.cfg too. ``preset`` alone lists them. In the menus, Setup >

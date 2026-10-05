@@ -41,6 +41,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - VQ-11 ;
   - FE-3, FE-4, FE-5, RB-4/RB-3 et RB-5 ;
   - BM-8/9, SV-5, SV-14b et BM-13/14.
+- **Protocole 1.05 :** la conception (docs/PROTOCOL-1.05.md) attend toujours les réponses du propriétaire à ses 5 questions ouvertes avant toute implémentation.
 - **CI :** `build.yml` et `tests.yml` (workflow_dispatch) n'ont pas tourné sur ce code. Les valeurs de référence de FE-16 sous Linux GCC, macOS arm64 et v141_xp, et les seuils de `smoke_render` sous llvmpipe, n'ont été vus que sous Windows.
 - **Notes basses des relectures, non traitées** (tout le reste est intégré) :
   - SV-11 :
@@ -49,6 +50,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - `qpath` en `MAX_QPATH` peut tronquer un nom automatique de 65 caractères ;
     - `svstoprecord all` ne marque pas les démos auto pas encore ouvertes ;
     - un client non pur rejeté peut laisser une démo d'un snapshot ;
+    - le démarrage d'une démo (ouverture du fichier, gamestate, messages console) se fait encore dans la frame serveur, et `svrecord all` démarre tous les clients dans la même commande ; seule l'écriture des snapshots passe par le thread ;
     - deux mutants survivent aux tests (M9, W3).
   - SV-3 : envoyer un snapshot complet quand le delta dépasse ce que l'anneau du client garde ; les tests ne compilent pas le code moteur qui appelle `sv_snapshot_ring.h`.
   - SV-13 :
@@ -91,9 +93,9 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
 ## Construire et tester sur cette machine
 
 - **Arbres de travail :** un par chantier, sous D:\jk2mv-wt, avec des chemins sans espaces (q3lcc et q3asm échouent sur les espaces). Le dépôt D:\Mathieu\Disque D\LucasArts\jk2mv a des espaces : on n'y construit pas.
-  - `git -C "D:\Mathieu\Disque D\LucasArts\jk2mv" worktree add D:\jk2mv-wt\<nom> -b <branche> integ5`
+  - `git -C "D:\Mathieu\Disque D\LucasArts\jk2mv" worktree add D:\jk2mv-wt\<nom> -b <branche> claude/explore-codebase-A8IMd`
   - `git -C D:\jk2mv-wt\<nom> submodule update --init` ; ne jamais modifier src/mvsdk (sous-module amont).
-- **Scripts :** build.ps1 et run.ps1 sont dans le scratchpad de la session d'origine, C:\Users\mathi\AppData\Local\Temp\claude\D--Mathieu-Disque-D-LucasArts-jk2mv\808fc3b3-8e15-4e15-9d82-d9550709e5e6\scratchpad\rt (ci-dessous `<rt>`). Les binaires de la base sont dans le dossier `jk2mv\build\w64\out\Release` du même scratchpad, une jonction vers le dépôt.
+- **Scripts :** build.ps1 et run.ps1 sont dans D:\jk2mv-wt\tools (ci-dessous `<rt>`), hors du dépôt car propres à cette machine. run.ps1 lance par défaut les binaires de D:\jk2mv-wt\integ\build-nj\out\Release et crée au besoin, dans le base\ du dossier `-BasePath` (par défaut celui des binaires), des liens durs vers les quatre pk3 retail (lecture seule). Les dossiers D:\jk2mv-wt\integ-logs (scripts des relectures et de l'intégration) et le scratchpad de la session d'origine sous %TEMP% sont temporaires : ce qui compte est recopié ici ou dans D:\jk2mv-wt\tools.
 - **Build :** `powershell -NoProfile -File <rt>\build.ps1 -Src D:\jk2mv-wt\<nom> [-Targets jk2mvded,jk2mvmp] [-Jobs 4] [-Clean]`. Ninja, MSVC 2022 x64 Release, CRT statique, tests compris. Les binaires sortent dans `build-nj\out\Release`, assetsmv*.pk3 dans son base\. Un build complet prend environ 90 s à -Jobs 4.
 - **Tests unitaires :** `ctest --test-dir D:\jk2mv-wt\<nom>\build-nj\tests -j 4` (le ctest de VS 2022 BuildTools). Pour les tests Kyle : `JK2MV_TEST_BASE=<dossier base\ retail>`.
 - **Lancer le jeu :** `<rt>\run.ps1 -Name <nom> [-Server] -Bin <build-nj\out\Release> [-BasePath <dossier>] -Commands '+cmd',...`. Il prend un fs_homepath neuf dans D:\jk2mv-wt\homes, des sockets sur 127.0.0.1, ne capture pas la souris et n'écrit jamais dans l'installation. Pièges vus pendant l'intégration :
