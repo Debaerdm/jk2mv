@@ -131,7 +131,11 @@ class Shot:
         return [t / n for t in total]
 
     def shows_menu(self):
-        r, g, b = self.mean(MENU_PROBE)
+        # MENU_PROBE is in 640x480 pixels: the r_renderScale runs take their
+        # screenshots at the render size
+        sx, sy = self.width / 640.0, self.height / 480.0
+        x0, y0, x1, y1 = MENU_PROBE
+        r, g, b = self.mean((int(x0 * sx), int(y0 * sy), int(x1 * sx), int(y1 * sy)))
         return g > 200 and r < 20 and b < 20
 
     def lamp_yaw(self):
