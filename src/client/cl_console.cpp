@@ -38,7 +38,7 @@ static void Con_BeginMessageMode(qboolean teamChat, int widthInChars)
 
 static qboolean Con_SetMessageTarget(int playerNum)
 {
-	if (playerNum < 0 || playerNum >= MAX_CLIENTS) {
+	if (playerNum < 0 || playerNum >= MV_MaxClients()) {
 		chat_playerNum = -1;
 		return qfalse;
 	}

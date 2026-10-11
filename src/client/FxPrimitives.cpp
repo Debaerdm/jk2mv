@@ -485,7 +485,7 @@ bool CParticle::UpdateOrigin()
 			TCGPointContents	*data = (TCGPointContents *)cl.mSharedMemory;
 
 			VectorCopy(new_origin, data->mPoint);
-			data->mPassEntityNum = ENTITYNUM_WORLD;
+			data->mPassEntityNum = MV_ENTITYNUM_WORLD;
 
 			// if this returns solid, we need to do a trace
 			//solid = !!(VM_Call( cgvm, CG_POINT_CONTENTS, new_origin, ENTITYNUM_WORLD ) & CONTENTS_SOLID);

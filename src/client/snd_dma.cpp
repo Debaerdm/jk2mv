@@ -1275,7 +1275,7 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 		return;
 	}
 
-	if ( !origin && ( entityNum < 0 || entityNum >= MAX_GENTITIES ) ) {
+	if ( !origin && ( entityNum < 0 || entityNum >= MV_MaxGEntities() ) ) {
 		Com_Error( ERR_DROP, "S_StartSound: bad entitynum %i", entityNum );
 	}
 
@@ -1297,7 +1297,7 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 	if (s_UseOpenAL)
 	{
 		// To avoid playing the same sound multiple times ...
-		if ((entityNum == ENTITYNUM_NONE) && (origin))
+		if ((entityNum == MV_ENTITYNUM_NONE) && (origin))
 		{
 			// Check if we have already started playing this sound within 50 milliseconds ago
 			ch = s_channels + 1;
@@ -1595,8 +1595,10 @@ continuous looping sounds are added each frame
 ==============================================================
 */
 
-void S_StopLoopingSound(int entityNum) {
-	if ( entityNum < 0 || MAX_GENTITIES <= entityNum ) {
+// limit: the protocol's for an entity number from cgame, the size of
+// loopSounds for a sweep of the whole array
+static void S_StopLoopingSlot( int entityNum, int limit ) {
+	if ( entityNum < 0 || limit <= entityNum ) {
 		Com_DPrintf( S_COLOR_YELLOW "S_StopLoopingSound: bad entitynum %i\n", entityNum );
 		return;
 	}
@@ -1604,6 +1606,10 @@ void S_StopLoopingSound(int entityNum) {
 	loopSounds[entityNum].active = qfalse;
 //	loopSounds[entityNum].sfx = 0;
 	loopSounds[entityNum].kill = qfalse;
+}
+
+void S_StopLoopingSound(int entityNum) {
+	S_StopLoopingSlot( entityNum, MV_MaxGEntities() );
 }
 
 /*
@@ -1617,7 +1623,7 @@ void S_ClearLoopingSounds( qboolean killall ) {
 	for ( i = 0 ; i < MAX_GENTITIES ; i++) {
 		if (killall || loopSounds[i].kill == qtrue || (loopSounds[i].sfx && loopSounds[i].sfx->iSoundLengthInSamples == 0)) {
 			loopSounds[i].kill = qfalse;
-			S_StopLoopingSound(i);
+			S_StopLoopingSlot( i, MAX_GENTITIES );
 		}
 	}
 	numLoopChannels = 0;
@@ -1652,7 +1658,7 @@ void S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocit
 		Com_Error( ERR_DROP, "%s has length 0", sfx->sSoundName );
 	}
 
-	if ( entityNum < 0 || MAX_GENTITIES <= entityNum ) {
+	if ( entityNum < 0 || MV_MaxGEntities() <= entityNum ) {
 		Com_DPrintf( S_COLOR_YELLOW "S_AddLoopingSound: bad entitynum %i\n", entityNum );
 		return;
 	}
@@ -1747,7 +1753,7 @@ void S_AddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t vel
 		Com_Error( ERR_DROP, "%s has length 0", sfx->sSoundName );
 	}
 
-	if ( entityNum < 0 || MAX_GENTITIES <= entityNum ) {
+	if ( entityNum < 0 || MV_MaxGEntities() <= entityNum ) {
 		Com_DPrintf( S_COLOR_YELLOW "S_AddRealLoopingSound: bad entitynum %i\n", entityNum );
 		return;
 	}
@@ -2030,7 +2036,7 @@ void S_UpdateEntityPosition( int entityNum, const vec3_t origin )
 	channel_t *ch;
 	int i;
 
-	if ( entityNum < 0 || entityNum >= MAX_GENTITIES ) {
+	if ( entityNum < 0 || entityNum >= MV_MaxGEntities() ) {
 		Com_Error( ERR_DROP, "S_UpdateEntityPosition: bad entitynum %i", entityNum );
 	}
 

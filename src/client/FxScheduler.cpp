@@ -2395,7 +2395,7 @@ void CFxScheduler::CreateEffect( CPrimitiveTemplate *fx, const vec3_t origin, co
 	//---------
 	case Sound:
 	//---------
-		theFxHelper.PlaySound( org, ENTITYNUM_NONE, CHAN_AUTO, fx->mMediaHandles.GetHandle() );
+		theFxHelper.PlaySound( org, MV_ENTITYNUM_NONE, CHAN_AUTO, fx->mMediaHandles.GetHandle() );
 		break;
 
 	//---------

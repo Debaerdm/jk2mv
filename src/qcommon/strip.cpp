@@ -1552,6 +1552,10 @@ cStringPackageSingle *SP_Register(const char *inPackage, unsigned char Registrat
 	return new_sp;
 }
 
+// CS_STRING_PACKAGES follows the models, the sounds and the players in the
+// configstring layout
+MV_ASSERT_LEGACY_CONFIGSTRINGS();
+
 // Update configstrings array on clients and server
 qboolean SP_RegisterServer(const char *Package)
 {

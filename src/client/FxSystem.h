@@ -94,7 +94,7 @@ public:
 	// Sound
 	inline	void	PlaySound( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfxHandle )
 	{
-		S_StartSound( origin, ENTITYNUM_NONE, CHAN_AUTO, sfxHandle );
+		S_StartSound( origin, MV_ENTITYNUM_NONE, CHAN_AUTO, sfxHandle );
 	}
 	inline	int		RegisterSound( const char *sound )
 	{

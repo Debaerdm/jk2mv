@@ -824,6 +824,14 @@ void MSG_ReportChangeVectors_f(void) {
 // using the stringizing operator to save typing...
 #define	NETF(x) #x,(size_t)&((entityState_t*)0)->x
 
+// The protocol 15/16 entity encoding: these tables, the entity numbers that
+// MSG_WriteDeltaEntity writes in GENTITYNUM_BITS and the removed-entity number
+// MSG_ReadDeltaEntity returns (MAX_GENTITIES - 1, tested in cl_parse.cpp)
+MV_ASSERT_LEGACY_ENTITY_ENCODING();
+// and their model and sound indices in 8 bits, those of the event parameters
+// included
+MV_ASSERT_LEGACY_MODEL_ENCODING();
+
 netField_t	entityStateFields16[] =
 {
 	{ NETF(pos.trTime), 32 },
@@ -1024,7 +1032,7 @@ void MSG_WriteDeltaEntity(msg_t *msg, struct entityState_s *from, struct entityS
 		return;
 	}
 
-	if (to->number < 0 || to->number >= MAX_GENTITIES) {
+	if (to->number < 0 || to->number >= MV_MaxGEntities()) {
 		Com_Error(ERR_FATAL, "MSG_WriteDeltaEntity: Bad entity number: %i", to->number);
 	}
 
@@ -1140,7 +1148,7 @@ void MSG_ReadDeltaEntity(msg_t *msg, entityState_t *from, entityState_t *to,
 	int			trunc;
 	int			startBit, endBit;
 
-	if (number < 0 || number >= MAX_GENTITIES) {
+	if (number < 0 || number >= MV_MaxGEntities()) {
 		Com_Error(ERR_DROP, "Bad delta entity number: %i", number);
 	}
 
@@ -1279,6 +1287,11 @@ plyer_state_t communication
 // using the stringizing operator to save typing...
 #define	PSF(x) #x,(size_t)&((playerState_t*)0)->x
 
+// The protocol 15/16 player state encoding: entity numbers in GENTITYNUM_BITS,
+// and the sound indices of externalEventParm and eventParms[1] in 8 bits
+MV_ASSERT_LEGACY_ENTITY_ENCODING();
+MV_ASSERT_LEGACY_MODEL_ENCODING();
+
 netField_t	playerStateFields16[] =
 {
 	{ PSF(commandTime), 32 },
@@ -1328,7 +1341,7 @@ netField_t	playerStateFields16[] =
 	{ PSF(clientNum), 8 },
 	{ PSF(weapon), 5 },
 	{ PSF(viewangles[2]), 0 },
-	{ PSF(jumppad_ent), 10 },
+	{ PSF(jumppad_ent), GENTITYNUM_BITS },
 	{ PSF(loopSound), 16 },
 
 	// NOTENOTE Are all of these necessary?
@@ -1449,7 +1462,7 @@ netField_t	playerStateFields15[] =
 	{ PSF(clientNum), 8 },
 	{ PSF(weapon), 5 },
 	{ PSF(viewangles[2]), 0 },
-	{ PSF(jumppad_ent), 10 },
+	{ PSF(jumppad_ent), GENTITYNUM_BITS },
 	{ PSF(loopSound), 16 },
 
 	// NOTENOTE Are all of these necessary?

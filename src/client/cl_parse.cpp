@@ -7,6 +7,10 @@
 #include "../qcommon/INetProfile.h"
 #endif
 
+// The protocol 15/16 entity encoding: entity numbers in GENTITYNUM_BITS, and
+// MAX_GENTITIES - 1 ends the packet entities and marks a removed entity
+MV_ASSERT_LEGACY_ENTITY_ENCODING();
+
 static const char * const svc_strings[256] = {
 	"svc_bad",
 
@@ -469,7 +473,7 @@ void CL_ParseGamestate( msg_t *msg ) {
 			cl.gameState.dataCount += len + 1;
 		} else if ( cmd == svc_baseline ) {
 			newnum = MSG_ReadBits( msg, GENTITYNUM_BITS );
-			if ( newnum < 0 || newnum >= MAX_GENTITIES ) {
+			if ( newnum < 0 || newnum >= MV_MaxGEntities() ) {
 				Com_Error( ERR_DROP, "Baseline number out of range: %i", newnum );
 			}
 			Com_Memset (&nullstate, 0, sizeof(nullstate));

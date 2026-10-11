@@ -54,6 +54,7 @@ CL_GetGameState
 ====================
 */
 void CL_GetGameState( gameState_t *gs ) {
+	MV_ASSERT_LEGACY_CONFIGSTRINGS();	// the cgame's gameState_t: per protocol in step 2
 	*gs = cl.gameState;
 }
 
@@ -395,7 +396,8 @@ void CL_ConfigstringModified( void ) {
 		}
 
 		// ClientSide AntiGalak - replace "galak_mech" with "galak-mech"...
-		if ( i >= CS_PLAYERS && i < (CS_PLAYERS + MAX_CLIENTS) )
+		MV_ASSERT_LEGACY_CONFIGSTRINGS();	// CS_PLAYERS: per protocol in step 2
+		if ( i >= CS_PLAYERS && i < (CS_PLAYERS + MV_MaxClients()) )
 		{
 			char *model;
 			char *modelEnd;
@@ -424,13 +426,14 @@ void CL_ConfigstringModified( void ) {
 
 	if (cl_autolodscale && cl_autolodscale->integer)
 	{
+		MV_ASSERT_LEGACY_CONFIGSTRINGS();	// CS_PLAYERS: per protocol in step 2
 		if (index >= CS_PLAYERS &&
-			index < CS_CHARSKINS)
+			index < CS_PLAYERS + MV_MaxClients())
 		{ //this means that a client was updated in some way. Go through and count the clients.
 			int clientCount = 0;
 			i = CS_PLAYERS;
 
-			while (i < CS_CHARSKINS)
+			while (i < CS_PLAYERS + MV_MaxClients())
 			{
 				s = cl.gameState.stringData + cl.gameState.stringOffsets[ i ];
 

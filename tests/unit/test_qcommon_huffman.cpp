@@ -1703,6 +1703,29 @@ TEST(HuffmanMessages, LegacyEntityNumbers) {
 	stubGameVersion = VERSION_1_04;
 }
 
+// the entity numbers MSG_*DeltaEntity accept follow the protocol in use
+TEST(HuffmanMessages, EntityRangeFollowsTheRuntimeLimit) {
+	static byte buffer[MAX_MSGLEN];
+	entityState_t from, to, got;
+	msg_t msg;
+
+	memset( &from, 0, sizeof( from ) );
+	to = from;
+	to.number = 600;
+	to.pos.trBase[0] = 32.0f;
+	MSG_Init( &msg, buffer, sizeof( buffer ) );
+	MSG_WriteDeltaEntity( &msg, &from, &to, qtrue );
+	{
+		ScopedLimits small( kSmallLimits );
+		EXPECT_THROW( MSG_WriteDeltaEntity( &msg, &from, &to, qtrue ), std::runtime_error );
+		EXPECT_THROW( MSG_ReadDeltaEntity( &msg, &from, &got, 600 ), std::runtime_error );
+	}
+	MSG_BeginReading( &msg );
+	ASSERT_EQ( 600, MSG_ReadBits( &msg, MV_LEGACY_GENTITYNUM_BITS ) );
+	MSG_ReadDeltaEntity( &msg, &from, &got, 600 );
+	EXPECT_EQ( 0, memcmp( &to, &got, sizeof( to ) ) );
+}
+
 // ==============================================================================
 // Adaptive Huffman (the connect packet): unchanged, without the shared bit
 // position, but for the bytes the old code took from the stack: the padding

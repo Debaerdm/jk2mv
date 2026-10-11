@@ -36,6 +36,7 @@ char *demoAutoFormat(const char* name) {
 	char timeStamps[MAX_QPATH] = "";
 	qtime_t ct;
 
+	MV_ASSERT_LEGACY_CONFIGSTRINGS();	// CS_PLAYERS: per protocol in step 2
 	char playerName[MAX_QPATH], *mapName = COM_SkipPath(Info_ValueForKey((cl.gameState.stringData + cl.gameState.stringOffsets[CS_SERVERINFO]), "mapname"));
 	Q_strncpyz(playerName, Info_ValueForKey((cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS+cl.snap.ps.clientNum]), "n"), sizeof(playerName));
 	Q_CleanStr(playerName, qtrue);
