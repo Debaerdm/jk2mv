@@ -15,11 +15,6 @@
 //debugging on
 #define AAS_DEBUG
 
-// these are also in q_shared.h - argh (rjr)
-#define MAX_CLIENTS			32
-#define	MAX_MODELS			256		// these are sent over the net as 8 bits
-#define	MAX_SOUNDS			256		// so they cannot be blindly increased
-
 // these are also in bg_public.h - argh (rjr)
 #define	CS_SCORES			32
 #define	CS_MODELS			(CS_SCORES+MAX_CLIENTS)

@@ -13,6 +13,7 @@
  *****************************************************************************/
 
 #include "../qcommon/q_shared.h"
+#include "../qcommon/mv_limits.h"
 #include "l_memory.h"
 #include "l_log.h"
 #include "l_libvar.h"
@@ -142,7 +143,7 @@ int Export_BotLibSetup(void)
 	botimport.Print(PRT_MESSAGE, "------- BotLib Initialization -------\n");
 	//
 	botlibglobals.maxclients = (int) LibVarValue("maxclients", "128");
-	botlibglobals.maxentities = (int) LibVarValue("maxentities", "1024");
+	botlibglobals.maxentities = (int) LibVarValue("maxentities", va("%i", MV_MaxGEntities()));
 
 	errnum = AAS_Setup();			//be_aas_main.c
 	if (errnum != BLERR_NOERROR) return errnum;

@@ -13,6 +13,7 @@
  *****************************************************************************/
 
 #include "../qcommon/q_shared.h"
+#include "../qcommon/mv_limits.h"
 #include "l_memory.h"
 #include "l_libvar.h"
 #include "l_utils.h"
@@ -293,10 +294,10 @@ int BotReachabilityArea(const vec3_t origin, int client)
 	AAS_PresenceTypeBoundingBox(PRESENCE_CROUCH, mins, maxs);
 	VectorMA(origin, -3, up, end);
 	bsptrace = AAS_Trace(origin, mins, maxs, end, client, CONTENTS_SOLID|CONTENTS_PLAYERCLIP);
-	if (!bsptrace.startsolid && bsptrace.fraction < 1 && bsptrace.ent != ENTITYNUM_NONE)
+	if (!bsptrace.startsolid && bsptrace.fraction < 1 && bsptrace.ent != MV_ENTITYNUM_NONE)
 	{
 		//if standing on the world the bot should be in a valid area
-		if (bsptrace.ent == ENTITYNUM_WORLD)
+		if (bsptrace.ent == MV_ENTITYNUM_WORLD)
 		{
 			return BotFuzzyPointReachabilityArea(origin);
 		} //end if
@@ -455,7 +456,7 @@ int BotOnMover(vec3_t origin, int entnum, aas_reachability_t *reach)
 	if (!trace.startsolid && !trace.allsolid)
 	{
 		//NOTE: the reachability face number is the model number of the elevator
-		if (trace.ent != ENTITYNUM_NONE && AAS_EntityModelNum(trace.ent) == modelnum)
+		if (trace.ent != MV_ENTITYNUM_NONE && AAS_EntityModelNum(trace.ent) == modelnum)
 		{
 			return qtrue;
 		} //end if
@@ -539,7 +540,7 @@ int BotOnTopOfEntity(bot_movestate_t *ms)
 	AAS_PresenceTypeBoundingBox(ms->presencetype, mins, maxs);
 	VectorMA(ms->origin, -3, up, end);
 	trace = AAS_Trace(ms->origin, mins, maxs, end, ms->entitynum, CONTENTS_SOLID|CONTENTS_PLAYERCLIP);
-	if (!trace.startsolid && (trace.ent != ENTITYNUM_WORLD && trace.ent != ENTITYNUM_NONE) )
+	if (!trace.startsolid && (trace.ent != MV_ENTITYNUM_WORLD && trace.ent != MV_ENTITYNUM_NONE) )
 	{
 		return trace.ent;
 	} //end if
@@ -1279,7 +1280,7 @@ void BotCheckBlocked(bot_movestate_t *ms, vec3_t dir, int checkbottom, bot_mover
 	VectorMA(ms->origin, 3, dir, end);
 	trace = AAS_Trace(ms->origin, mins, maxs, end, ms->entitynum, CONTENTS_SOLID|CONTENTS_PLAYERCLIP|CONTENTS_BODY);
 	//if not started in solid and not hitting the world entity
-	if (!trace.startsolid && (trace.ent != ENTITYNUM_WORLD && trace.ent != ENTITYNUM_NONE) )
+	if (!trace.startsolid && (trace.ent != MV_ENTITYNUM_WORLD && trace.ent != MV_ENTITYNUM_NONE) )
 	{
 		result->blocked = qtrue;
 		result->blockentity = trace.ent;
@@ -1294,7 +1295,7 @@ void BotCheckBlocked(bot_movestate_t *ms, vec3_t dir, int checkbottom, bot_mover
 		AAS_PresenceTypeBoundingBox(ms->presencetype, mins, maxs);
 		VectorMA(ms->origin, -3, up, end);
 		trace = AAS_Trace(ms->origin, mins, maxs, end, ms->entitynum, CONTENTS_SOLID|CONTENTS_PLAYERCLIP);
-		if (!trace.startsolid && (trace.ent != ENTITYNUM_WORLD && trace.ent != ENTITYNUM_NONE) )
+		if (!trace.startsolid && (trace.ent != MV_ENTITYNUM_WORLD && trace.ent != MV_ENTITYNUM_NONE) )
 		{
 			result->blocked = qtrue;
 			result->blockentity = trace.ent;

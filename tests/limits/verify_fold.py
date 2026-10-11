@@ -31,7 +31,9 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TARGETS = ('/jk2mvmp.dir/', '/jk2mvded.dir/')
-EXPECTED = set()
+# the botlib's "maxentities" default is va("%i", MV_MaxGEntities()) instead of
+# the string "1024": a call instead of a constant, the same value
+EXPECTED = {'src/botlib/be_aas_main.cpp', 'src/botlib/be_interface.cpp'}
 # __DATE__ and __TIME__ (sys_unix.cpp, common.cpp) the same in both compiles
 ENV = dict(os.environ, SOURCE_DATE_EPOCH='0')
 

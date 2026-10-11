@@ -13,6 +13,7 @@
  *****************************************************************************/
 
 #include "../qcommon/q_shared.h"
+#include "../qcommon/mv_limits.h"
 #include "l_memory.h"
 #include "l_script.h"
 #include "l_precomp.h"
@@ -128,7 +129,7 @@ int AAS_UpdateEntity(int entnum, const bot_entitystate_t *state)
 	if (relink)
 	{
 		//don't link the world model
-		if (entnum != ENTITYNUM_WORLD)
+		if (entnum != MV_ENTITYNUM_WORLD)
 		{
 			//absolute mins and maxs
 			VectorAdd(ent->i.mins, ent->i.origin, absmins);

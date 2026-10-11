@@ -14,6 +14,7 @@
 
 #include <stddef.h>
 #include "../qcommon/q_shared.h"
+#include "../qcommon/mv_limits.h"
 #include "l_utils.h"
 #include "l_libvar.h"
 #include "l_memory.h"
@@ -584,7 +585,7 @@ void BotInitLevelItems(void)
 			{
 				VectorCopy(origin, end);
 				end[2] -= 32;
-				trace = AAS_Trace(origin, ic->iteminfo[i].mins, ic->iteminfo[i].maxs, end, ENTITYNUM_NONE, CONTENTS_SOLID|CONTENTS_PLAYERCLIP);
+				trace = AAS_Trace(origin, ic->iteminfo[i].mins, ic->iteminfo[i].maxs, end, MV_ENTITYNUM_NONE, CONTENTS_SOLID|CONTENTS_PLAYERCLIP);
 				//if the item not near the ground
 				if (trace.fraction >= 1)
 				{

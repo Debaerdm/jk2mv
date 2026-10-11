@@ -13,6 +13,7 @@
  *****************************************************************************/
 
 #include "../qcommon/q_shared.h"
+#include "../qcommon/mv_limits.h"
 #include "l_memory.h"
 #include "l_libvar.h"
 #include "l_utils.h"
@@ -366,7 +367,7 @@ int AAS_LoadMap(const char *mapname)
 int AAS_Setup(void)
 {
 	aasworld.maxclients = (int) LibVarValue("maxclients", "128");
-	aasworld.maxentities = (int) LibVarValue("maxentities", "1024");
+	aasworld.maxentities = (int) LibVarValue("maxentities", va("%i", MV_MaxGEntities()));
 	// as soon as it's set to 1 the routing cache will be saved
 	saveroutingcache = LibVar("saveroutingcache", "0");
 	//allocate memory for the entities

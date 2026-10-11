@@ -13,6 +13,7 @@
  *****************************************************************************/
 
 #include "../qcommon/q_shared.h"
+#include "../qcommon/mv_limits.h"
 #include "l_log.h"
 #include "l_memory.h"
 #include "l_script.h"
@@ -3854,7 +3855,7 @@ int AAS_Reachability_Grapple(int area1num, int area2num)
 		VectorCopy(facecenter, start);
 		VectorMA(facecenter, -500, aasworld.planes[face2->planenum].normal, end);
 		//
-		bsptrace = AAS_Trace(start, NULL, NULL, end, ENTITYNUM_NONE, CONTENTS_SOLID);
+		bsptrace = AAS_Trace(start, NULL, NULL, end, MV_ENTITYNUM_NONE, CONTENTS_SOLID);
 		//the grapple won't stick to the sky and the grapple point should be near the AAS wall
 		if ((bsptrace.surface.flags & SURF_SKY) || (bsptrace.fraction * 500 > 32)) continue;
 		//trace a full bounding box from the area center on the ground to

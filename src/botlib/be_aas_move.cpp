@@ -13,6 +13,7 @@
  *****************************************************************************/
 
 #include "../qcommon/q_shared.h"
+#include "../qcommon/mv_limits.h"
 #include "l_memory.h"
 #include "l_script.h"
 #include "l_precomp.h"
@@ -43,7 +44,7 @@ int AAS_DropToFloor(vec3_t origin, const vec3_t mins, const vec3_t maxs)
 
 	VectorCopy(origin, end);
 	end[2] -= 100;
-	trace = AAS_Trace(origin, mins, maxs, end, ENTITYNUM_NONE, CONTENTS_SOLID);
+	trace = AAS_Trace(origin, mins, maxs, end, MV_ENTITYNUM_NONE, CONTENTS_SOLID);
 	if (trace.startsolid) return qfalse;
 	VectorCopy(trace.endpos, origin);
 	return qtrue;
@@ -293,7 +294,7 @@ float AAS_WeaponJumpZVelocity(vec3_t origin, float radiusdamage)
 	//end point of the trace
 	VectorMA(start, 500, forward, end);
 	//trace a line to get the impact point
-	bsptrace = AAS_Trace(start, NULL, NULL, end, ENTITYNUM_NONE, CONTENTS_SOLID);
+	bsptrace = AAS_Trace(start, NULL, NULL, end, MV_ENTITYNUM_NONE, CONTENTS_SOLID);
 	//calculate the damage the bot will get from the rocket impact
 	VectorAdd(botmins, botmaxs, v);
 	VectorMA(origin, 0.5f, v, v);

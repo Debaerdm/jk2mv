@@ -1335,7 +1335,6 @@ typedef enum {
 #define	ENTITYNUM_MAX_NORMAL	(MAX_GENTITIES-2)
 
 
-// these are also in be_aas_def.h - argh (rjr)
 #define	MAX_MODELS			256		// these are sent over the net as 8 bits
 #define	MAX_SOUNDS			256		// so they cannot be blindly increased
 #define MAX_FX				64		// max effects strings, I'm hoping that 64 will be plenty
