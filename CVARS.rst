@@ -1134,7 +1134,8 @@ Other Changes
   (.dm_16 on 1.04, .dm_15 on 1.02 and 1.03), played with ``demo``. The file
   is demos/<name>.dm_16, demos/<name>_<client number>.dm_16 with ``all``, or
   demos/<date>-<time>_<map>_<client number>_<player name>.dm_16 without a
-  name. Names are up to 42 letters, digits, '_', '-' and '.'; an existing
+  name. Names are up to 42 letters, digits, '_', '-' and '.', not ending
+  with '.' nor naming a Windows device (nul, con, com1...); an existing
   file is never overwritten (_2, _3... are added). The demo goes on through
   ``map_restart`` and ends when the client leaves, the map changes or the
   server stops. Clients see no difference, and the files are written outside

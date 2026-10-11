@@ -71,16 +71,44 @@ static qboolean SV_DemoNameChar( char c ) {
 
 /*
 ===============
+SV_DemoDeviceName
+
+Windows opens a device rather than a file for these names, whatever comes
+after a '.': nul.dm_16 is NUL
+===============
+*/
+static qboolean SV_DemoDeviceName( const char *name ) {
+	static const char	*devices[] = { "con", "prn", "aux", "nul" };
+	const char			*dot = strchr( name, '.' );
+	const size_t		len = dot ? (size_t)( dot - name ) : strlen( name );
+	int					i;
+
+	for ( i = 0; i < (int)ARRAY_LEN( devices ); i++ ) {
+		if ( len == 3 && !Q_stricmpn( name, devices[i], 3 ) ) {
+			return qtrue;
+		}
+	}
+	// com1 to com9, lpt1 to lpt9
+	return (qboolean)( len == 4 && ( !Q_stricmpn( name, "com", 3 ) || !Q_stricmpn( name, "lpt", 3 ) ) &&
+		name[3] >= '1' && name[3] <= '9' );
+}
+
+/*
+===============
 SV_ValidDemoName
 
-A plain file name from the svrecord command: it can't leave demos/
+A plain file name from the svrecord command: it can't leave demos/ or name a
+Windows device.  Nor can it end with a '.': demos/<name>..dm_16 has the ".."
+SV_DemoFileOpen refuses, so the name is refused here, for svrecord all too,
+rather than end in "couldn't open".
 ===============
 */
 qboolean SV_ValidDemoName( const char *name ) {
 	const size_t	len = strlen( name );
 	const char		*p;
 
-	if ( !len || len > DEMO_NAME_MAX || name[0] == '-' || name[0] == '.' || strstr( name, ".." ) ) {
+	if ( !len || len > DEMO_NAME_MAX || name[0] == '-' || name[0] == '.' || name[len - 1] == '.' ||
+		strstr( name, ".." ) || SV_DemoDeviceName( name ) ) {
 		return qfalse;
 	}
 	for ( p = name; *p; p++ ) {
@@ -651,7 +679,8 @@ void SV_Record_f( void ) {
 			name[len - 6] = '\0';
 		}
 		if ( !SV_ValidDemoName( name ) ) {
-			Com_Printf( "Demo names: up to %i letters, digits, '_', '-' and '.'\n", DEMO_NAME_MAX );
+			Com_Printf( "Demo names: up to %i letters, digits, '_', '-' and '.', not starting with '-' or '.', "
+				"not ending with '.', without \"..\" and not naming a Windows device (nul, con, com1...)\n", DEMO_NAME_MAX );
 			return;
 		}
 	}

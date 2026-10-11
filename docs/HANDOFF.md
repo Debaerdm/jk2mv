@@ -45,7 +45,6 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
 - **CI :** `build.yml` et `tests.yml` (workflow_dispatch) n'ont pas tourné sur ce code. Les valeurs de référence de FE-16 sous Linux GCC, macOS arm64 et v141_xp, et les seuils de `smoke_render` sous llvmpipe, n'ont été vus que sous Windows.
 - **Notes basses des relectures, non traitées** (tout le reste est intégré) :
   - SV-11 :
-    - `SV_ValidDemoName` accepte les noms de périphériques Windows (`nul`, `com1`…) et un point final ;
     - après une erreur d'écriture ou un bloc perdu à 64 Mo, le thread continue d'écrire puis ajoute la marque de fin (trou au milieu du fichier) ;
     - `qpath` en `MAX_QPATH` peut tronquer un nom automatique de 65 caractères ;
     - `svstoprecord all` ne marque pas les démos auto pas encore ouvertes ;

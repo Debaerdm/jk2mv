@@ -648,6 +648,29 @@ TEST_F( SvDemo, NamesFromTheCommandLineStayInDemos ) {
 	EXPECT_FALSE( SV_ValidDemoName( "-option" ) );
 	EXPECT_FALSE( SV_ValidDemoName( "with space" ) );
 	EXPECT_FALSE( SV_ValidDemoName( "caf\xe9" ) );
+	EXPECT_FALSE( SV_ValidDemoName( "trailing." ) );
+	EXPECT_FALSE( SV_ValidDemoName( "a." ) );
+}
+
+TEST_F( SvDemo, NamesOfWindowsDevicesAreRefused ) {
+	static const char *devices[] = { "nul", "NUL", "con", "Con", "prn", "aux", "com1", "COM9", "lpt1", "Lpt9",
+		"nul.x", "con.dm_16", "aux.final.b", "com5.a", "LPT3.txt" };
+	static const char *files[] = { "nul_", "nul1", "null", "connie", "con-1", "auxx", "com", "com0", "com10",
+		"lpt", "lpt0", "lptx", "comx.a", "a.nul", "x.con.y", "1com1", "_aux" };
+
+	for ( size_t i = 0; i < ARRAY_LEN( devices ); i++ ) {
+		EXPECT_FALSE( SV_ValidDemoName( devices[i] ) ) << devices[i];
+	}
+	for ( size_t i = 0; i < ARRAY_LEN( files ); i++ ) {
+		EXPECT_TRUE( SV_ValidDemoName( files[i] ) ) << files[i];
+	}
+	// "svrecord 0 nul.dm_16" names nul, as "svrecord 0 nul" does
+	Join( 0, "Padawan", false );
+	Command( "svrecord 0 nul.dm_16" );
+	Command( "svrecord 0 Com3" );
+	EXPECT_TRUE( openFiles.empty() );
+	// and the refusal says why
+	EXPECT_NE( consoleLog.find( "not naming a Windows device" ), std::string::npos );
 }
 
 TEST_F( SvDemo, PlayerAndMapNamesBecomeFileNameParts ) {
