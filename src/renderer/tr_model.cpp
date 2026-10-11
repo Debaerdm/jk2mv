@@ -1519,6 +1519,7 @@ void R_SVModelInit()
 
 	tr.numModels = 0;
 	memset(mhHashTable, 0, sizeof(mhHashTable));
+	G2_InvalidateModelCaches();
 
 	mod = GenericAllocModel();
 	mod->type = MOD_BAD;
@@ -1534,6 +1535,7 @@ void R_ModelInit( void ) {
 
 	// leave a space for NULL model
 	tr.numModels = 0;
+	G2_InvalidateModelCaches();
 /*
 Ghoul2 Insert Start
 */

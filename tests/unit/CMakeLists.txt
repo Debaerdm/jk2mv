@@ -286,6 +286,12 @@ mv_apply_common_target_definitions(test_ghoul2)
 target_link_libraries(test_ghoul2 PRIVATE ghoul2_harness GTest::gtest)
 gtest_discover_tests(test_ghoul2 DISCOVERY_MODE POST_BUILD)
 
+# FE-3: when the Ghoul2 caches are reused and when they are rebuilt
+add_executable(test_ghoul2_cache test_ghoul2_cache.cpp)
+mv_apply_common_target_definitions(test_ghoul2_cache)
+target_link_libraries(test_ghoul2_cache PRIVATE ghoul2_harness GTest::gtest)
+gtest_discover_tests(test_ghoul2_cache DISCOVERY_MODE POST_BUILD)
+
 # The micro-benchmarks: run bench_ghoul2 by hand to time a change; ctest only
 # runs it briefly so that it keeps building and working (it never fails on
 # a time)

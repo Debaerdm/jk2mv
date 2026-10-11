@@ -139,6 +139,14 @@ public:
 	size_t				*mTransformedVertsArray;	// used to create an array of pointers to transformed verts per surface for collision detection
 	mdxaBone_v		mTempBoneList;
 	int				mSkin;
+// FE-3: the used bone list of the last skeleton build and what it was built
+// from (the model, its root surface, the surface overrides), see
+// G2_GetUsedBoneList in tr_ghoul2.cpp. Not saved: a load rebuilds it.
+	vector<int>		mBoneUsedCache;
+	surfaceInfo_v	mBoneUsedSlist;
+	const void		*mBoneUsedModel;
+	int				mBoneUsedRoot;
+	int				mBoneUsedGeneration;
 
 	CGhoul2Info():
 	mModelindex(-1),
@@ -155,7 +163,10 @@ public:
 	mMeshFrameNum(-1),
 	mFlags(0),
 	mTransformedVertsArray(0),
-	mSkin(0)
+	mSkin(0),
+	mBoneUsedModel(0),
+	mBoneUsedRoot(0),
+	mBoneUsedGeneration(-1)
 	{
 		mFileName[0] = 0;
 	}

@@ -1553,6 +1553,68 @@ void G2_ConstructUsedBoneList(CConstructBoneList &CBL)
 	}
 }
 
+// FE-3: the caches keyed by a model pointer hold for one generation of the
+// model slots; R_ModelInit and R_SVModelInit start a new one. No test runs
+// these two calls: the Ghoul2 tests do not link tr_model.cpp, and call
+// G2_InvalidateModelCaches themselves in their place.
+static int g2ModelGeneration;
+
+void G2_InvalidateModelCaches( void )
+{
+	g2ModelGeneration++;
+}
+
+// FE-3: the list of the bones the surfaces of this model use (plus the root
+// bone without a root surface), built by G2_ConstructUsedBoneList only when
+// its inputs changed since the last skeleton build of this instance: the
+// model, the root surface and the surface overrides (G2_FindOverrideSurface
+// reads the surface number and the flags of the first match; comparing the
+// whole list in order covers every change, whatever made it). The list
+// depends on nothing else, so the skeleton comes out the same, stale bones
+// included.
+static int *G2_GetUsedBoneList(CGhoul2Info &ghoul2, model_t *currentModel, int numBones)
+{
+	const surfaceInfo_v	&slist = ghoul2.mSlist;
+	const surfaceInfo_v	&cached = ghoul2.mBoneUsedSlist;
+	bool				valid = ghoul2.mBoneUsedGeneration == g2ModelGeneration
+							&& ghoul2.mBoneUsedModel == currentModel
+							&& ghoul2.mBoneUsedRoot == ghoul2.mSurfaceRoot
+							&& ghoul2.mBoneUsedCache.size() == (size_t)numBones
+							&& cached.size() == slist.size();
+
+	for (size_t i = 0; valid && i < slist.size(); i++)
+	{
+		valid = cached[i].surface == slist[i].surface && cached[i].offFlags == slist[i].offFlags;
+	}
+
+	if (!valid)
+	{
+		ghoul2.mBoneUsedCache.assign(numBones, 0);
+
+		CConstructBoneList	CBL(ghoul2.mSurfaceRoot,
+			&ghoul2.mBoneUsedCache[0],
+			ghoul2.mSlist,
+			currentModel,
+			ghoul2.mBlist
+			);
+
+		G2_ConstructUsedBoneList(CBL);
+
+		if (!ghoul2.mSurfaceRoot)
+		{
+			// make sure the root bone is marked as being referenced
+			ghoul2.mBoneUsedCache[0] = 1;
+		}
+
+		ghoul2.mBoneUsedSlist = slist;
+		ghoul2.mBoneUsedModel = currentModel;
+		ghoul2.mBoneUsedRoot = ghoul2.mSurfaceRoot;
+		ghoul2.mBoneUsedGeneration = g2ModelGeneration;
+	}
+
+	return &ghoul2.mBoneUsedCache[0];
+}
+
 
 // sort all the ghoul models in this list so if they go in reference order. This will ensure the bolt on's are attached to the right place
 // on the previous model, since it ensures the model being attached to is built and rendered first.
@@ -1790,23 +1852,7 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 
 				// construct a list of all bones used by this model - this makes the bone transform go a bit faster since it will dump out bones
 				// that aren't being used. - NOTE this will screw up any models that have surfaces turned off where the lower surfaces aren't.
-				boneUsedList = (int *)Z_Malloc(animModel->mdxa->numBones * 4, TAG_GHOUL2, qtrue);
-				memset(boneUsedList, 0, (animModel->mdxa->numBones * 4));
-
-				CConstructBoneList	CBL(ghoul2[i].mSurfaceRoot,
-					boneUsedList,
-					ghoul2[i].mSlist,
-					currentModel,
-					ghoul2[i].mBlist
-					);
-
-				G2_ConstructUsedBoneList(CBL);
-
-				if (!ghoul2[i].mSurfaceRoot)
-				{
-					// make sure the root bone is marked as being referenced
-					boneUsedList[0] =1;
-				}
+				boneUsedList = G2_GetUsedBoneList(ghoul2[i], currentModel, animModel->mdxa->numBones);
 
 				if (ghoul2[i].mTempBoneList.size() != (size_t)animModel->mdxa->numBones+1)
 				{
@@ -1895,8 +1941,6 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 					}
 
 				}
-
-				Z_Free(boneUsedList);
 			}
 			//
 			// compute LOD
@@ -2030,24 +2074,7 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 
 			// construct a list of all bones used by this model - this makes the bone transform go a bit faster since it will dump out bones
 			// that aren't being used. - NOTE this will screw up any models that have surfaces turned off where the lower surfaces aren't.
-			boneUsedList = (int *)Z_Malloc(animModel->mdxa->numBones * 4, TAG_GHOUL2, qtrue);
-			memset(boneUsedList, 0, (animModel->mdxa->numBones * 4));
-
-			CConstructBoneList	CBL(
-			ghoul2[i].mSurfaceRoot,
-			boneUsedList,
-			ghoul2[i].mSlist,
-			currentModel,
-			ghoul2[i].mBlist
-			);
-
-			G2_ConstructUsedBoneList(CBL);
-
-			if (!ghoul2[i].mSurfaceRoot)
-			{
-				// make sure the root bone is marked as being referenced
-				boneUsedList[0] =1;
-			}
+			boneUsedList = G2_GetUsedBoneList(ghoul2[i], currentModel, animModel->mdxa->numBones);
 
 			if (ghoul2[i].mTempBoneList.size() != (size_t)animModel->mdxa->numBones+1)
 			{
@@ -2138,8 +2165,6 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 				}
 
 			}
-
-			Z_Free(boneUsedList);
 
 			// call function that will go through the main model and generate all the bolts required
 			ProcessModelBoltSurfaces(ghoul2[i].mSurfaceRoot, ghoul2[i].mSlist, ghoul2[i].mTempBoneList, currentModel, 0, ghoul2[i].mBltlist);

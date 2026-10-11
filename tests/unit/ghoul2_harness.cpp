@@ -275,6 +275,7 @@ void ResetModels( void ) {
 	modelMemory.clear();
 	modelHandles.clear();
 	tr.numModels = 0;
+	G2_InvalidateModelCaches();	// as R_ModelInit does
 	model_t *bad = AllocModel();	// the default model, type MOD_BAD
 	Q_strncpyz( bad->name, "** BAD MODEL **", sizeof( bad->name ) );
 }
