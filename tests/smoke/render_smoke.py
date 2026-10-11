@@ -23,6 +23,9 @@ driver and software OpenGL, and checks the screenshots:
     renderer restart that keeps the window, and look the same once brought
     back to it, bloom halo included; the window shows the frame filtered as
     designed (r_screenshotWindowSize reads it)
+  - at r_renderScale 2 and 0.6 the console text and the debug graph keep
+    their size in the window: 8 pixels per character and 16 per line to the
+    nearest pixel of the frame, a 32 pixel graph
 
 usage: render_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
 """
@@ -64,6 +67,12 @@ RUNS = {
 SCALE_RUNS = {'scale2': (2, 'bloom'), 'scale05': (0.5, 'bloom'), 'scale15': (1.5, 'fbo')}
 # with the console open over the bottom of the view
 CONSOLE = ['+toggleconsole', '+wait', '40']
+# console text and debug graph at a render scale, measured in the window:
+# two lines of Ms, 60 then 20, alone in the console (fully open after 150
+# frames) over the timegraph's 32 pixel band
+TEXT_RUNS = {'text1': 1, 'text2': 2, 'text06': 0.6}
+LONG_LINE, SHORT_LINE = 60, 20
+GRAPH_HEIGHT = 32
 GRADE_RUNS = {
     'console': [],
     'noir_classic': ['+set', 'r_colorGrade', 'noir'],
@@ -185,6 +194,36 @@ def shown_shot(name):
             '+seta', 'r_screenshotWindowSize', '0']
 
 
+def text_args(scale):
+    return ['+set', 'r_fbo', '1', '+set', 'r_renderScale', str(scale), '+set', 'timegraph', '1']
+
+
+def text_after(name):
+    return ['+clear', '+echo', 'M' * LONG_LINE, '+echo', 'M' * SHORT_LINE, '+toggleconsole', '+wait', '150'] + \
+        shown_shot(name)
+
+
+def console_metrics(shot):
+    """In a window capture of a text run: the line pitch and character width
+    of the console's two lines of Ms, and the height of the debug graph's
+    black band, in window pixels; None for what isn't found."""
+    def bright(x, y):
+        return max(shot.rgb(x, y)) > 128
+    # the console's dark background, right of both lines; its blurred
+    # border and the white edges of the stub's image are left out
+    rows = [y for y in range(shot.height // 2) if max(shot.rgb(560, y)) < 80]
+    long_rows = [y for y in rows if any(bright(x, y) for x in range(420, 480))]
+    short_rows = [y for y in rows if any(bright(x, y) for x in range(100, 160)) and y not in long_rows]
+    pitch = width = None
+    if long_rows and short_rows:
+        pitch = short_rows[0] - long_rows[0]
+        right = [max([x for y in r for x in range(60, 560) if bright(x, y)]) for r in (long_rows, short_rows)]
+        width = (right[0] - right[1]) / float(LONG_LINE - SHORT_LINE)
+    graph = sum(1 for y in range(shot.height)
+                if sum(1 for x in range(0, shot.width, 4) if max(shot.rgb(x, y)) < 8) > shot.width // 8)
+    return pitch, width, graph
+
+
 def offscreen_inits(log):
     """(render size, window size it is shown at or None) of each r_fbo start."""
     inits = []
@@ -287,9 +326,10 @@ def main():
     runs += [(name, args, scene, ()) for name, (scene, args) in DLIGHT_RUNS.items()]
     runs += [(name, args, SCENE, CONSOLE) for name, args in GRADE_RUNS.items()]
     runs.append(('video', VIDEO_ARGS, VIDEO_SCENE, VIDEO_AFTER))
+    runs += [(name, text_args(scale), SCENE, text_after(name)) for name, scale in TEXT_RUNS.items()]
     for name, args, scene, after in runs:
         shot, errs, log = run(client, work, name, args, scene, after)
-        if name in SCALE_RUNS:
+        if name in SCALE_RUNS or name in TEXT_RUNS:
             path = os.path.join(work, 'base', 'screenshots', 'render_%s_shown.tga' % name)
             if os.path.isfile(path):
                 shown[name] = Shot(path)
@@ -426,12 +466,32 @@ def main():
             check(largest <= 2.5 and mean <= 0.75,
                   '%s: the window differs from the filtered frame: up to %.2f, mean %.2f' % (name, largest, mean))
 
+        # the console sizes its text in window pixels, then takes the nearest
+        # pixel of the frame: 8x16 at scale 1, 5x10 frame pixels at 0.6
+        # (8.33x16.67 in the window); before, 4x9 (6.7x15). The debug graph
+        # keeps its 32 pixels.
+        for name, scale in TEXT_RUNS.items():
+            window = shown.get(name)
+            if not window or (window.width, window.height) != (640, 480):
+                check(False, '%s: the screenshot of the window is not 640x480' % name)
+                continue
+            pitch, width, graph = console_metrics(window)
+            print('%s: console line pitch %s, character width %s, debug graph %d pixels high' % (
+                name, pitch, width, graph))
+            want_width, want_pitch = round(8 * scale) / scale, round(16 * scale) / scale
+            check(width is not None and abs(width - want_width) <= 0.1,
+                  '%s: console characters %s pixels wide instead of %.2f' % (name, width, want_width))
+            check(pitch is not None and abs(pitch - want_pitch) <= 1,
+                  '%s: console lines %s pixels apart instead of %.2f' % (name, pitch, want_pitch))
+            check(abs(graph - GRAPH_HEIGHT) <= 1, '%s: debug graph %d pixels high instead of %d' % (
+                name, graph, GRAPH_HEIGHT))
+
     if errors:
         print('\n'.join(last_log.splitlines()[-60:]))
         print('render smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
     print('render smoke test passed: offscreen path identical, bloom, HDR, per-pixel lights, view grading and '
-          'test scene video and render scale work, no GL error')
+          'test scene video and render scale work, text and graph sizes kept, no GL error')
 
 
 if __name__ == '__main__':
