@@ -388,6 +388,13 @@ void Huff_Compress(msg_t *mbuf, int offset) {
 		Huff_addRef(&huff, (byte)ch);								/* Do update */
 	}
 
+	// The message goes on to the byte after the one of the last bit. When
+	// that bit ends a byte, nothing has written the next one: send it as 0,
+	// not as the stack had it (a decoder stops at the last symbol and never
+	// reads it)
+	if ( ( bloc & 7 ) == 0 ) {
+		seq[bloc >> 3] = 0;
+	}
 	bloc += 8;												// next byte
 
 	mbuf->cursize = (bloc>>3) + offset;

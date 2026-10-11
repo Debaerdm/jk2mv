@@ -82,9 +82,11 @@ mvversion_t MV_GetCurrentGameversion() {
 
 // ==============================================================================
 // The original implementation (src/qcommon/huffman.cpp before the tables),
-// kept verbatim as the reference. It is compiled under other names: its calls
-// would also find the engine functions of the same signature (argument
-// dependent lookup on huff_t and node_t).
+// kept verbatim as the reference, but for the lines marked "not in the
+// original": they write the bytes it took from the stack, as the engine now
+// does, so that the comparisons don't see stack leftovers. It is compiled
+// under other names: its calls would also find the engine functions of the
+// same signature (argument dependent lookup on huff_t and node_t).
 // ==============================================================================
 
 namespace orig {
@@ -479,6 +481,10 @@ void Huff_Compress(msg_t *mbuf, int offset) {
 		Huff_addRef(&huff, (byte)ch);								/* Do update */
 	}
 
+	// not in the original, which sent this byte as the stack had it
+	if ( ( bloc & 7 ) == 0 ) {
+		seq[bloc >> 3] = 0;
+	}
 	bloc += 8;												// next byte
 
 	mbuf->cursize = (bloc>>3) + offset;
@@ -1651,7 +1657,7 @@ TEST(HuffmanMessages, RealDeltasRoundTrip) {
 
 // ==============================================================================
 // Adaptive Huffman (the connect packet): unchanged, without the shared bit
-// position
+// position, but for the padding byte the old code sent as the stack had it
 // ==============================================================================
 
 // an empty adaptive tree, like Huff_Compress and Huff_Decompress start with
@@ -1659,6 +1665,24 @@ static void InitAdaptive( huff_t *huff ) {
 	memset( huff, 0, sizeof( *huff ) );
 	huff->tree = huff->lhead = huff->ltail = huff->loc[NYT] = &huff->nodeList[huff->blocNode++];
 	huff->tree->symbol = NYT;
+}
+
+// Fill the stack below the caller with 'value' and return: the locals of the
+// next function it calls lie in the same bytes, so a byte that function
+// leaves unwritten comes out as 'value', not as whatever an earlier call left
+// there. Huff_Compress and Huff_Decompress each hold a 64 KB buffer and a
+// tree.
+#ifdef _MSC_VER
+__declspec( noinline )
+#else
+__attribute__(( noinline ))
+#endif
+static void DirtyStack( byte value ) {
+	volatile byte junk[256 * 1024];
+
+	for ( size_t i = 0; i < sizeof( junk ); i++ ) {
+		junk[i] = value;
+	}
 }
 
 TEST(HuffmanAdaptive, TransmitAndReceiveMatchOldCode) {
@@ -1733,7 +1757,13 @@ TEST(HuffmanAdaptive, CompressAndDecompressMatchOldCode) {
 		mb = ma;
 		mb.data = b;
 
+		// before compressing, the stack holds 0x00 for the reference and 0xff
+		// for the engine: a byte either one leaves as the stack had it comes
+		// out different in every build, not only where their frames don't
+		// overlay the same bytes
+		DirtyStack( 0x00 );
 		orig::Huff_Compress( &ma, 12 );
+		DirtyStack( 0xff );
 		Huff_Compress( &mb, 12 );
 		ASSERT_EQ( ma.cursize, mb.cursize );
 		ASSERT_EQ( 0, memcmp( a, b, ma.cursize ) );
@@ -1762,6 +1792,59 @@ TEST(HuffmanAdaptive, CompressAndDecompressMatchOldCode) {
 			ASSERT_EQ( 0, memcmp( a, b, sizeof( a ) ) );
 		}
 	}
+}
+
+TEST(HuffmanAdaptive, CompressPadsWithZeros) {
+	// the message goes on to the byte after the one of its last bit: when
+	// that bit ends a byte, nothing writes the next one, and the old code
+	// sent what the stack held there (one connect packet in eight)
+	static byte a[MAX_MSGLEN * 2], b[MAX_MSGLEN * 2], c[MAX_MSGLEN * 2];
+	Rng r( 21 );
+	msg_t ma, mb, mc;
+	int padded = 0;
+
+	// one byte: the NYT has no code yet, so its 8 bits are bits 16 to 23
+	memset( a, 0x55, sizeof( a ) );
+	memset( &ma, 0, sizeof( ma ) );
+	ma.data = a;
+	ma.maxsize = sizeof( a );
+	ma.cursize = 13;
+	a[12] = 0x01;
+	DirtyStack( 0xff );
+	Huff_Compress( &ma, 12 );
+	ASSERT_EQ( 16, ma.cursize );	// the old size
+	EXPECT_EQ( 0x00, a[12] );		// the size, high byte first
+	EXPECT_EQ( 0x01, a[13] );
+	EXPECT_EQ( 0x80, a[14] );		// the byte, high bit first
+	EXPECT_EQ( 0x00, a[15] );		// the padding
+
+	// any message comes out the same whatever the stack held, also those
+	// that end on a byte boundary
+	for ( int n = 0; n < 64; n++ ) {
+		memset( &ma, 0, sizeof( ma ) );
+		ma.data = a;
+		ma.maxsize = sizeof( a );
+		ma.cursize = r.Range( 1, 1500 ) + 12;
+		FillRandom( r, a, ma.cursize );
+		memcpy( b, a, sizeof( b ) );
+		memcpy( c, a, sizeof( c ) );
+		mb = mc = ma;
+		mb.data = b;
+		mc.data = c;
+
+		DirtyStack( 0x00 );
+		Huff_Compress( &ma, 12 );
+		DirtyStack( 0xff );
+		Huff_Compress( &mb, 12 );
+		ASSERT_EQ( ma.cursize, mb.cursize );
+		ASSERT_EQ( 0, memcmp( a, b, sizeof( a ) ) ) << "message " << n;
+
+		orig::Huff_Compress( &mc, 12 );	// leaves 8 past the last bit in bloc
+		if ( ( orig::bloc & 7 ) == 0 ) {
+			padded++;
+		}
+	}
+	EXPECT_GT( padded, 0 );
 }
 
 // ==============================================================================
