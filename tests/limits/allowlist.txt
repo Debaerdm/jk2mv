@@ -1,0 +1,130 @@
+# limits census allowlist (tests/limits/limits_census.py): <class> <path> <line without
+# comments, blanks collapsed>. Every use of a limit symbol left in src/ after step 1
+# of docs/PROTOCOL-1.05.md, with the reason it keeps the compile-time value.
+
+# def: the definitions (q_shared.h)
+def src/qcommon/q_shared.h #define MAX_CLIENTS 32
+def src/qcommon/q_shared.h #define GENTITYNUM_BITS 10
+def src/qcommon/q_shared.h #define MAX_GENTITIES (1<<GENTITYNUM_BITS)
+def src/qcommon/q_shared.h #define ENTITYNUM_NONE (MAX_GENTITIES-1)
+def src/qcommon/q_shared.h #define ENTITYNUM_WORLD (MAX_GENTITIES-2)
+def src/qcommon/q_shared.h #define ENTITYNUM_MAX_NORMAL (MAX_GENTITIES-2)
+
+# capacity: array sizes, whole-array clears and sweeps, botlib handle pools: they grow with the maximums
+capacity src/botlib/be_ai_char.cpp bot_character_t *botcharacters[MAX_CLIENTS + 1];
+capacity src/botlib/be_ai_char.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_char.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_char.cpp for (handle = 1; handle <= MAX_CLIENTS; handle++)
+capacity src/botlib/be_ai_char.cpp for (handle = 1; handle <= MAX_CLIENTS; handle++)
+capacity src/botlib/be_ai_char.cpp if (handle > MAX_CLIENTS) return 0;
+capacity src/botlib/be_ai_char.cpp for (handle = 1; handle <= MAX_CLIENTS; handle++)
+capacity src/botlib/be_ai_char.cpp if (handle > MAX_CLIENTS) return 0;
+capacity src/botlib/be_ai_char.cpp for (handle = 1; handle <= MAX_CLIENTS; handle++)
+capacity src/botlib/be_ai_chat.cpp bot_ichatdata_t *ichatdata[MAX_CLIENTS];
+capacity src/botlib/be_ai_chat.cpp bot_chatstate_t *botchatstates[MAX_CLIENTS+1];
+capacity src/botlib/be_ai_chat.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_chat.cpp for( n = 0; n < MAX_CLIENTS; n++ ) {
+capacity src/botlib/be_ai_chat.cpp for (i = 1; i <= MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_chat.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_chat.cpp for(i = 0; i < MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_chat.cpp for(i = 0; i < MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_goal.cpp bot_goalstate_t *botgoalstates[MAX_CLIENTS + 1];
+capacity src/botlib/be_ai_goal.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_goal.cpp for (i = 1; i <= MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_goal.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_goal.cpp for (i = 1; i <= MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_move.cpp bot_movestate_t *botmovestates[MAX_CLIENTS+1];
+capacity src/botlib/be_ai_move.cpp for (i = 1; i <= MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_move.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_move.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_move.cpp for (i = 1; i <= MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_weap.cpp static bot_weaponstate_t *botweaponstates[MAX_CLIENTS+1];
+capacity src/botlib/be_ai_weap.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_weap.cpp for (i = 1; i <= MAX_CLIENTS; i++)
+capacity src/botlib/be_ai_weap.cpp if (handle <= 0 || handle > MAX_CLIENTS)
+capacity src/botlib/be_ai_weap.cpp for (i = 1; i <= MAX_CLIENTS; i++)
+capacity src/client/client.h entityState_t entityBaselines[MAX_GENTITIES];
+capacity src/client/snd_dma.cpp static loopSound_t loopSounds[MAX_GENTITIES];
+capacity src/client/snd_dma.cpp Com_Memset(loopSounds, 0, MAX_GENTITIES*sizeof(loopSound_t));
+capacity src/client/snd_dma.cpp for ( i = 0 ; i < MAX_GENTITIES ; i++) {
+capacity src/client/snd_dma.cpp S_StopLoopingSlot( i, MAX_GENTITIES );
+capacity src/client/snd_dma.cpp for ( i = 0 ; i < MAX_GENTITIES ; i++)
+capacity src/client/snd_dma.cpp for ( i = 0 ; i < MAX_GENTITIES ; i++)
+capacity src/qcommon/net_http.cpp netadr_t clients[MAX_CLIENTS];
+capacity src/server/server.h svEntity_t svEntities[MAX_GENTITIES];
+capacity src/server/sv_demo.cpp static svDemo_t sv_demos[MAX_CLIENTS];
+capacity src/server/sv_demo.cpp for ( i = 0; i < MAX_CLIENTS; i++ ) {
+capacity src/server/sv_demo.cpp for ( i = 0; i < MAX_CLIENTS; i++ ) {
+capacity src/server/sv_demo.cpp for ( i = 0; i < MAX_CLIENTS; i++ ) {
+# SV_BoundMaxClients caps sv_maxclients at the engine's capacity: it runs before SV_SpawnServer chooses the version
+capacity src/server/sv_init_clients.h } else if ( sv_maxclients->integer > MAX_CLIENTS ) {
+capacity src/server/sv_init_clients.h Cvar_Set( "sv_maxclients", va("%i", MAX_CLIENTS) );
+capacity src/server/sv_world_trace.h int touchlist[MAX_GENTITIES];
+capacity src/server/sv_world_trace.h num = SV_AreaEntities( clip->boxmins, clip->boxmaxs, touchlist, MAX_GENTITIES);
+capacity src/server/sv_world_trace.h int touch[MAX_GENTITIES];
+capacity src/server/sv_world_trace.h num = SV_AreaEntities( p, p, touch, MAX_GENTITIES );
+
+# wire: the protocol 15/16 entity encoding, guarded by MV_ASSERT_LEGACY_ENTITY_ENCODING(): per protocol in step 2
+wire src/client/cl_parse.cpp if ( state->number == (MAX_GENTITIES-1) ) {
+wire src/client/cl_parse.cpp newnum = MSG_ReadBits( msg, GENTITYNUM_BITS );
+wire src/client/cl_parse.cpp if ( newnum == (MAX_GENTITIES-1) ) {
+wire src/client/cl_parse.cpp newnum = MSG_ReadBits( msg, GENTITYNUM_BITS );
+wire src/qcommon/msg.cpp { NETF(groundEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(bolt2), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(otherEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(owner), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(otherEntityNum2), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(saberEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(groundEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(bolt2), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(otherEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(owner), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(otherEntityNum2), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { NETF(saberEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp MSG_WriteBits(msg, from->number, GENTITYNUM_BITS);
+wire src/qcommon/msg.cpp MSG_WriteBits(msg, to->number, GENTITYNUM_BITS);
+wire src/qcommon/msg.cpp MSG_WriteBits(msg, to->number, GENTITYNUM_BITS);
+wire src/qcommon/msg.cpp startBit = msg->readcount * 8 - GENTITYNUM_BITS;
+wire src/qcommon/msg.cpp startBit = (msg->readcount - 1) * 8 + msg->bit - GENTITYNUM_BITS;
+wire src/qcommon/msg.cpp to->number = MAX_GENTITIES - 1;
+wire src/qcommon/msg.cpp endBit = msg->readcount * 8 - GENTITYNUM_BITS;
+wire src/qcommon/msg.cpp endBit = (msg->readcount - 1) * 8 + msg->bit - GENTITYNUM_BITS;
+wire src/qcommon/msg.cpp { PSF(groundEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(jumppad_ent), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(emplacedIndex), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(saberEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(duelIndex), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(saberLockEnemy), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(groundEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(jumppad_ent), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(emplacedIndex), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(saberEntityNum), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(duelIndex), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp { PSF(saberLockEnemy), GENTITYNUM_BITS },
+wire src/qcommon/msg.cpp startBit = msg->readcount * 8 - GENTITYNUM_BITS;
+wire src/qcommon/msg.cpp startBit = (msg->readcount - 1) * 8 + msg->bit - GENTITYNUM_BITS;
+wire src/qcommon/msg.cpp endBit = msg->readcount * 8 - GENTITYNUM_BITS;
+wire src/qcommon/msg.cpp endBit = (msg->readcount - 1) * 8 + msg->bit - GENTITYNUM_BITS;
+wire src/server/sv_snapshot_delta.h MSG_WriteBits( msg, (MAX_GENTITIES-1), GENTITYNUM_BITS );
+
+# cs-layout: the 1.02-1.04 configstring layout (bg_public.h), guarded by MV_ASSERT_LEGACY_CONFIGSTRINGS() in strip.cpp: a per-protocol table in step 2
+cs-layout src/game/bg_public.h #define CS_CHARSKINS (CS_PLAYERS+MAX_CLIENTS)
+cs-layout src/game/bg_public.h #define CS_LOCATIONS (CS_CHARSKINS+MAX_CHARSKINS)
+cs-layout src/game/bg_public.h #define CS_PARTICLES (CS_LOCATIONS+MAX_LOCATIONS)
+cs-layout src/game/bg_public.h #define CS_EFFECTS (CS_PARTICLES+MAX_LOCATIONS)
+cs-layout src/game/bg_public.h #define CS_LIGHT_STYLES (CS_EFFECTS + MAX_FX)
+cs-layout src/game/bg_public.h #define CS_STRING_PACKAGES (CS_LIGHT_STYLES + (MAX_LIGHT_STYLES*3))
+cs-layout src/game/bg_public.h #define CS_MAX (CS_STRING_PACKAGES+MAX_STRING_PACKAGES)
+cs-layout src/game/bg_public.h #if (CS_MAX) > MAX_CONFIGSTRINGS
+cs-layout src/game/bg_public.h #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS
+cs-layout src/qcommon/strip.cpp SV_AddConfigstring(Package,CS_STRING_PACKAGES,MAX_STRING_PACKAGES);
+
+# abi: a structure shared with the game modules (pmove_t)
+abi src/game/bg_public.h playerState_t *bgClients[MAX_CLIENTS];
+
+# dead: no target builds or calls it (src/cgame/cg_local.h, be_aas_def.h CS_MODELS)
+dead src/botlib/be_aas_def.h #define CS_MODELS (CS_SCORES+MAX_CLIENTS)
+dead src/cgame/cg_local.h score_t scores[MAX_CLIENTS];
+dead src/cgame/cg_local.h skulltrail_t skulltrails[MAX_CLIENTS];
+dead src/cgame/cg_local.h clientInfo_t clientinfo[MAX_CLIENTS];
+dead src/cgame/cg_local.h extern centity_t cg_entities[MAX_GENTITIES];

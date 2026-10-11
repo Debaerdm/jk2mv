@@ -47,6 +47,19 @@ endfunction()
 # Unit tests
 add_subdirectory(unit)
 
+# Every remaining use of the client and entity limit symbols in src/ is classified
+# (tests/limits/allowlist.txt, docs/PROTOCOL-1.05.md step 1)
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME limits_census
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/limits/limits_census.py ${CMAKE_SOURCE_DIR})
+  # the census's own rules, on trees written for each case
+  add_test(NAME limits_census_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/limits/test_limits_census.py)
+else()
+  message(STATUS "The limits census needs Python 3, skipping it")
+endif()
+
 # Smoke tests: the real engine binaries on a generated stub game directory
 if(SmokeTests)
   add_subdirectory(smoke)
