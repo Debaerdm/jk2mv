@@ -1084,8 +1084,6 @@ int		Huff_getBit( byte *fout, int *offset);
 void	Huff_putBits( int value, int bits, byte *fout, int *offset );
 int		Huff_getBits( int bits, byte *fin, int *offset );
 void	Huff_BuildTables( huffTables_t *tables, huff_t *compressor, huff_t *decompressor );
-void	Huff_offsetReceiveTable( const huffTables_t *tables, int *ch, byte *fin, int *offset, int finSize );
-void	Huff_offsetTransmitTable( const huffTables_t *tables, int ch, byte *fout, int *offset );
 void	Huff_WriteBits( const huffTables_t *tables, int value, int bits, byte *fout, int *offset );
 int		Huff_ReadBits( const huffTables_t *tables, int bits, byte *fin, int *offset, int finSize );
 

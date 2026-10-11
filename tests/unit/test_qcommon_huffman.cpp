@@ -997,6 +997,17 @@ int CodeLength( const huff_t *huff, int ch ) {
 	return length;
 }
 
+// One symbol with the tables, through the engine's bit functions: the code
+// of a byte as MSG_WriteBits writes it, and a symbol read like a byte by
+// MSG_ReadBits (any symbol the tree has, 256 and broken ones included)
+void TableTransmit( const huffTables_t *tables, int ch, byte *fout, int *offset ) {
+	Huff_WriteBits( tables, ch, 8, fout, offset );
+}
+
+void TableReceive( const huffTables_t *tables, int *ch, byte *fin, int *offset, int finSize ) {
+	*ch = Huff_ReadBits( tables, 8, fin, offset, finSize );
+}
+
 // Compare encoding every symbol, at every start offset, over three kinds of
 // existing buffer content, then decoding at every bit offset of random data
 // and of a stream of codes, between the old tree code and the tables built
@@ -1026,10 +1037,12 @@ void ExpectTablesMatchTree( huff_t *huff, uint32_t seed, bool intact = true ) {
 				memcpy( b, a, sizeof( b ) );
 				memcpy( c, a, sizeof( c ) );
 				orig::Huff_offsetTransmit( huff, ch, a, &offA );
-				Huff_offsetTransmitTable( tables, ch, b, &offB );
 				Huff_offsetTransmit( huff, ch, c, &offC );
-				ASSERT_EQ( offA, offB ) << "symbol " << ch << " start " << start;
-				ASSERT_EQ( 0, memcmp( a, b, sizeof( a ) ) ) << "symbol " << ch << " start " << start;
+				if ( ch < HMAX ) {	// 256 is no byte: nothing writes it with the tables
+					TableTransmit( tables, ch, b, &offB );
+					ASSERT_EQ( offA, offB ) << "symbol " << ch << " start " << start;
+					ASSERT_EQ( 0, memcmp( a, b, sizeof( a ) ) ) << "symbol " << ch << " start " << start;
+				}
 				ASSERT_EQ( offA, offC ) << "symbol " << ch << " start " << start;
 				ASSERT_EQ( 0, memcmp( a, c, sizeof( a ) ) ) << "symbol " << ch << " start " << start;
 			}
@@ -1044,7 +1057,7 @@ void ExpectTablesMatchTree( huff_t *huff, uint32_t seed, bool intact = true ) {
 		int chA = -1, chB = -1, chC = -1, offA = offset, offB = offset, offC = offset;
 
 		orig::Huff_offsetReceive( huff->tree, &chA, data.data(), &offA );
-		Huff_offsetReceiveTable( tables, &chB, data.data(), &offB, size );
+		TableReceive( tables, &chB, data.data(), &offB, size );
 		Huff_offsetReceive( huff->tree, &chC, data.data(), &offC );
 		ASSERT_EQ( chA, chB ) << "offset " << offset;
 		ASSERT_EQ( offA, offB ) << "offset " << offset;
@@ -1055,16 +1068,18 @@ void ExpectTablesMatchTree( huff_t *huff, uint32_t seed, bool intact = true ) {
 	// a stream of codes from an odd offset, written and read both ways
 	std::vector<int> symbols;
 	for ( int i = 0; i < 20000; i++ ) {
-		int ch = ( r.Next() & 1 ) ? r.Range( 0, 15 ) : r.Range( 0, HMAX );
+		int ch = ( r.Next() & 1 ) ? r.Range( 0, 15 ) : r.Range( 0, HMAX - 1 );
 		if ( huff->loc[ch] ) {
 			symbols.push_back( ch );
 		}
 	}
-	std::vector<byte> a( symbols.size() * 8 + 16, 0xa5 ), b( a );
+	std::vector<byte> a( symbols.size() * 8 + 16, 0xa5 );
+	a[0] &= ( 1 << 5 ) - 1;		// a write ORs its bits into the rest of the byte
+	std::vector<byte> b( a );
 	int offA = 5, offB = 5;
 	for ( size_t i = 0; i < symbols.size(); i++ ) {
 		orig::Huff_offsetTransmit( huff, symbols[i], a.data(), &offA );
-		Huff_offsetTransmitTable( tables, symbols[i], b.data(), &offB );
+		TableTransmit( tables, symbols[i], b.data(), &offB );
 	}
 	ASSERT_EQ( offA, offB );
 	ASSERT_EQ( 0, memcmp( a.data(), b.data(), a.size() ) );
@@ -1074,7 +1089,7 @@ void ExpectTablesMatchTree( huff_t *huff, uint32_t seed, bool intact = true ) {
 		int chA = -1, chB = -1;
 
 		orig::Huff_offsetReceive( huff->tree, &chA, b.data(), &offA );
-		Huff_offsetReceiveTable( tables, &chB, a.data(), &offB, ( end >> 3 ) + 1 );
+		TableReceive( tables, &chB, a.data(), &offB, ( end >> 3 ) + 1 );
 		if ( intact ) {
 			ASSERT_EQ( symbols[i], chA );
 		}
@@ -1479,7 +1494,7 @@ TEST(HuffmanTables, UnbuiltTablesReadLikeNoTree) {
 	int ch = -1, offset = 3;
 
 	memset( tables, 0, sizeof( *tables ) );
-	Huff_offsetReceiveTable( tables, &ch, data, &offset, sizeof( data ) );
+	TableReceive( tables, &ch, data, &offset, sizeof( data ) );
 	EXPECT_EQ( 0, ch );
 	EXPECT_EQ( 3, offset );
 	EXPECT_EQ( 0, Huff_ReadBits( tables, 24, data, &offset, sizeof( data ) ) );
@@ -1881,7 +1896,7 @@ TEST(HuffmanBenchmark, SymbolSpeedup) {
 
 			if ( pass ) {
 				for ( int i = 0; i < count; i++ ) {
-					Huff_offsetTransmitTable( tables.get(), symbols[i], out.data(), &offset );
+					TableTransmit( tables.get(), symbols[i], out.data(), &offset );
 				}
 			} else {
 				for ( int i = 0; i < count; i++ ) {
@@ -1896,7 +1911,7 @@ TEST(HuffmanBenchmark, SymbolSpeedup) {
 			for ( int i = 0; i < count; i++ ) {
 				int ch;
 				if ( pass ) {
-					Huff_offsetReceiveTable( tables.get(), &ch, out.data(), &offset, size );
+					TableReceive( tables.get(), &ch, out.data(), &offset, size );
 				} else {
 					orig::Huff_offsetReceive( ref->decompressor.tree, &ch, out.data(), &offset );
 				}

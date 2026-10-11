@@ -565,17 +565,6 @@ int Huff_getBits( int bits, byte *fin, int *offset ) {
 	return value;
 }
 
-/* Huff_offsetTransmit with the compressor the tables were built from */
-void Huff_offsetTransmitTable( const huffTables_t *tables, int ch, byte *fout, int *offset ) {
-	*offset = transmit_symbol( tables, ch, fout, *offset );
-}
-
-/* Huff_offsetReceive from the root of the decompressor the tables were built
- * from, reading no further than finSize with the lookup */
-void Huff_offsetReceiveTable( const huffTables_t *tables, int *ch, byte *fin, int *offset, int finSize ) {
-	*offset = receive_symbol( tables, ch, fin, *offset, finSize );
-}
-
 /* The bitstream part of MSG_WriteBits: the low bits & 7 bits of value (bits
  * is 1 to 32) as they are, then the code of each whole byte, the low one
  * first. The same bits as Huff_putBit and Huff_offsetTransmit. */
@@ -599,7 +588,7 @@ void Huff_WriteBits( const huffTables_t *tables, int value, int bits, byte *fout
 /* The bitstream part of MSG_ReadBits: the low bits & 7 bits as they are,
  * then a symbol for each whole byte, the low one first, each ORed in at its
  * place (the 256 of a broken message runs into the next byte, as it always
- * did). finSize: see Huff_offsetReceiveTable. */
+ * did). finSize: the lookup reads no further (receive_symbol). */
 int Huff_ReadBits( const huffTables_t *tables, int bits, byte *fin, int *offset, int finSize ) {
 	uint32_t	value = 0;
 	int			nbits = bits & 7;

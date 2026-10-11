@@ -52,7 +52,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - le message développeur des réponses `disconnect` perdues ;
     - pas de seau global contre une inondation à sources usurpées ;
     - la glu moteur n'a pas de test.
-  - SV-2 : `Huff_offsetTransmitTable` et `Huff_offsetReceiveTable` ne servent qu'aux tests ; SV-8 devra traiter les globales de msg.cpp.
+  - SV-2 : SV-8 devra traiter les globales de msg.cpp.
   - VQ-7 :
     - en 32 bits, une capture énorme qui ne trouve pas sa mémoire termine le jeu (`Z_Malloc`), et `video` alloue un tampon par image ;
     - aucun test automatique de la console ni des graphes à une échelle autre que 1 ;
