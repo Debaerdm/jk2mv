@@ -320,6 +320,35 @@ TEST(DlightSelect, KeptLightThatMovedAwayLosesItsPlace) {
 	EXPECT_EQ( kept.count( 32 ), 1u );
 }
 
+// A light within 32 units of one kept last time is taken for it (lights
+// carry no identity), farther it is a new light: the kept bonus stops at
+// that radius.
+TEST(DlightSelect, KeptLightIsRecognizedWithin32Units) {
+	for ( const float moved : { 0.0f, 31.0f, 33.0f } ) {
+		// 31 bright lights well apart, the light that took the last place,
+		// and a slightly weaker one that didn't get it
+		std::vector<dlselLight_t> lights;
+		for ( int i = 0; i < 31; i++ ) {
+			lights.push_back( Light( 200.0f + 40.0f * i, -300.0f, 0.0f, 80.0f, 10.0f ) );
+		}
+		lights.push_back( Light( 1000.0f, 0.0f, 0.0f, 80.0f ) );
+		lights.push_back( Light( 1000.0f, 0.0f, 200.0f, 80.0f, 0.9f ) );
+		dlselHistory_t history = {};
+		std::vector<int> chosen = Select( lights, &history );
+		ASSERT_EQ( std::set<int>( chosen.begin(), chosen.end() ).count( 32 ), 0u );
+
+		// the kept light moves sideways (its distance to the viewer barely
+		// changes) and the other one gets a little brighter: it beats the
+		// kept light, not the 1.5 times bonus of a light recognized
+		lights[31].origin[1] += moved;
+		lights[32].brightness = 1.2f;
+		chosen = Select( lights, &history );
+		const std::set<int> kept( chosen.begin(), chosen.end() );
+		EXPECT_EQ( kept.count( 31 ), moved < 32.0f ? 1u : 0u ) << "moved " << moved;
+		EXPECT_EQ( kept.count( 32 ), moved < 32.0f ? 0u : 1u ) << "moved " << moved;
+	}
+}
+
 // With a mirror in the scene the main view no longer culls: the mirror can
 // show what is behind the viewer.
 TEST(DlightSelect, MirrorKeepsLightsBehindTheViewer) {

@@ -65,9 +65,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - l'alpha-to-coverage d'un mod avec un alpha de sommet constant inférieur à 1 laisse passer une partie du fond ;
     - la glu (table du grade, image liée après `GL_State`) n'a pas de test ;
     - `GL_INVALID_VALUE` au premier rechargement du renderer avec MSAA 8x, HDR et bloom sous `r_ignoreGLErrors 0` (défaut de la base).
-  - Dlights :
-    - le rayon de 32 unités qui reconnaît une lumière n'est pas couvert par les tests ;
-    - un seul historique pour toutes les scènes monde d'une frame.
+  - Dlights : un seul historique pour toutes les scènes monde d'une frame.
   - FOV : la glu cgame n'a pas de test ; un mod qui lit son `cg_fovAspectAdjust` par nom ne s'élargit pas.
   - Outils démo :
     - `cam_play` et `photomode` dans la même frame partent d'une vue périmée ;
