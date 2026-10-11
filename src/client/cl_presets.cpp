@@ -128,6 +128,7 @@ static presetMenuCopy_t presetMenuCopies[] = {
 	{ "r_bloom",				"ui_r_bloom" },
 	{ "r_DynamicGlowWidth",		"ui_r_DynamicGlowWidth" },
 	{ "r_DynamicGlowHeight",	"ui_r_DynamicGlowHeight" },
+	{ "r_renderScale",			"ui_r_renderScale" },
 };
 
 static cvar_t	*cl_preset;				// read only: the preset the settings match, or "custom"

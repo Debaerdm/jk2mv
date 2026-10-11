@@ -1227,6 +1227,7 @@ LINES_INSERT 1681 [
 				setcvartocvar	r_bloom ui_r_bloom ;
 				setcvartocvar	r_DynamicGlowWidth ui_r_DynamicGlowWidth ;
 				setcvartocvar	r_DynamicGlowHeight ui_r_DynamicGlowHeight ;
+				setcvartocvar	r_renderScale ui_r_renderScale ;
 				exec			"preset pending" ;
 ]
 
@@ -1918,6 +1919,52 @@ LINES_INSERT 2677 [
 
 		itemDef
 		{
+			name                    renderscale
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_RENDER_SCALE
+			descText                @MV_RENDER_SCALE_INFO
+			cvar                    "ui_r_renderScale"
+			cvarFloatList
+			{
+				"0.5x"                  0.5
+				"0.75x"                 0.75
+				"1x"                    1
+				"1.5x"                  1.5
+				"2x"                    2
+			}
+			cvarTest                "ui_r_fbo"
+			disableCvar             { "0" }
+
+			rect                    305 271 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav" ;
+				setcvar                 ui_r_modified 1 ;
+				show                    applyChanges
+			}
+
+			mouseenter
+			{
+				show                    highlight6
+			}
+
+			mouseexit
+			{
+				hide                    highlight6
+			}
+		}
+
+		itemDef
+		{
 			name                    dlightmode
 			group                   mvvideo
 			type                    ITEM_TYPE_MULTI
@@ -1998,6 +2045,47 @@ LINES_INSERT 2677 [
 			mouseexit
 			{
 				hide                    highlight8
+			}
+		}
+
+		itemDef
+		{
+			name                    dlightpriority
+			group                   mvvideo
+			type                    ITEM_TYPE_MULTI
+			text                    @MV_LIGHT_PRIORITY
+			descText                @MV_LIGHT_PRIORITY_INFO
+			cvar                    "r_dlightPriority"
+			cvarFloatList
+			{
+				@MENUS0_OFF             0
+				@MENUS0_ON              1
+			}
+			cvarTest                "r_dynamiclight"
+			disableCvar             { "0" }
+
+			rect                    305 331 300 20
+			textalign               ITEM_ALIGN_RIGHT
+			textalignx              165
+			textaligny              -2
+			font                    2
+			textscale               0.8
+			forecolor               1 1 1 1
+			visible                 0
+
+			action
+			{
+				play                    "sound/interface/button1.wav"
+			}
+
+			mouseenter
+			{
+				show                    highlight9
+			}
+
+			mouseexit
+			{
+				hide                    highlight9
 			}
 		}
 

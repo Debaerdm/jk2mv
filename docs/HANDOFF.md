@@ -59,7 +59,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - après un réglage latched fait à la console, les copies des pages retail montrent la valeur courante (comme en retail) ;
     - le crochet de clic des relectures n'est pas dans l'arbre ;
     - « FX system out of effects » après un `vid_restart` au menu principal puis une partie locale mise en pause (sans doute ancien) ;
-    - `r_renderScale` et `r_dlightPriority` ne sont pas sur la page Advanced.
+    - les lignes Render Scale et Light Priority de la page Advanced (`assets/ui/jk2mp/setup.menu_patch`, chaînes dans mv.sp) n'ont pas été vues dans le jeu : sans le setup.menu retail, seule leur lecture sans erreur dans un menu de test a été vérifiée.
   - Rendu :
     - le flou vidéo sans cible RGBA16 rendable abandonne au premier échec (un message, et l'enregistrement continue sans flou) ; pas de repli 8 bits, et ce chemin n'a pas pu tourner (llvmpipe et les GPU essayés rendent en 16 bits) ;
     - l'alpha-to-coverage d'un mod avec un alpha de sommet constant inférieur à 1 laisse passer une partie du fond ;

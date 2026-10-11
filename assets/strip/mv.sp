@@ -1,7 +1,7 @@
 VERSION 1
 ID 128
 REFERENCE MV
-COUNT 100
+COUNT 104
 INDEX 0
 {
    REFERENCE GAME_VERSION
@@ -901,4 +901,40 @@ INDEX 99
    TEXT_LANGUAGE3 "Vorbereitete Bilder für die GPU: 1 hat die geringste Latenz."
    TEXT_LANGUAGE6 "Frames prepared ahead of the GPU: 1 has the least input lag."
    TEXT_LANGUAGE8 "Cuadros preparados antes para la GPU: 1 tiene menos retraso."
+}
+INDEX 100
+{
+   REFERENCE RENDER_SCALE
+   TEXT_LANGUAGE1 "Render Scale:"
+   TEXT_LANGUAGE2 "Échelle de rendu:"
+   TEXT_LANGUAGE3 "Renderskalierung:"
+   TEXT_LANGUAGE6 "Render Scale:"
+   TEXT_LANGUAGE8 "Escala de render:"
+}
+INDEX 101
+{
+   REFERENCE RENDER_SCALE_INFO
+   TEXT_LANGUAGE1 "Above 1 smooths edges and textures, below 1 is faster."
+   TEXT_LANGUAGE2 "Au-dessus de 1 lisse bords et textures, en dessous plus rapide."
+   TEXT_LANGUAGE3 "Über 1 glättet Kanten und Texturen, unter 1 ist schneller."
+   TEXT_LANGUAGE6 "Above 1 smooths edges and textures, below 1 is faster."
+   TEXT_LANGUAGE8 "Sobre 1 suaviza bordes y texturas, bajo 1 es más rápido."
+}
+INDEX 102
+{
+   REFERENCE LIGHT_PRIORITY
+   TEXT_LANGUAGE1 "Light Priority:"
+   TEXT_LANGUAGE2 "Priorité des lumières:"
+   TEXT_LANGUAGE3 "Lichtpriorität:"
+   TEXT_LANGUAGE6 "Light Priority:"
+   TEXT_LANGUAGE8 "Prioridad de luces:"
+}
+INDEX 103
+{
+   REFERENCE LIGHT_PRIORITY_INFO
+   TEXT_LANGUAGE1 "Past 32 dynamic lights, keep the ones that matter for the view."
+   TEXT_LANGUAGE2 "Au-delà de 32 lumières, garder celles qui comptent pour la vue."
+   TEXT_LANGUAGE3 "Über 32 Lichter: die für die Sicht wichtigsten behalten."
+   TEXT_LANGUAGE6 "Past 32 dynamic lights, keep the ones that matter for the view."
+   TEXT_LANGUAGE8 "Más de 32 luces: mantener las que importan para la vista."
 }

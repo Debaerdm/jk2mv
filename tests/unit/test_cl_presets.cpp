@@ -228,6 +228,7 @@ const struct {
 	{ "r_fbo", "0", CVAR_ARCHIVE | CVAR_LATCH },
 	{ "r_hdr", "0", CVAR_ARCHIVE | CVAR_LATCH },
 	{ "r_bloom", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ "r_renderScale", "1", CVAR_ARCHIVE | CVAR_LATCH },
 	{ "cl_autolodscale", "1", CVAR_ARCHIVE },
 	{ "r_swapInterval", "0", CVAR_ARCHIVE },
 	{ "r_maxFrameLatency", "0", CVAR_ARCHIVE },
@@ -406,6 +407,7 @@ TEST_F(Presets, TheAdvancedPageCopiesStartWithTheUI) {
 	EXPECT_STREQ( Value( "ui_r_bloom" ), "0" );
 	EXPECT_STREQ( Value( "ui_r_DynamicGlowWidth" ), "320" );
 	EXPECT_STREQ( Value( "ui_r_DynamicGlowHeight" ), "240" );
+	EXPECT_STREQ( Value( "ui_r_renderScale" ), "1" );
 	// like the copies of the ui modules
 	EXPECT_NE( Cvar_FindVar( "ui_r_fbo" )->flags & CVAR_ROM, 0 );
 	EXPECT_NE( Cvar_FindVar( "ui_r_fbo" )->flags & CVAR_INTERNAL, 0 );
@@ -416,9 +418,11 @@ TEST_F(Presets, TheCopiesFollowTheirCvarWhileNothingWaitsToBeApplied) {
 	CL_PresetUIStarted();
 	Cvar_Set( "r_fbo", "1" );			// the console, a config...
 	SetLatched( "r_bloom", "1" );		// pending until the next vid_restart
+	SetLatched( "r_renderScale", "1.5" );
 	CL_PresetFrame();
 	EXPECT_STREQ( Value( "ui_r_fbo" ), "1" );
 	EXPECT_STREQ( Value( "ui_r_bloom" ), "1" );
+	EXPECT_STREQ( Value( "ui_r_renderScale" ), "1.5" );
 	MenuSet( "ui_r_modified", "0" );	// a video page opened
 	Cvar_Set( "r_fbo", "0" );
 	CL_PresetFrame();
