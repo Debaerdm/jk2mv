@@ -596,16 +596,52 @@ int RE_CaptureFrameRaw( byte *buffer, int bufSize, int padding )
 
 /*
 =============
+R_CaptureAlloc
+
+The capture buffers of this file come from the heap, not from the hunk's temp
+memory: with r_renderScale a frame can take more than the hunk has free. And
+more than a 32 bit process can find: then the capture fails with a warning
+rather than the game with a fatal Z_Malloc error.
+=============
+*/
+static byte *R_CaptureAlloc( int size, int width, int height )
+{
+	byte	*buffer = (byte *)Z_TryMalloc( size, TAG_TEMP_WORKSPACE, qfalse );
+
+	if ( !buffer ) {
+		ri.Printf( PRINT_WARNING, "not enough memory to capture a %ix%i frame\n", width, height );
+	}
+	return buffer;
+}
+
+// the motion JPEG video reads each frame into the same buffer rather than
+// allocate the frame size on every frame; freed when the recording ends
+// (CL_CloseAVI) and, in case, when the renderer shuts down
+static byte	*videoCaptureBuffer;
+static int	videoCaptureSize;
+
+void R_ShutdownCaptureBuffers( void )
+{
+	if ( videoCaptureBuffer ) {
+		Z_Free( videoCaptureBuffer );
+	}
+	videoCaptureBuffer = NULL;
+	videoCaptureSize = 0;
+}
+
+/*
+=============
 R_CaptureJPEG
 
 The frame, or with shown the window as it shows it, as a JPEG image in
-buffer. Returns the JPEG size.
-
-The capture buffers of this file come from the heap, not from the hunk's temp
-memory: with r_renderScale a frame can take more than the hunk has free.
+buffer. Returns the JPEG size; 0 if the frame couldn't be read (no room
+left for the command in the frame's command list, as when a full console
+fills it at a high resolution), -1 without memory for the capture buffer
+(R_CaptureAlloc said so). With video, the capture buffer is kept for the
+next frame.
 =============
 */
-static int R_CaptureJPEG( byte *buffer, int bufSize, int quality, qboolean shown )
+static int R_CaptureJPEG( byte *buffer, int bufSize, int quality, qboolean shown, qboolean video )
 {
 	int		width = glConfig.vidWidth, height = glConfig.vidHeight;
 	byte	*captureBuffer;
@@ -620,14 +656,28 @@ static int R_CaptureJPEG( byte *buffer, int bufSize, int quality, qboolean shown
 		R_PostFXWindowSize( &width, &height );
 	}
 	memcount = width * height * 3;
-	captureBuffer = (byte *)ri.Malloc( memcount, TAG_TEMP_WORKSPACE, qfalse );
+	if ( video ) {
+		if ( videoCaptureSize < memcount ) {
+			R_ShutdownCaptureBuffers();
+			videoCaptureBuffer = R_CaptureAlloc( memcount, width, height );
+			videoCaptureSize = videoCaptureBuffer ? memcount : 0;
+		}
+		captureBuffer = videoCaptureBuffer;
+	} else {
+		captureBuffer = R_CaptureAlloc( memcount, width, height );
+	}
+	if ( !captureBuffer ) {
+		return -1;
+	}
 
 	if ( R_ReadFrame( captureBuffer, memcount, 1, GL_RGB, shown ) ) {
 		size = SaveJPGToBuffer(buffer, bufSize,
 			quality, width, height, captureBuffer, 0);
 	}
 
-	ri.Free( captureBuffer );
+	if ( !video ) {
+		ri.Free( captureBuffer );
+	}
 
 	return size;
 }
@@ -636,12 +686,13 @@ static int R_CaptureJPEG( byte *buffer, int bufSize, int quality, qboolean shown
 =============
 RE_CaptureFrameJPEG
 
-Capture current frame buffer as JPEG image. Returns JPEG size.
+Capture current frame buffer as JPEG image. Returns JPEG size, 0 if the
+frame couldn't be read, -1 without memory to capture it.
 =============
 */
 int RE_CaptureFrameJPEG( byte *buffer, int bufSize, int quality )
 {
-	return R_CaptureJPEG( buffer, bufSize, quality, qfalse );
+	return R_CaptureJPEG( buffer, bufSize, quality, qfalse, qtrue );
 }
 
 /*
@@ -737,9 +788,20 @@ void RE_TakeScreenshotJPEG( const char *filename, int quality, qboolean silent )
 	int		size;
 
 	bufSize = width * height * 3;
-	buffer = (byte *)ri.Malloc(bufSize, TAG_TEMP_WORKSPACE, qfalse);
+	buffer = R_CaptureAlloc(bufSize, width, height);
+	if ( !buffer ) {
+		return;
+	}
 
-	size = R_CaptureJPEG(buffer, bufSize, quality, shown);
+	size = R_CaptureJPEG(buffer, bufSize, quality, shown, qfalse);
+	if ( size <= 0 ) {
+		// without memory, R_CaptureAlloc said so
+		if ( !size ) {
+			ri.Printf( PRINT_WARNING, "couldn't read the frame, %s not written\n", filename );
+		}
+		ri.Free(buffer);
+		return;
+	}
 	ri.FS_WriteFile(filename, buffer, size);
 
 	if ( !silent ) {
@@ -764,8 +826,11 @@ void RE_TakeScreenshotPNG( const char *filename, qboolean silent )
 	int			width, height;
 	const qboolean	shown = R_ScreenshotSize( &width, &height );
 	const int	bufSize = width * height * 3;
-	byte		*buffer = (byte *)ri.Malloc(bufSize, TAG_TEMP_WORKSPACE, qfalse);
+	byte		*buffer = R_CaptureAlloc(bufSize, width, height);
 
+	if ( !buffer ) {
+		return;
+	}
 	R_ReadFrame(buffer, bufSize, 1, GL_BGR, shown);
 	if (R_SavePNG(filename, buffer, width, height)) {
 		if (!silent) {
@@ -790,7 +855,10 @@ void RE_TakeScreenshotTGA( const char *filename, qboolean silent )
 	captureBufSize = width * height * 3;
 	bufSize = captureBufSize + 18;
 
-	buffer = (byte *)ri.Malloc(bufSize, TAG_TEMP_WORKSPACE, qfalse);
+	buffer = R_CaptureAlloc(bufSize, width, height);
+	if ( !buffer ) {
+		return;
+	}
 
 	Com_Memset (buffer, 0, 18);
 	buffer[2] = 2;		// uncompressed type
@@ -835,7 +903,10 @@ void RE_TakeLevelshot( const char *filename )
 	const int LEVELSHOTSIZE = 256;
 
 	captureBufferSize = width * height * 3;
-	captureBuffer = (byte *)ri.Malloc(captureBufferSize, TAG_TEMP_WORKSPACE, qfalse);
+	captureBuffer = R_CaptureAlloc(captureBufferSize, width, height);
+	if ( !captureBuffer ) {
+		return;
+	}
 	bufferSize = LEVELSHOTSIZE * LEVELSHOTSIZE*3 + 18;
 	buffer = (byte *)ri.Malloc(bufferSize, TAG_TEMP_WORKSPACE, qfalse);
 

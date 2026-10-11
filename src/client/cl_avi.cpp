@@ -438,6 +438,15 @@ static void CL_ChooseVideoAudio( void )
   writing the actual data can begin
   ===============
 */
+static void CL_FreeVideoFrameBuffer( void )
+{
+	if ( afd.frameBuffer ) {
+		Z_Free( afd.frameBuffer );
+		afd.frameBuffer = NULL;
+	}
+	afd.frameBufferSize = 0;
+}
+
 qboolean CL_OpenAVIForWriting( const char *fileName )
 {
 	if( afd.fileOpen )
@@ -452,12 +461,27 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 		return qfalse;
 	}
 
-	if( ( afd.f = FS_FOpenFileWrite( fileName ) ) <= 0 )
+	// a frame of the render size, which r_renderScale can make too big for
+	// a 32 bit process: no recording rather than a fatal error
+	afd.frameBufferSize = PAD(cls.glconfig.vidWidth * 3, AVI_LINE_PADDING) * cls.glconfig.vidHeight;
+	afd.frameBuffer = (byte *)Z_TryMalloc( afd.frameBufferSize, TAG_AVI );
+	if( !afd.frameBuffer )
+	{
+		Com_Printf( S_COLOR_RED "video: not enough memory for %ix%i frames\n",
+			cls.glconfig.vidWidth, cls.glconfig.vidHeight );
 		return qfalse;
+	}
+
+	if( ( afd.f = FS_FOpenFileWrite( fileName ) ) <= 0 )
+	{
+		CL_FreeVideoFrameBuffer();
+		return qfalse;
+	}
 
 	if( ( afd.idxF = FS_FOpenFileWrite( CL_AVIIndexFileName( fileName ) ) ) <= 0 )
 	{
 		FS_FCloseFile( afd.f );
+		CL_FreeVideoFrameBuffer();
 		return qfalse;
 	}
 
@@ -469,14 +493,6 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
 	afd.width = cls.glconfig.vidWidth;
 	afd.height = cls.glconfig.vidHeight;
 	afd.isFifo = FS_IsFifo( afd.fileName );
-
-	if ( afd.frameBuffer ) {
-		Z_Free( afd.frameBuffer );
-		afd.frameBuffer = NULL;
-	}
-
-	afd.frameBufferSize = PAD(afd.width * 3, AVI_LINE_PADDING) * afd.height;
-	afd.frameBuffer = (byte *)Z_Malloc( afd.frameBufferSize, TAG_AVI );
 
 	if( cl_aviMotionJpeg->integer )
 		afd.motionJpeg = qtrue;
@@ -609,6 +625,14 @@ qboolean CL_OpenMP4ForWriting( const char *fileName )
 		return qfalse;
 	}
 
+	afd.frameBufferSize = afd.width * 3 * afd.height;
+	afd.frameBuffer = (byte *)Z_TryMalloc( afd.frameBufferSize, TAG_AVI );
+	if( !afd.frameBuffer )
+	{
+		Com_Printf( S_COLOR_RED "video_mp4: not enough memory for %ix%i frames\n", afd.width, afd.height );
+		return qfalse;
+	}
+
 	// libx264 needs even sizes; BT.709 colors, tagged, as HD players expect
 	const char *argv[] = {
 		"ffmpeg", "-loglevel", "error", "-nostats", "-y",
@@ -629,6 +653,7 @@ qboolean CL_OpenMP4ForWriting( const char *fileName )
 		Com_Printf( S_COLOR_RED "video_mp4: couldn't start ffmpeg. Install it in the PATH or put it in %s.\n",
 			Cvar_VariableString( "fs_basepath" ) );
 #endif
+		CL_FreeVideoFrameBuffer();
 		return qfalse;
 	}
 
@@ -647,8 +672,6 @@ qboolean CL_OpenMP4ForWriting( const char *fileName )
 		}
 	}
 
-	afd.frameBufferSize = afd.width * 3 * afd.height;
-	afd.frameBuffer = (byte *)Z_Malloc( afd.frameBufferSize, TAG_AVI );
 	afd.fileOpen = qtrue;
 
 	Com_Printf( "recording %s (%s, %s fps, crf %s, %s)%s\n", fileName, size, rate, crf, preset,
@@ -988,6 +1011,14 @@ void CL_TakeVideoFrame( void )
 	}
 
 	size = CL_CaptureAVIFrame();
+	if ( size < 0 ) {
+		// the renderer had no memory for the motion JPEG frame (it said so)
+		Com_Printf( S_COLOR_RED "video: couldn't capture the frame, ending the recording\n" );
+		CL_CloseAVI();
+		return;
+	}
+	// 0 when the frame couldn't be read (its command list is full): an
+	// empty, dropped frame, and the recording goes on
 	CL_WriteAVIVideoFrame( afd.frameBuffer, size );
 }
 
@@ -1010,10 +1041,10 @@ qboolean CL_CloseAVI( void )
 
 	afd.fileOpen = qfalse;
 
-	if ( afd.frameBuffer ) {
-		Z_Free( afd.frameBuffer );
-		afd.frameBuffer = NULL;
-		afd.frameBufferSize = 0;
+	CL_FreeVideoFrameBuffer();
+	// the renderer's motion JPEG capture buffer, as big as a frame
+	if ( re.FreeCaptureBuffers ) {
+		re.FreeCaptureBuffers();
 	}
 
 	if ( afd.mp4 ) {

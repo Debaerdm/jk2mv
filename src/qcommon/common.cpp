@@ -936,7 +936,7 @@ static const StaticMem_t gNumberString[] = {
 };
 
 static qboolean gbMemFreeupOccured = qfalse;
-void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
+static void *Z_MallocInternal(int iSize, memtag_t eTag, qboolean bZeroit, qboolean bCanFail)
 {
 	gbMemFreeupOccured = qfalse;
 
@@ -960,6 +960,12 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
 		}
 		if (!pMemory)
 		{
+			// Z_TryMalloc: the caller does without
+			if (bCanFail)
+			{
+				return NULL;
+			}
+
 			// new bit, if we fail to malloc memory, try dumping some of the cached stuff that's non-vital and try again...
 			//
 
@@ -1081,6 +1087,19 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
 
 	void *pvReturnMem = &pMemory[1];
 	return pvReturnMem;
+}
+
+void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
+{
+	return Z_MallocInternal(iSize, eTag, bZeroit, qfalse);
+}
+
+// Z_Malloc for a block the caller can do without (a capture buffer as big as
+// the frame): NULL instead of the fatal error, after a single attempt that
+// drops no cache
+void *Z_TryMalloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
+{
+	return Z_MallocInternal(iSize, eTag, bZeroit, qtrue);
 }
 
 

@@ -1516,6 +1516,7 @@ void		R_LimitFrameLatency( void );
 extern cvar_t	*r_dlightMode;
 void		R_InitDlightPrograms( void );
 void		R_ShutdownDlightPrograms( void );
+void		R_ShutdownCaptureBuffers( void );
 
 void		R_InitPostFX( void );
 void		R_ShutdownPostFX( void );

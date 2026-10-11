@@ -21,9 +21,12 @@ if(TARGET ${MVDED})
 endif()
 
 if(TARGET ${MVMP})
+  # preloaded to make the capture buffers fail
+  add_library(fail_malloc SHARED fail_malloc.c)
   add_test(NAME smoke_client
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/client_smoke.py
-      $<TARGET_FILE:${MVMP}> $<TARGET_FILE_DIR:${MVMP}> ${CMAKE_CURRENT_BINARY_DIR}/client)
+      $<TARGET_FILE:${MVMP}> $<TARGET_FILE_DIR:${MVMP}> ${CMAKE_CURRENT_BINARY_DIR}/client
+      $<TARGET_FILE:fail_malloc>)
   set_tests_properties(smoke_client PROPERTIES LABELS smoke TIMEOUT 300)
 endif()
 

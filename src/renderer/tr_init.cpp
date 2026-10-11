@@ -1456,6 +1456,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 #ifndef DEDICATED
 	R_ShutdownPostFX();
 	R_ShutdownDlightPrograms();
+	R_ShutdownCaptureBuffers();
 	R_ShutdownGPUTimers();
 
 	// whatever r_DynamicGlow is now: the glow images always exist and the
@@ -1672,6 +1673,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 
 	re.CaptureFrameRaw = RE_CaptureFrameRaw;
 	re.CaptureFrameJPEG = RE_CaptureFrameJPEG;
+	re.FreeCaptureBuffers = R_ShutdownCaptureBuffers;
 	re.GetGPUTimes = RE_GetGPUTimes;
 	re.SetFrameBlend = RE_SetFrameBlend;
 	re.GetRenderScale = R_PostFXRenderScale;

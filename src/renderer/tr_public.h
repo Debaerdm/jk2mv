@@ -123,7 +123,11 @@ typedef struct {
 	void	(*GetBModelVerts)( int bmodelIndex, vec3_t *vec, vec3_t normal );
 
 	int (*CaptureFrameRaw)( byte *buffer, int bufSize, int padding );
+	// the JPEG size, 0 if the frame couldn't be read, -1 without memory
 	int (*CaptureFrameJPEG)( byte *buffer, int bufSize, int quality );
+	// frees what CaptureFrameJPEG keeps from frame to frame: the recording
+	// is over
+	void (*FreeCaptureBuffers)( void );
 
 	// r_gpuTimers: GPU microseconds of a recent frame and of its glow and
 	// post-process passes, -1 when off

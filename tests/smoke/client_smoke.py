@@ -9,7 +9,22 @@ screenshot output. It can't enter a map: cgame needs the retail player
 models. Then 'preset ultra' and 'preset classic' must only touch
 registered cvars, and classic must undo exactly what ultra changed.
 
-usage: client_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
+A motion JPEG video of the test scene (cl_aviMotionJpeg 1, the default)
+must hold one JPEG frame of the render size per video frame, and leave no
+frame sized buffer in the zone once stopped. Another one
+starts under a console so full of text that the frame's render command
+list has no room left to read the frame: those frames are dropped (empty
+chunks), a JPEG screenshot taken then says it couldn't be, and once the
+console closes the recording goes on.
+
+With fail_malloc (a preloaded library, glibc only), a second run makes the
+frame sized allocations fail, as in a 32 bit process: every screenshot and
+the video must give up with a message, and the game go on. A third one, at
+642x480, only fails the renderer's video capture buffer (the client's
+frame buffer, of 4 byte aligned rows, is bigger): the motion JPEG video
+starts, then ends at its first frame with a message.
+
+usage: client_smoke.py <jk2mvmp> <directory holding the built base/> <work dir> [<fail_malloc.so>]
 """
 
 import glob
@@ -66,24 +81,13 @@ def exit_error(rc):
     return 'exit code %s' % rc
 
 
-def main():
-    if len(sys.argv) != 4:
-        sys.exit(__doc__)
-    client, built, work = (os.path.abspath(a) for a in sys.argv[1:])
-    subprocess.check_call([sys.executable, os.path.join(HERE, 'make_stub_base.py'), work, built])
-    # native menu module next to the game directory
-    for lib in glob.glob(os.path.join(built, 'jk2mvmenu_*')):
-        shutil.copy(lib, work)
-
-    env = dict(os.environ, SDL_VIDEODRIVER='offscreen', LIBGL_ALWAYS_SOFTWARE='1')
+def run_client(client, work, args, env=None):
+    """Runs the client on the stub game directory: exit code and log. args
+    come after the defaults and can override them."""
+    env = dict(dict(os.environ, SDL_VIDEODRIVER='offscreen', LIBGL_ALWAYS_SOFTWARE='1'), **(env or {}))
     cmd = [client, '+set', 'fs_basepath', work, '+set', 'fs_homepath', work,
            '+set', 'r_allowsoftwaregl', '1', '+set', 'r_fullscreen', '0', '+set', 'r_mode', '3',
-           '+set', 's_initsound', '0', '+set', 'com_introplayed', '1',
-           '+wait', '60', '+toggleconsole', '+wait', '30', '+screenshot_tga', SHOTS[0], '+wait', '5',
-           '+vid_restart', '+wait', '30', '+screenshot_tga', SHOTS[1], '+wait', '5',
-           # both run in one frame, which ends with a single renderer
-           # restart for them, before the wait and the quit
-           '+preset', 'ultra', '+preset', 'classic', '+wait', '5', '+quit']
+           '+set', 's_initsound', '0', '+set', 'com_introplayed', '1'] + args
     try:
         proc = subprocess.run(cmd, cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               timeout=180)
@@ -93,6 +97,209 @@ def main():
     # drop color codes and the com_timestamps prefix of the console output
     log = re.sub(r'\x1b\[[0-9;]*m', '', out)
     log = re.sub(r'^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ', '', log, flags=re.M)
+    return rc, log
+
+
+# 640x480 frames of 3 bytes per pixel, and the zone's header and tail
+FRAME_BYTES = 640 * 480 * 3
+CAPTURES = [('screenshot', 'ci_nomem', 'jpg'), ('screenshot_png', 'ci_nomem', 'png'),
+            ('screenshot_tga', 'ci_nomem', 'tga')]
+
+
+def check_capture_memory(client, work, fail_malloc):
+    """Errors of the run where the frame sized allocations fail."""
+    args = ['+wait', '30']
+    for command, name, _ in CAPTURES:
+        args += ['+' + command, name, '+wait', '5']     # taken at the end of the next frame
+    args += ['+set', 'cl_aviMotionJpeg', '1', '+testscene', 'ci_box', '-256', '0', '96',
+             '+wait', '5', '+video', 'ci_nomem', '+wait', '10', '+stopvideo', '+wait', '5', '+quit']
+    rc, log = run_client(client, work, args, {'LD_PRELOAD': fail_malloc, 'FAIL_MALLOC_MIN': str(FRAME_BYTES),
+                                               'FAIL_MALLOC_MAX': str(FRAME_BYTES + 256)})
+    with open(os.path.join(work, 'client_nomem.log'), 'w') as f:
+        f.write(log)
+    errors = []
+    if exit_error(rc):
+        errors.append('without capture memory: ' + exit_error(rc))
+    for marker in FATAL_MARKERS:
+        if marker in log:
+            errors.append('without capture memory: log contains %r' % marker)
+    if log.count('not enough memory to capture a 640x480 frame') != len(CAPTURES):
+        errors.append('without capture memory: %d screenshot warnings, expected %d'
+                      % (log.count('not enough memory to capture a 640x480 frame'), len(CAPTURES)))
+    if 'video: not enough memory for 640x480 frames' not in log:
+        errors.append('without capture memory: the video started')
+    for _, name, ext in CAPTURES:
+        if os.path.exists(os.path.join(work, 'base', 'screenshots', '%s.%s' % (name, ext))):
+            errors.append('without capture memory: %s.%s written' % (name, ext))
+    if os.path.exists(os.path.join(work, 'base', 'videos', 'ci_nomem.avi')):
+        errors.append('without capture memory: ci_nomem.avi written')
+    return errors
+
+
+def read_avi(path):
+    """(width, height, frames of the AVI header, data of each video chunk)."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    avih = data.find(b'avih')
+    total = struct.unpack('<I', data[avih + 24:avih + 28])[0]
+    width, height = struct.unpack('<2I', data[avih + 40:avih + 48])
+    chunks = []
+    pos = data.find(b'movi') + 4
+    while pos + 8 <= len(data):
+        chunk, size = data[pos:pos + 4], struct.unpack('<I', data[pos + 4:pos + 8])[0]
+        if chunk == b'idx1':
+            break
+        if chunk == b'00dc':
+            chunks.append(data[pos + 8:pos + 8 + size])
+        pos += 8 + size + (size & 1)
+    return width, height, total, chunks
+
+
+def jpeg_size(data):
+    """(width, height) of a baseline JPEG image, None if it isn't one."""
+    if not data.startswith(b'\xff\xd8') or b'\xff\xd9' not in data[-16:]:
+        return None
+    sof = data.find(b'\xff\xc0')
+    if sof < 0:
+        return None
+    height, width = struct.unpack('>2H', data[sof + 5:sof + 9])
+    return width, height
+
+
+# the video starts on the test scene, a frame per engine frame
+VIDEO_SCENE = ['+set', 'cl_aviMotionJpeg', '1', '+testscene', 'ci_box', '-256', '0', '96', '+wait', '5']
+
+
+def check_motion_jpeg(client, work):
+    """Errors of a motion JPEG recording of the test scene."""
+    args = VIDEO_SCENE + ['+zone_stats', '+video', 'ci_mjpeg', '+wait', '20', '+stopvideo', '+wait', '5',
+                          '+zone_stats', '+quit']
+    rc, log = run_client(client, work, args)
+    with open(os.path.join(work, 'client_mjpeg.log'), 'w') as f:
+        f.write(log)
+    errors = []
+    if exit_error(rc):
+        errors.append('motion JPEG video: ' + exit_error(rc))
+    for marker in FATAL_MARKERS:
+        if marker in log:
+            errors.append('motion JPEG video: log contains %r' % marker)
+    # the capture buffers of the client and the renderer are freed with the
+    # recording, not kept until the next map load or vid_restart
+    zone = [int(size) for size in re.findall(r'The zone is using (\d+) bytes', log)]
+    if len(zone) != 2:
+        errors.append('motion JPEG video: %d zone_stats, expected 2' % len(zone))
+    else:
+        print('motion JPEG video: the zone holds %d bytes before, %d after' % tuple(zone))
+        if zone[1] - zone[0] >= FRAME_BYTES // 2:
+            errors.append('motion JPEG video: %d more bytes in the zone after it' % (zone[1] - zone[0]))
+    avi = os.path.join(work, 'base', 'videos', 'ci_mjpeg.avi')
+    if not os.path.isfile(avi):
+        return errors + ['motion JPEG video: ci_mjpeg.avi not written']
+    width, height, total, chunks = read_avi(avi)
+    sizes = [jpeg_size(chunk) for chunk in chunks]
+    print('motion JPEG video: %dx%d, %d frames in the header, %d chunks, %d bytes in all'
+          % (width, height, total, len(chunks), sum(len(chunk) for chunk in chunks)))
+    if (width, height) != (640, 480):
+        errors.append('motion JPEG video: %dx%d, expected 640x480' % (width, height))
+    if len(chunks) < 5 or total != len(chunks):
+        errors.append('motion JPEG video: %d chunks, %d frames in the header, expected the same 5 or more'
+                      % (len(chunks), total))
+    bad = [n for n, size in enumerate(sizes) if size != (640, 480)]
+    if bad:
+        errors.append('motion JPEG video: frames %s are not 640x480 JPEG images' % bad)
+    return errors
+
+
+# a console of 60 rows of 160 characters (scale 0.5 at 640x480), opened
+# at once, where each character is a 48 byte stretch-pic command: more
+# than the 256 KB of the frame's command list
+FULL_CONSOLE = ['+set', 'con_scale', '0.5', '+set', 'con_height', '1', '+set', 'con_speed', '1000',
+                '+exec', 'ci_full_console', '+toggleconsole', '+wait', '5']
+
+
+def check_full_console_video(client, work):
+    """Errors of a motion JPEG recording under a console that fills the
+    render command list."""
+    with open(os.path.join(work, 'base', 'ci_full_console.cfg'), 'w') as f:
+        f.write(''.join('echo %s\n' % ('M' * 150) for _ in range(70)))
+    args = VIDEO_SCENE + FULL_CONSOLE + ['+video', 'ci_full_console', '+wait', '5',
+                                         '+screenshot', 'ci_full_console', '+wait', '5', '+toggleconsole',
+                                         '+wait', '20', '+stopvideo', '+wait', '5', '+quit']
+    rc, log = run_client(client, work, args)
+    with open(os.path.join(work, 'client_full_console.log'), 'w') as f:
+        f.write(log)
+    errors = []
+    if exit_error(rc):
+        errors.append('full console video: ' + exit_error(rc))
+    for marker in FATAL_MARKERS:
+        if marker in log:
+            errors.append('full console video: log contains %r' % marker)
+    if "couldn't capture the frame" in log or 'not enough memory' in log:
+        errors.append('full console video: the recording ended, or blamed memory')
+    if "couldn't read the frame, screenshots/ci_full_console.jpg not written" not in log:
+        errors.append('full console video: the screenshot that could not be read said nothing')
+    if os.path.exists(os.path.join(work, 'base', 'screenshots', 'ci_full_console.jpg')):
+        errors.append('full console video: ci_full_console.jpg written without its frame')
+    avi = os.path.join(work, 'base', 'videos', 'ci_full_console.avi')
+    if not os.path.isfile(avi):
+        return errors + ['full console video: ci_full_console.avi not written']
+    chunks = read_avi(avi)[3]
+    dropped = [n for n, chunk in enumerate(chunks) if not chunk]
+    images = [n for n, chunk in enumerate(chunks) if jpeg_size(chunk) == (640, 480)]
+    print('full console video: %d chunks, frames %s dropped, %d JPEG images'
+          % (len(chunks), dropped, len(images)))
+    if not dropped:
+        errors.append('full console video: no frame dropped (the console no longer fills the command list?)')
+    if len(images) < 5 or images[-1] != len(chunks) - 1 or len(dropped) + len(images) != len(chunks):
+        errors.append('full console video: the recording did not go on after the console closed')
+    return errors
+
+
+def check_video_capture_memory(client, work, fail_malloc):
+    """Errors of the run where the renderer's video capture buffer fails."""
+    frame = 642 * 480 * 3     # the renderer's; the client's is PAD(642 * 3, 4) * 480
+    args = ['+set', 'r_mode', '-1', '+set', 'r_customwidth', '642', '+set', 'r_customheight', '480'] + \
+        VIDEO_SCENE + ['+video', 'ci_nomem_mjpeg', '+wait', '10', '+stopvideo', '+wait', '5', '+quit']
+    rc, log = run_client(client, work, args, {'LD_PRELOAD': fail_malloc, 'FAIL_MALLOC_MIN': str(frame),
+                                               'FAIL_MALLOC_MAX': str(frame + 256)})
+    with open(os.path.join(work, 'client_nomem_mjpeg.log'), 'w') as f:
+        f.write(log)
+    errors = []
+    if exit_error(rc):
+        errors.append('without video capture memory: ' + exit_error(rc))
+    for marker in FATAL_MARKERS:
+        if marker in log:
+            errors.append('without video capture memory: log contains %r' % marker)
+    if 'video: not enough memory' in log:
+        errors.append('without video capture memory: the client buffer failed (test no longer meaningful)')
+    if 'not enough memory to capture a 642x480 frame' not in log:
+        errors.append('without video capture memory: no warning from the renderer')
+    if log.count("video: couldn't capture the frame, ending the recording") != 1:
+        errors.append('without video capture memory: the recording did not end once')
+    avi = os.path.join(work, 'base', 'videos', 'ci_nomem_mjpeg.avi')
+    if not os.path.isfile(avi):
+        errors.append('without video capture memory: ci_nomem_mjpeg.avi not closed')
+    elif read_avi(avi)[3]:
+        errors.append('without video capture memory: ci_nomem_mjpeg.avi has frames')
+    return errors
+
+
+def main():
+    if len(sys.argv) not in (4, 5):
+        sys.exit(__doc__)
+    client, built, work = (os.path.abspath(a) for a in sys.argv[1:4])
+    fail_malloc = os.path.abspath(sys.argv[4]) if len(sys.argv) > 4 else None
+    subprocess.check_call([sys.executable, os.path.join(HERE, 'make_stub_base.py'), work, built])
+    # native menu module next to the game directory
+    for lib in glob.glob(os.path.join(built, 'jk2mvmenu_*')):
+        shutil.copy(lib, work)
+
+    rc, log = run_client(client, work, [
+           '+wait', '60', '+toggleconsole', '+wait', '30', '+screenshot_tga', SHOTS[0], '+wait', '5',
+           '+vid_restart', '+wait', '30', '+screenshot_tga', SHOTS[1], '+wait', '5',
+           # both run in one frame, which ends with a single renderer
+           # restart for them, before the wait and the quit
+           '+preset', 'ultra', '+preset', 'classic', '+wait', '5', '+quit'])
     with open(os.path.join(work, 'client.log'), 'w') as f:
         f.write(log)
 
@@ -142,11 +349,18 @@ def main():
             errors.append('the presets did not ask for a renderer restart')
         print('preset ultra changed %d cvars, preset classic %d' % (len(ultra[0]), len(classic[0])))
 
+    errors += check_motion_jpeg(client, work)
+    errors += check_full_console_video(client, work)
+    if fail_malloc:
+        errors += check_capture_memory(client, work, fail_malloc)
+        errors += check_video_capture_memory(client, work, fail_malloc)
+
     if errors:
         print('\n'.join(log.splitlines()[-60:]))
         print('client smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
-    print('client smoke test passed: renderer up, console drawn, vid_restart, screenshots written, presets')
+    print('client smoke test passed: renderer up, console drawn, vid_restart, screenshots written, presets, '
+          'motion JPEG video%s' % (', captures without memory' if fail_malloc else ''))
 
 
 if __name__ == '__main__':
