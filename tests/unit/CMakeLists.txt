@@ -270,6 +270,11 @@ add_jk2mv_test(test_mv_limits
   test_mv_limits.cpp
 )
 
+# the bound of sv_maxclients before the version is chosen (the real engine header)
+add_jk2mv_test(test_sv_init_clients
+  test_sv_init_clients.cpp
+)
+
 # ==============================================================================
 # Ghoul2 reference tests and micro-benchmarks (FE-16): the engine's skeleton,
 # bolt, collision and skinning code on synthetic GLA/GLM models, compiled with

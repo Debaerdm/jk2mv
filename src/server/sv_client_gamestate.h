@@ -53,7 +53,7 @@ void SV_SendClientGameState( client_t *client ) {
 	}
 
 	Com_Memset( &nullstate, 0, sizeof( nullstate ) );
-	for ( start = 0 ; start < MAX_GENTITIES; start++ ) {
+	for ( start = 0 ; start < MV_MaxGEntities(); start++ ) {
 		base = &sv.svEntities[start].baseline;
 		if ( !base->number ) {
 			continue;

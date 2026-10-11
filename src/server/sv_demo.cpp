@@ -350,7 +350,7 @@ static qboolean SV_DemoWriteGamestate( client_t *cl, svDemo_t *demo ) {
 	}
 
 	Com_Memset( &nullstate, 0, sizeof( nullstate ) );
-	for ( i = 0; i < MAX_GENTITIES; i++ ) {
+	for ( i = 0; i < MV_MaxGEntities(); i++ ) {
 		if ( sv.svEntities[i].baseline.number ) {
 			MSG_WriteByte( &msg, svc_baseline );
 			MSG_WriteDeltaEntity( &msg, &nullstate, &sv.svEntities[i].baseline, qtrue );

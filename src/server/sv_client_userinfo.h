@@ -187,6 +187,7 @@ static void SV_UpdateUserinfo_f( client_t *cl ) {
 
 	VM_Call( gvm, GAME_CLIENT_USERINFO_CHANGED, cl - svs.clients );
 
+	MV_ASSERT_LEGACY_CONFIGSTRINGS();	// CS_PLAYERS: per protocol in step 2
 	SV_GetConfigstring(CS_PLAYERS + (cl - svs.clients), info, sizeof(info));
 	Info_SetValueForKey(cl->userinfo, "name", Info_ValueForKey(info, "n"));
 	Q_strncpyz(cl->name, Info_ValueForKey(info, "n"), sizeof(cl->name));

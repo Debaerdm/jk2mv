@@ -61,7 +61,7 @@ static void SV_BuildClientSnapshot( client_t *client ) {
 	// never send client's own entity, because it can
 	// be regenerated from the playerstate
 	clientNum = frame->ps.clientNum;
-	if ( clientNum < 0 || clientNum >= MAX_GENTITIES ) {
+	if ( clientNum < 0 || clientNum >= MV_MaxGEntities() ) {
 		Com_Error( ERR_DROP, "SV_SvEntityForGentity: bad gEnt" );
 	}
 	svEnt = &sv.svEntities[ clientNum ];

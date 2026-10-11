@@ -516,4 +516,32 @@ TEST(SvWorldClip, LegacySentinels) {
 	EXPECT_EQ( t.entityNum, 1023 );
 	EXPECT_EQ( g_printed, "" );
 }
+
+// with the limits of a smaller protocol, 511 is "no entity" and 510 the world:
+// the sentinels SV_Trace takes and gives follow the protocol in use
+TEST(SvWorldClip, SentinelsFollowTheRuntimeLimit) {
+	const vec3_t mins = { -16, -16, -16 }, maxs = { 16, 16, 16 };
+	const vec3_t high = { 0, 0, 512 }, higher = { 0, 0, 1024 }, below = { 0, 0, -32 };
+	const vec3_t start = { 0, 0, 64 }, end = { 400, 0, 64 };
+	trace_t t;
+
+	LoadMap( FloorWorld() );
+	BoxEntity( 5, 200, 0, 64, mins, maxs, CONTENTS_BODY );
+	g_ents[5].r.ownerNum = 511;
+	{
+		ScopedLimits small( kSmallLimits );
+		sv.num_entities = 512;
+		SV_Trace( &t, high, vec3_origin, vec3_origin, higher, 511, MASK_SOLID, qfalse, 0, 0 );
+		EXPECT_EQ( t.entityNum, 511 );
+		SV_Trace( &t, high, vec3_origin, vec3_origin, below, 511, MASK_SOLID, qfalse, 0, 0 );
+		EXPECT_EQ( t.entityNum, 510 );
+		SV_Trace( &t, start, vec3_origin, vec3_origin, end, 511, MASK_PLAYERSOLID, qfalse, 0, 0 );
+		EXPECT_EQ( t.entityNum, 5 );		// 511 is no pass entity
+	}
+	sv.num_entities = MAX_GENTITIES;
+	SV_Trace( &t, start, vec3_origin, vec3_origin, end, 511, MASK_PLAYERSOLID, qfalse, 0, 0 );
+	EXPECT_EQ( t.entityNum, 1023 );			// 511 is a real entity, 5 its missile
+	EXPECT_EQ( g_printed, "" );
+}
+
 } // namespace

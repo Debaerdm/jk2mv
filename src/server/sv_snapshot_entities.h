@@ -124,6 +124,7 @@ static void SV_AddEntitiesVisibleFromPoint( vec3_t origin, clientSnapshot_t *fra
 
 			// MV entities can be flagged to be sent only to specific
 			// clients (can't filter following spectators this way)
+			MV_ASSERT_LEGACY_MVAPI_CLIENTS();	// 32 clients: per API level in step 2
 			if ( mvEnt->snapshotIgnore[frame->ps.clientNum] ) continue;
 			else if ( mvEnt->snapshotEnforce[frame->ps.clientNum] )
 			{

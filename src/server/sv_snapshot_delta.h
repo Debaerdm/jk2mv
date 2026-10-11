@@ -68,6 +68,7 @@ static void SV_EmitPacketEntities( clientSnapshot_t *from, clientSnapshot_t *to,
 		}
 	}
 
+	MV_ASSERT_LEGACY_ENTITY_ENCODING();	// ENTITYNUM_NONE in GENTITYNUM_BITS: per protocol in step 2
 	MSG_WriteBits( msg, (MAX_GENTITIES-1), GENTITYNUM_BITS );	// end of packetentities
 }
 

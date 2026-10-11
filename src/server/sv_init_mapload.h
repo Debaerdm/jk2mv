@@ -220,6 +220,20 @@ void SV_SpawnServer( char *server, qboolean killBots, ForceReload_e eForceReload
 	}
 
 	Cvar_Set("protocol", va("%i", MV_GetCurrentProtocol()));
+	// Holds while every row has 32 clients. Step 2: SV_Startup and
+	// SV_ChangeMaxClients bounded sv_maxclients above by MAX_CLIENTS only,
+	// before the version was chosen, and only on startup or when the cvar
+	// changed, with the connected slots winning. Take the protocol's slots
+	// here, on every map, and check them in Release too:
+	// - down: from a 64-client map to a 1.02-1.04 one, sv_maxclients would
+	//   stay 64 with a 32-client module; the cap wins over the connected
+	//   slots (drop the clients past it, or refuse the protocol change on a
+	//   running server);
+	// - up: a 1.05 map after a 1.02-1.04 one gets back the slots the user
+	//   asked for, min( asked, MV_MaxClients() ), not a cvar that an earlier
+	//   row lowered, and svs.clients grows through SV_ChangeMaxClients, which
+	//   reallocates it.
+	assert( sv_maxclients->integer <= MV_MaxClients() );
 
 	// make sure we are not paused
 	Cvar_Set("cl_paused", "0");

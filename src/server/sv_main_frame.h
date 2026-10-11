@@ -38,7 +38,7 @@ static void MV_FixSaberStealing( void )
 			ps = SV_GameClientNum( i );
 
 			if ( ps->persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
-				ps->saberEntityNum = ENTITYNUM_NONE;
+				ps->saberEntityNum = MV_ENTITYNUM_NONE;
 			}
 		}
 	}

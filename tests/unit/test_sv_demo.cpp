@@ -1325,3 +1325,22 @@ TEST_F( SvDemo, LegacyDemoBytesNeverChange ) {
 	ResetServer();
 	EXPECT_EQ( RecordedDemoHash( VERSION_1_02, "demos/golden.dm_15" ), 0x68411deb7421ffafull );
 }
+
+// the gamestate's baselines stop at the entity limit of the protocol in use
+TEST_F( SvDemo, BaselinesFollowTheRuntimeLimit ) {
+	client_t	*cl = Join( 0, "Padawan", false );
+
+	sv.svEntities[600].baseline = Ent( 600, 16 );
+	Command( "svrecord 0 legacy" );
+	Snapshot( cl, 50, { Ent( 40, 64 ) } );
+	Command( "svstoprecord 0" );
+	EXPECT_EQ( ReadDemo( File( "demos/legacy.dm_16" ) ).baselines.count( 600 ), 1u );
+
+	ScopedLimits small( kSmallLimits );
+	Command( "svrecord 0 small" );
+	Snapshot( cl, 50, { Ent( 40, 64 ) } );
+	Command( "svstoprecord 0" );
+	Demo demo = ReadDemo( File( "demos/small.dm_16" ) );
+	EXPECT_EQ( demo.baselines.count( 600 ), 0u );
+	EXPECT_EQ( demo.baselines.count( 300 ), 1u );
+}

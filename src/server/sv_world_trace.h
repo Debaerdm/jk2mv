@@ -97,16 +97,17 @@ void SV_ClipMoveToEntities( moveclip_t *clip ) {
 	clipHandle_t	clipHandle;
 	const float		*origin, *angles;
 	int			thisOwnerShared = 1;
+	const int	entityNumNone = MV_ENTITYNUM_NONE;	// the modules' ENTITYNUM_NONE, once per call
 
 	num = SV_AreaEntities( clip->boxmins, clip->boxmaxs, touchlist, MAX_GENTITIES);
 
 	if ( clip->passEntityNum < 0 ) {
 		passOwnerNum = -1;	// common bad API usage in original modules
-	} else if ( clip->passEntityNum != ENTITYNUM_NONE ) {
+	} else if ( clip->passEntityNum != entityNumNone ) {
 		const sharedEntity_t *passEnt = SV_GentityNum( clip->passEntityNum );
 
 		passOwnerNum = passEnt->r.ownerNum;
-		if ( passOwnerNum == ENTITYNUM_NONE ) {
+		if ( passOwnerNum == entityNumNone ) {
 			passOwnerNum = -1;
 		}
 		if ( passEnt->r.svFlags & SVF_OWNERNOTSHARED )
@@ -124,7 +125,7 @@ void SV_ClipMoveToEntities( moveclip_t *clip ) {
 		touch = SV_GentityNum( touchlist[i] );
 
 		// see if we should ignore this entity
-		if ( clip->passEntityNum != ENTITYNUM_NONE ) {
+		if ( clip->passEntityNum != entityNumNone ) {
 			if ( touchlist[i] == clip->passEntityNum ) {
 				continue;	// don't clip against the pass entity
 			}
@@ -221,7 +222,7 @@ void SV_Trace( trace_t *results, const vec3_t start, const vec3_t mins, const ve
 
 	// clip to world
 	CM_BoxTrace( &clip.trace, start, end, mins, maxs, 0, contentmask, capsule );
-	clip.trace.entityNum = clip.trace.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
+	clip.trace.entityNum = clip.trace.fraction != 1.0f ? MV_ENTITYNUM_WORLD : MV_ENTITYNUM_NONE;
 	if ( clip.trace.fraction == 0 ) {
 		*results = clip.trace;
 		return;		// blocked immediately by the world

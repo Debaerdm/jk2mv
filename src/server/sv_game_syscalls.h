@@ -71,7 +71,7 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 		return FS_GetFileList( VMAS(1), VMAS(2), VMAP(3, char, args[4]), args[4] );
 
 	case G_LOCATE_GAME_DATA:
-		SV_LocateGameData( (sharedEntity_t *)VM_ArgArray(args[0], args[1], args[3], args[2]), args[2], args[3], (playerState_t *)VM_ArgArray(args[0], args[4], args[5], MAX_CLIENTS), args[5] );
+		SV_LocateGameData( (sharedEntity_t *)VM_ArgArray(args[0], args[1], args[3], args[2]), args[2], args[3], (playerState_t *)VM_ArgArray(args[0], args[4], args[5], MV_MaxClients()), args[5] );
 		VM_LocateGameDataCheck( sv.gentitiesMV, sv.gentitySizeMV, sv.num_entities );
 		return 0;
 	case G_DROP_CLIENT:

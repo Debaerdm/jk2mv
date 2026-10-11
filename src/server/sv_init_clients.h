@@ -33,6 +33,11 @@ void SV_CreateBaseline( void ) {
 ===============
 SV_BoundMaxClients
 
+The cap is MAX_CLIENTS, the engine's capacity (sv_demos and the other
+per-client arrays), not MV_MaxClients(): SV_Startup and SV_ChangeMaxClients
+call this before SV_SpawnServer chooses the version, when the current row is
+still the previous map's or PROTOCOL_UNDEF's. The protocol's cap comes after
+the choice (docs/PROTOCOL-1.05.md, step 2, item 3).
 ===============
 */
 void SV_BoundMaxClients( int minimum ) {
