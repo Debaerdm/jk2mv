@@ -81,6 +81,15 @@ void SVStats_SetPacing( svStatsPending_t *p, int flags ) {
 	p->flags = (uint32_t)flags;
 }
 
+int SVStats_PaceFrame( svStatsPending_t *p, int hibernating, int hibernateFps, float fps ) {
+	if ( hibernating ) {
+		SVStats_SetPacing( p, SVSTAT_HIBERNATING );
+		return (int)( 1000.0f / ( hibernateFps > 0 ? hibernateFps : 5 ) );
+	}
+	SVStats_SetPacing( p, 0 );
+	return (int)( 1000.0f / fps );
+}
+
 void SVStats_Record( svStatsHistory_t *h, svStatsPending_t *p, uint32_t endMsec,
 					int gameFrames, int frameMsec ) {
 	svStatsFrame_t *f = &h->frames[h->head];

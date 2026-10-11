@@ -238,6 +238,33 @@ TEST_F(SVStatsTest, RecordingClearsThePacing) {
 	EXPECT_EQ( s.maxGameFrames, 5 );
 }
 
+TEST_F(SVStatsTest, PaceFrameGivesTheFrameLengthAndItsPacing) {
+	// SV_FrameMsec: sv_fps, or sv_hibernateFps while hibernating
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 0, 4, 20.0f ), 50 );
+	EXPECT_EQ( pending.flags, 0u );
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 1, 4, 20.0f ), 250 );
+	EXPECT_EQ( pending.flags, (uint32_t)SVSTAT_HIBERNATING );
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 0, 4, 40.0f ), 25 );
+	EXPECT_EQ( pending.flags, 0u );
+
+	// the lengths of before: 1000.0f / fps, cut to an int
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 0, 4, 30.0f ), 33 );
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 0, 4, 1000.0f ), 1 );
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 0, 4, 0.5f ), 2000 );
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 1, 3, 20.0f ), 333 );
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 1, 0, 20.0f ), 200 );
+	EXPECT_EQ( SVStats_PaceFrame( &pending, 1, -2, 20.0f ), 200 );
+	EXPECT_EQ( pending.flags, (uint32_t)SVSTAT_HIBERNATING );
+
+	// a recorded frame takes the latest pacing
+	SVStats_PaceFrame( &pending, 0, 4, 20.0f );
+	SVStats_Record( history.get(), &pending, 1000, 1, 50 );
+	SVStats_PaceFrame( &pending, 1, 4, 20.0f );
+	SVStats_Record( history.get(), &pending, 1250, 5, 50 );
+	EXPECT_EQ( history->frames[0].flags, 0 );
+	EXPECT_EQ( history->frames[1].flags, SVSTAT_HIBERNATING );
+}
+
 TEST_F(SVStatsTest, AFrameTakesTheLatestPacing) {
 	// an SV_Frame call that runs no game frame records nothing: its times
 	// wait for the next frame, whose own pacing replaces its flags

@@ -52,7 +52,6 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - le message développeur des réponses `disconnect` perdues ;
     - pas de seau global contre une inondation à sources usurpées ;
     - la glu moteur n'a pas de test.
-  - BM-7 : les appels de `SVStats_SetPacing` dans `SV_FrameMsec` n'ont pas de test unitaire.
   - SV-2 : les tests `HuffmanBenchmark` tournent à chaque ctest (1,4 s) ; `Huff_offsetTransmitTable` et `Huff_offsetReceiveTable` ne servent qu'aux tests ; SV-8 devra traiter les globales de msg.cpp.
   - VQ-7 :
     - en 32 bits, une capture énorme qui ne trouve pas sa mémoire termine le jeu (`Z_Malloc`), et `video` alloue un tampon par image ;

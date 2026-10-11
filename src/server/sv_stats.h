@@ -110,6 +110,11 @@ void		SVStats_AddSnapshot( svStatsPending_t *p, int type, int bytes, int entitie
 // listen server is not paced by SV_FrameMsec, so its frames get 0.
 void		SVStats_SetPacing( svStatsPending_t *p, int flags );
 
+// SV_FrameMsec's pacing: the length in msec of the next server frame, at
+// hibernateFps (5 when not positive) while hibernating, else at fps, which
+// it gives to SVStats_SetPacing
+int			SVStats_PaceFrame( svStatsPending_t *p, int hibernating, int hibernateFps, float fps );
+
 // Turns the pending counts into a frame, saturating what does not fit, adds
 // it to the history in place of the oldest frame when full, and clears them,
 // pacing included.

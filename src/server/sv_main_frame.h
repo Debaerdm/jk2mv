@@ -16,13 +16,9 @@ int SV_FrameMsec() {
 
 		// serverstats flags the frame from this pacing, not from the
 		// hibernation state at its end (sv_stats.h)
-		if ( svs.hibernation.enabled && svs.hibernation.disableUntil <= svs.time ) {
-			frameMsec = 1000.0f / (sv_hibernateFps->integer > 0 ? sv_hibernateFps->integer : 5);
-			SVStats_SetPacing( &svStats.pending, SVSTAT_HIBERNATING );
-		} else {
-			frameMsec = 1000.0f / sv_fps->value;
-			SVStats_SetPacing( &svStats.pending, 0 );
-		}
+		frameMsec = SVStats_PaceFrame( &svStats.pending,
+			svs.hibernation.enabled && svs.hibernation.disableUntil <= svs.time,
+			sv_hibernateFps->integer, sv_fps->value );
 
 		if (frameMsec < sv.timeResidual)
 			return 0;
