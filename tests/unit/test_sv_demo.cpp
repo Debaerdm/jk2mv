@@ -1070,6 +1070,40 @@ TEST_F( SvDemo, AutoRecordStartsAFewDemosInEachServerFrame ) {
 	EXPECT_EQ( openFiles.size(), 4u );
 }
 
+TEST_F( SvDemo, StopRecordAllStopsTheAutoDemosNotStartedYet ) {
+	for ( int i = 0; i < 6; i++ ) {
+		Join( i, va( "Bot%i", i ), true );
+	}
+	Join( 6, "Padawan", false );
+	svs.clients[6].state = CS_PRIMED;		// still loading
+	// slot 7 is free
+	autoRecordCvar.integer = 2;
+
+	Frame( 50 );
+	EXPECT_EQ( openFiles.size(), 4u );
+	Command( "svstoprecord all" );
+	EXPECT_TRUE( openFiles.empty() );
+
+	// neither the 2 left for the next frame nor the one still loading
+	svs.clients[6].state = CS_ACTIVE;
+	Frame( 50 );
+	Frame( 50 );
+	EXPECT_TRUE( openFiles.empty() );
+
+	// the clients that connect afterwards are recorded: a bot added to the
+	// slot that was free, which SV_BotAllocateClient takes without
+	// SV_DemoClientGone...
+	Join( 7, "LateBot", true );
+	Frame( 50 );
+	EXPECT_EQ( openFiles.size(), 1u ) << "the bot added later";
+
+	// ...and a player who reconnects, which SV_DirectConnect calls it for
+	SV_DemoClientGone( &svs.clients[6], " (reconnected)" );
+	Join( 6, "Newcomer", false );
+	Frame( 50 );
+	EXPECT_EQ( openFiles.size(), 2u ) << "the player who reconnected";
+}
+
 // ===========================================================================
 // when demos end
 // ===========================================================================

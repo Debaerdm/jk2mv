@@ -747,7 +747,12 @@ void SV_StopRecord_f( void ) {
 		return;
 	}
 
-	// what is stopped here, sv_autoRecord doesn't restart before the next map
+	// what is stopped here, sv_autoRecord doesn't restart before the next
+	// map; "all" also stops the demos it hasn't started yet (clients still
+	// loading, or waiting for DEMO_STARTS_PER_FRAME), but not those of the
+	// clients that connect later.  Only the slots taken now are marked: a bot
+	// takes a free slot without SV_DemoClientGone (SV_BotAllocateClient),
+	// which a human's connection calls.
 	if ( Cmd_Argc() == 1 || !Q_stricmp( Cmd_Argv( 1 ), "all" ) ) {
 		count = 0;
 		for ( i = 0; i < MAX_CLIENTS; i++ ) {
@@ -755,6 +760,8 @@ void SV_StopRecord_f( void ) {
 				SV_DemoClose( &sv_demos[i], "" );
 				sv_demos[i].autoTried = qtrue;
 				count++;
+			} else if ( svs.clients && i < sv_maxclients->integer && svs.clients[i].state >= CS_CONNECTED ) {
+				sv_demos[i].autoTried = qtrue;
 			}
 		}
 		if ( !count ) {

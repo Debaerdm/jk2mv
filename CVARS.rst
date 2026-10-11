@@ -1142,7 +1142,10 @@ Other Changes
   the server frame, so a slow disk doesn't hold the game up. ``svrecord``
   alone lists the demos being recorded. See also ``sv_autoRecord``.
 * ``svstoprecord [client number | all]`` ends the server-side demo of a
-  client, or all of them (the default).
+  client, or all of them (the default). ``sv_autoRecord`` doesn't record
+  what it stopped again before the next map; with ``all``, that includes
+  the clients it hasn't started recording yet, but not those who connect
+  later.
 * ``screenshot_png [name | silent]`` takes a lossless PNG screenshot.
 * ``testscene <map> [x y z [yaw [pitch]]] [dlight | dlights] [spin]`` draws a
   map from a fixed camera while disconnected, in place of the main menu and
