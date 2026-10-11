@@ -395,3 +395,81 @@ TEST(DlightSelect, PortalCameraRanksTheLightsNearIt) {
 	EXPECT_EQ( kept.count( 32 ), 1u ) << "next to the portal camera";
 	EXPECT_EQ( kept.count( 31 ), 0u ) << "the farthest light from both views makes room";
 }
+
+// Two world scenes in each frame (a mod drawing a second camera view) with
+// lights of their own: each keeps the choice it would make alone, as if it
+// were the only scene, instead of starting from the other's.
+TEST(DlightSelect, EachWorldSceneOfAFrameHasItsOwnHistory) {
+	std::mt19937 rng( 11 );
+	std::vector<dlselLight_t> crowds[2] = { SaberCrowd( 40, rng ), SaberCrowd( 40, rng ) };
+	dlselSceneHistories_t histories = {};
+	dlselHistory_t alone[2] = {};
+	int differing = 0, sharedDiffering = 0;
+	dlselHistory_t shared = {};
+	for ( int frame = 1; frame <= 200; frame++ ) {
+		for ( int scene = 0; scene < 2; scene++ ) {
+			for ( dlselLight_t &dl : crowds[scene] ) {
+				dl.radius = SaberRadius( rng );
+			}
+			const std::vector<int> chosen = Select( crowds[scene], R_DlightSceneHistory( &histories, frame ) );
+			differing += chosen != Select( crowds[scene], &alone[scene] );
+			// one history for both scenes, as before, for comparison
+			sharedDiffering += Select( crowds[scene], &shared ) != chosen;
+		}
+	}
+	EXPECT_EQ( differing, 0 );
+	EXPECT_GT( sharedDiffering, 0 );	// what the test is about
+}
+
+TEST(DlightSelect, ScenesPastTheLimitGoWithoutHistory) {
+	dlselSceneHistories_t histories = {};
+	std::set<dlselHistory_t *> seen;
+	for ( int scene = 0; scene < DLSEL_MAX_SCENES; scene++ ) {
+		dlselHistory_t *history = R_DlightSceneHistory( &histories, 7 );
+		ASSERT_NE( history, nullptr );
+		seen.insert( history );
+	}
+	EXPECT_EQ( seen.size(), (size_t)DLSEL_MAX_SCENES );
+	EXPECT_EQ( R_DlightSceneHistory( &histories, 7 ), nullptr );
+	// the next frame starts again with the first scene's
+	EXPECT_EQ( R_DlightSceneHistory( &histories, 8 ), &histories.scenes[0] );
+}
+
+// what R_SelectDlights hands each scene of a frame: a frame drawing the 3D
+// view, a HUD model (no world) and a mod's camera view, with
+// r_dlightPriority on, then off
+TEST(DlightSelect, OnlyWorldScenesWithPriorityHaveAHistory) {
+	dlselSceneHistories_t histories = {};
+	for ( int frame = 10; frame < 13; frame++ ) {
+		EXPECT_EQ( R_DlightHistoryForScene( &histories, true, true, frame ), &histories.scenes[0] ) << frame;
+		EXPECT_EQ( R_DlightHistoryForScene( &histories, true, false, frame ), nullptr ) << frame;
+		// the HUD model didn't take the camera view's place
+		EXPECT_EQ( R_DlightHistoryForScene( &histories, true, true, frame ), &histories.scenes[1] ) << frame;
+	}
+	EXPECT_EQ( R_DlightHistoryForScene( &histories, false, true, 13 ), nullptr );
+	EXPECT_EQ( R_DlightHistoryForScene( &histories, false, false, 13 ), nullptr );
+	// back on, the 3D view of the next frame has its history again
+	EXPECT_EQ( R_DlightHistoryForScene( &histories, true, true, 14 ), &histories.scenes[0] );
+}
+
+// two crowds drawn as two world scenes per frame through the same calls:
+// each keeps what it would alone
+TEST(DlightSelect, WorldScenesOfAFrameKeepTheirChoiceThroughTheSceneCall) {
+	std::mt19937 rng( 5 );
+	std::vector<dlselLight_t> crowds[2] = { SaberCrowd( 40, rng ), SaberCrowd( 40, rng ) };
+	dlselSceneHistories_t histories = {};
+	dlselHistory_t alone[2] = {};
+	int differing = 0;
+	for ( int frame = 1; frame <= 200; frame++ ) {
+		for ( int scene = 0; scene < 2; scene++ ) {
+			for ( dlselLight_t &dl : crowds[scene] ) {
+				dl.radius = SaberRadius( rng );
+			}
+			// a scene without a world in between, as a HUD model would be
+			EXPECT_EQ( R_DlightHistoryForScene( &histories, true, false, frame ), nullptr );
+			const std::vector<int> chosen = Select( crowds[scene], R_DlightHistoryForScene( &histories, true, true, frame ) );
+			differing += chosen != Select( crowds[scene], &alone[scene] );
+		}
+	}
+	EXPECT_EQ( differing, 0 );
+}

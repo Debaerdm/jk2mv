@@ -318,7 +318,8 @@ More dynamic lights than surfaces have bits for (big fights: sabers, shots,
 explosions): keep the MAX_DLIGHTS that matter most for this view at the
 start of the scene's list (tr_dlightselect.cpp). The 3D view remembers what
 it kept, so the lights near the cutoff don't flicker as their radius jitters;
-scenes without a world (menus, HUD models) don't use or change that memory.
+scenes without a world (menus, HUD models) don't use or change that memory,
+and each world scene of a frame has its own, by the order they're drawn in.
 
 Mirror and portal views drawn inside the scene use the same lights: with a
 portal surface entity in the scene, lights behind the viewer aren't dropped
@@ -329,8 +330,10 @@ distance to it.
 static_assert( MAX_DLIGHT_POOL <= DLSEL_MAX_LIGHTS && MAX_DLIGHTS <= DLSEL_MAX_KEEP, "dynamic light selection limits" );
 
 static void R_SelectDlights( const refdef_t *fd ) {
-	static dlselHistory_t	worldHistory;
-	dlselHistory_t	*history = r_dlightPriority->integer && !( fd->rdflags & RDF_NOWORLDMODEL ) ? &worldHistory : NULL;
+	static dlselSceneHistories_t	worldHistories;
+	// tr.frameCount: one more on every RE_BeginFrame, the same for the scenes of a frame
+	dlselHistory_t	*history = R_DlightHistoryForScene( &worldHistories, r_dlightPriority->integer != 0,
+		!( fd->rdflags & RDF_NOWORLDMODEL ), tr.frameCount );
 	const int		count = tr.refdef.num_dlights;
 	dlselLight_t	lights[MAX_DLIGHT_POOL];
 	dlselView_t		views[DLSEL_MAX_VIEWS];

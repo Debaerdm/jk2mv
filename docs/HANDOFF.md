@@ -63,7 +63,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - l'alpha-to-coverage d'un mod avec un alpha de sommet constant inférieur à 1 laisse passer une partie du fond ;
     - la glu (table du grade, image liée après `GL_State`) n'a pas de test ;
     - `GL_INVALID_VALUE` au premier rechargement du renderer avec MSAA 8x, HDR et bloom sous `r_ignoreGLErrors 0` (défaut de la base).
-  - Dlights : un seul historique pour toutes les scènes monde d'une frame.
+  - Dlights : le choix de l'historique de chaque scène (`R_DlightHistoryForScene`) est testé, pas son appel dans `R_SelectDlights` (tr_scene.cpp), qui lui donne `tr.frameCount` pour la frame : il faudrait deux scènes monde par frame dessinées par le moteur (un cgame ; testscene n'en dessine qu'une).
   - FOV : la glu cgame n'a pas de test ; un mod qui lit son `cg_fovAspectAdjust` par nom ne s'élargit pas.
   - Outils démo : la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180°.
   - Capture : l'attente de ffmpeg ne peut pas être annulée.

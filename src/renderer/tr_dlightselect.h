@@ -44,4 +44,26 @@ typedef struct {
 int R_DlightSelect( const dlselLight_t *lights, int count, int keep,
 	const dlselView_t *views, int numViews, dlselHistory_t *history, int *chosen );
 
+// The histories of the world scenes of each frame, by the order they are
+// drawn in: a second world scene (a mod's camera view) has its own, rather
+// than taking the 3D view's choice of the same frame for the last one.
+#define DLSEL_MAX_SCENES	4
+
+typedef struct {
+	int				frame;		// of the last scene
+	int				numScenes;	// scenes of that frame so far
+	dlselHistory_t	scenes[DLSEL_MAX_SCENES];
+} dlselSceneHistories_t;
+
+// The history of the next world scene of frame, NULL past DLSEL_MAX_SCENES
+// in a frame (no hysteresis for those).
+dlselHistory_t *R_DlightSceneHistory( dlselSceneHistories_t *histories, int frame );
+
+// The history a scene of frame selects with: none without priority
+// (r_dlightPriority 0) or without a world (menus, HUD models: they neither
+// use a world scene's history nor take its place in the frame), else the
+// next world scene's. frame must be the same for every scene of a frame and
+// change from one frame to the next.
+dlselHistory_t *R_DlightHistoryForScene( dlselSceneHistories_t *histories, bool priority, bool world, int frame );
+
 #endif

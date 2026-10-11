@@ -65,6 +65,24 @@ static void R_DlightsKeptBefore( const dlselLight_t *lights, int count, const dl
 	}
 }
 
+dlselHistory_t *R_DlightSceneHistory( dlselSceneHistories_t *histories, int frame ) {
+	if ( histories->frame != frame ) {
+		histories->frame = frame;
+		histories->numScenes = 0;
+	}
+	if ( histories->numScenes >= DLSEL_MAX_SCENES ) {
+		return nullptr;
+	}
+	return &histories->scenes[histories->numScenes++];
+}
+
+dlselHistory_t *R_DlightHistoryForScene( dlselSceneHistories_t *histories, bool priority, bool world, int frame ) {
+	if ( !priority || !world ) {
+		return nullptr;
+	}
+	return R_DlightSceneHistory( histories, frame );
+}
+
 int R_DlightSelect( const dlselLight_t *lights, int count, int keep,
 	const dlselView_t *views, int numViews, dlselHistory_t *history, int *chosen ) {
 	count = std::min( std::max( count, 0 ), DLSEL_MAX_LIGHTS );
