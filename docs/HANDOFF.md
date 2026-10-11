@@ -52,7 +52,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - le message développeur des réponses `disconnect` perdues ;
     - pas de seau global contre une inondation à sources usurpées ;
     - la glu moteur n'a pas de test.
-  - SV-2 : les tests `HuffmanBenchmark` tournent à chaque ctest (1,4 s) ; `Huff_offsetTransmitTable` et `Huff_offsetReceiveTable` ne servent qu'aux tests ; SV-8 devra traiter les globales de msg.cpp.
+  - SV-2 : `Huff_offsetTransmitTable` et `Huff_offsetReceiveTable` ne servent qu'aux tests ; SV-8 devra traiter les globales de msg.cpp.
   - VQ-7 :
     - en 32 bits, une capture énorme qui ne trouve pas sa mémoire termine le jeu (`Z_Malloc`), et `video` alloue un tampon par image ;
     - aucun test automatique de la console ni des graphes à une échelle autre que 1 ;
@@ -90,7 +90,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - `git -C D:\jk2mv-wt\<nom> submodule update --init` ; ne jamais modifier src/mvsdk (sous-module amont).
 - **Scripts :** build.ps1 et run.ps1 sont dans D:\jk2mv-wt\tools (ci-dessous `<rt>`), hors du dépôt car propres à cette machine. run.ps1 lance par défaut les binaires de D:\jk2mv-wt\integ\build-nj\out\Release et crée au besoin, dans le base\ du dossier `-BasePath` (par défaut celui des binaires), des liens durs vers les quatre pk3 retail (lecture seule). Les dossiers D:\jk2mv-wt\integ-logs (scripts des relectures et de l'intégration) et le scratchpad de la session d'origine sous %TEMP% sont temporaires : ce qui compte est recopié ici ou dans D:\jk2mv-wt\tools.
 - **Build :** `powershell -NoProfile -File <rt>\build.ps1 -Src D:\jk2mv-wt\<nom> [-Targets jk2mvded,jk2mvmp] [-Jobs 4] [-Clean]`. Ninja, MSVC 2022 x64 Release, CRT statique, tests compris. Les binaires sortent dans `build-nj\out\Release`, assetsmv*.pk3 dans son base\. Un build complet prend environ 90 s à -Jobs 4.
-- **Tests unitaires :** `ctest --test-dir D:\jk2mv-wt\<nom>\build-nj\tests -j 4` (le ctest de VS 2022 BuildTools). Pour les tests Kyle : `JK2MV_TEST_BASE=<dossier base\ retail>`.
+- **Tests unitaires :** `ctest --test-dir D:\jk2mv-wt\<nom>\build-nj\tests -j 4` (le ctest de VS 2022 BuildTools). Pour les tests Kyle : `JK2MV_TEST_BASE=<dossier base\ retail>`. `bench_ghoul2` et `bench_huffman` se lancent à la main pour les mesures ; ctest ne les fait tourner que brièvement (`--quick`).
 - **Lancer le jeu :** `<rt>\run.ps1 -Name <nom> [-Server] -Bin <build-nj\out\Release> [-BasePath <dossier>] -Commands '+cmd',...`. Il prend un fs_homepath neuf dans D:\jk2mv-wt\homes, des sockets sur 127.0.0.1, ne capture pas la souris et n'écrit jamais dans l'installation. Pièges vus pendant l'intégration :
   - Appeler run.ps1 avec `&` dans la session PowerShell quand une commande contient des guillemets (`+set activeAction "..."`) : `powershell -File` coupe ces arguments.
   - run.ps1 ajoute `wait 10; quit` au client sans `quit` : pour rejouer une démo jusqu'au bout avec `nextdemo quit`, il faut une copie qui ne l'ajoute pas (D:\jk2mv-wt\integ-logs\run2.ps1, option `-NoAutoQuit`).

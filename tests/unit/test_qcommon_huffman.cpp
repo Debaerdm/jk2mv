@@ -3,7 +3,8 @@
 // Links the real engine sources (src/qcommon/huffman.cpp and msg.cpp) and
 // checks them against a copy of the tree-walking code they replaced: the
 // netchan bits must stay the same for every input, in both directions, at
-// every bit offset. The benchmarks at the end print the speedups.
+// every bit offset. The benchmarks at the end (bench_huffman) print the
+// speedups.
 
 #include <gtest/gtest.h>
 #include <algorithm>
@@ -1341,10 +1342,6 @@ void ExpectSameMessages( const std::vector<BitOp> &ops, int maxsize, uint32_t se
 	}
 }
 
-double Seconds( std::chrono::steady_clock::time_point since ) {
-	return std::chrono::duration<double>( std::chrono::steady_clock::now() - since ).count();
-}
-
 } // namespace
 
 // ==============================================================================
@@ -1754,10 +1751,21 @@ TEST(HuffmanAdaptive, CompressAndDecompressMatchOldCode) {
 
 // ==============================================================================
 // Benchmarks: the old code against the tables, each the best of several runs
-// in turn (other programs share the machine)
+// in turn (other programs share the machine). They are built into
+// bench_huffman, not test_qcommon_huffman: run it by hand to time a change.
+// ctest only runs it with --quick, so that it keeps building and working (it
+// never fails on a time).
 // ==============================================================================
 
+#ifdef HUFFMAN_BENCHMARKS
+
 namespace {
+
+bool quick;		// --quick: one short run of each, the times mean nothing
+
+double Seconds( std::chrono::steady_clock::time_point since ) {
+	return std::chrono::duration<double>( std::chrono::steady_clock::now() - since ).count();
+}
 
 // write the calls with MSG_WriteBits and read them back with MSG_ReadBits,
 // pass 0 with the old code and pass 1 with the engine
@@ -1811,12 +1819,12 @@ void BenchBitOps( const std::vector<BitOp> &ops, int runs, double write[2], doub
 TEST(HuffmanBenchmark, MessageBitsSpeedup) {
 	// the field widths and values of snapshots: mostly 1-bit "unchanged" flags
 	Rng r( 17 );
-	const std::vector<BitOp> ops = RealLookingOps( r, 400 );
+	const std::vector<BitOp> ops = RealLookingOps( r, quick ? 20 : 400 );
 	const double ns = 1e9 / ops.size();
 	double write[2], read[2];
 	int size;
 
-	BenchBitOps( ops, 15, write, read, &size );
+	BenchBitOps( ops, quick ? 1 : 15, write, read, &size );
 	printf( "[ BENCH    ] %d snapshot-like calls, %d KB of Huffman data\n", (int)ops.size(), size / 1024 );
 	printf( "[ BENCH    ] MSG_WriteBits: %.2f -> %.2f ns per call (%.2fx)\n", write[0] * ns, write[1] * ns, write[0] / write[1] );
 	printf( "[ BENCH    ] MSG_ReadBits:  %.2f -> %.2f ns per call (%.2fx)\n", read[0] * ns, read[1] * ns, read[0] / read[1] );
@@ -1831,11 +1839,11 @@ TEST(HuffmanBenchmark, WidthSpeedup) {
 		double write[2], read[2];
 		int size;
 
-		for ( int i = 0; i < 100000; i++ ) {
+		for ( int i = 0; i < ( quick ? 5000 : 100000 ); i++ ) {
 			AddValue( r, ops, widths[w] );
 		}
 		const double ns = 1e9 / ops.size();
-		BenchBitOps( ops, 9, write, read, &size );
+		BenchBitOps( ops, quick ? 1 : 9, write, read, &size );
 		printf( "[ BENCH    ] %2d bits: write %.2f -> %.2f ns (%.2fx), read %.2f -> %.2f ns (%.2fx)\n", widths[w],
 			write[0] * ns, write[1] * ns, write[0] / write[1], read[0] * ns, read[1] * ns, read[0] / read[1] );
 	}
@@ -1845,7 +1853,7 @@ TEST(HuffmanBenchmark, SymbolSpeedup) {
 	huffman_t *ref = ReferenceTrees();
 	std::unique_ptr<huffTables_t> tables( new huffTables_t );
 	Rng r( 19 );
-	const int count = 1 << 20;
+	const int count = quick ? 1 << 14 : 1 << 20;
 	std::vector<byte> symbols( count );
 	std::vector<byte> out( count * 2 + 16 );
 	volatile int sink = 0;
@@ -1866,7 +1874,7 @@ TEST(HuffmanBenchmark, SymbolSpeedup) {
 	}
 	Huff_BuildTables( tables.get(), &ref->compressor, &ref->decompressor );
 
-	for ( int run = 0; run < 7; run++ ) {
+	for ( int run = 0; run < ( quick ? 1 : 7 ); run++ ) {
 		for ( int pass = 0; pass < 2; pass++ ) {
 			std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 			int offset = 0, sum = 0;
@@ -1903,3 +1911,19 @@ TEST(HuffmanBenchmark, SymbolSpeedup) {
 		t[0] * 1e9 / count, t[1] * 1e9 / count, t[0] / t[1], t[2] * 1e9 / count, t[3] * 1e9 / count, t[2] / t[3] );
 	(void)sink;
 }
+
+// the benchmarks alone, unless --gtest_filter says otherwise
+int main( int argc, char **argv ) {
+	::testing::InitGoogleTest( &argc, argv );
+	for ( int i = 1; i < argc; i++ ) {
+		if ( !strcmp( argv[i], "--quick" ) ) {
+			quick = true;
+		}
+	}
+	if ( GTEST_FLAG_GET( filter ) == "*" ) {
+		GTEST_FLAG_SET( filter, "HuffmanBenchmark.*" );
+	}
+	return RUN_ALL_TESTS();
+}
+
+#endif // HUFFMAN_BENCHMARKS

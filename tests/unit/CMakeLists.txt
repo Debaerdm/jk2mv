@@ -253,6 +253,18 @@ add_jk2mv_test(test_qcommon_huffman
   ${CMAKE_SOURCE_DIR}/src/qcommon/msg.cpp
 )
 
+# The benchmarks of the same source: run bench_huffman by hand to time a
+# change; ctest only runs them briefly so that they keep building and working
+# (they never fail on a time)
+add_executable(bench_huffman
+  test_qcommon_huffman.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/huffman.cpp
+  ${CMAKE_SOURCE_DIR}/src/qcommon/msg.cpp
+)
+target_link_libraries(bench_huffman PRIVATE GTest::gtest test_utils)
+target_compile_definitions(bench_huffman PRIVATE ${GlobalDefines} ${DebugDefines} HUFFMAN_BENCHMARKS)
+add_test(NAME bench_huffman_quick COMMAND bench_huffman --quick)
+
 # ==============================================================================
 # Ghoul2 reference tests and micro-benchmarks (FE-16): the engine's skeleton,
 # bolt, collision and skinning code on synthetic GLA/GLM models, compiled with
