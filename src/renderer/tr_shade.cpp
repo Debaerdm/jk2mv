@@ -674,6 +674,10 @@ void R_InitDlightPrograms( void ) {
 		ri.Printf( PRINT_ALL, "...per-pixel dynamic lights need %s, r_dlightMode 1 uses the classic ones\n", missing );
 		return;
 	}
+	// R_DlightProgram clears the pending errors to tell its own: report
+	// those of the earlier start-up steps first, as the check at the end
+	// of R_Init would have
+	GL_CheckErrors();
 	dlightVertexProgram = R_DlightProgram( GL_VERTEX_PROGRAM_ARB, dlightVP );
 	dlightFragmentProgram = R_DlightProgram( GL_FRAGMENT_PROGRAM_ARB, dlightFP );
 	if ( !dlightVertexProgram || !dlightFragmentProgram ) {

@@ -70,7 +70,6 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - `GL_INVALID_VALUE` au premier rechargement du renderer avec MSAA 8x, HDR et bloom sous `r_ignoreGLErrors 0` (défaut de la base).
   - Dlights :
     - le rayon de 32 unités qui reconnaît une lumière n'est pas couvert par les tests ;
-    - `R_DlightProgram` efface les erreurs GL en attente ;
     - un seul historique pour toutes les scènes monde d'une frame.
   - FOV : la glu cgame n'a pas de test ; un mod qui lit son `cg_fovAspectAdjust` par nom ne s'élargit pas.
   - Outils démo :
