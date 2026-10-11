@@ -27,8 +27,9 @@
 serverStatic_t	svs;
 server_t		sv;
 
-static cvar_t	maxclientsCvar, mapnameCvar, autoRecordCvar, runningCvar, shownetCvar, debugMessageCvar;
+static cvar_t	maxclientsCvar, mapnameCvar, autoRecordCvar, runningCvar, shownetCvar, debugMessageCvar, pureCvar;
 cvar_t	*sv_maxclients = &maxclientsCvar;
+cvar_t	*sv_pure = &pureCvar;
 cvar_t	*sv_mapname = &mapnameCvar;
 cvar_t	*sv_autoRecord = &autoRecordCvar;
 cvar_t	*com_sv_running = &runningCvar;
@@ -284,6 +285,7 @@ static void ResetServer() {
 	mapnameCvar.string = (char *)"ffa_test";
 	autoRecordCvar.integer = 0;
 	runningCvar.integer = 1;
+	pureCvar.integer = 0;
 	gameVersion = VERSION_1_04;
 
 	openFiles.clear();
@@ -1183,6 +1185,37 @@ TEST_F( SvDemo, AWriteErrorStopsTheDemo ) {
 	failWrites = false;
 	Snapshot( cl, 50, { Ent( 40, 3 ) } );
 	EXPECT_TRUE( openFiles.empty() );
+}
+
+TEST_F( SvDemo, AnUnpureClientIsNotRecorded ) {
+	client_t	*human = Join( 0, "Padawan", false );
+	client_t	*bot = Join( 1, "Kyle", true );
+
+	pureCvar.integer = 1;
+	autoRecordCvar.integer = 2;
+	Command( "svrecord 0 given" );
+
+	// SV_VerifyPaks_f: one snapshot for the unpure client, then the drop
+	Snapshot( human, 50, { Ent( 40, 1 ) } );
+	Snapshot( bot, 0, { Ent( 40, 1 ) } );
+	SV_DemoClientGone( human, " (disconnected)" );
+	EXPECT_TRUE( removed.count( "demos/given.dm_16" ) );
+	EXPECT_EQ( openFiles.size(), 1u );		// the bot's, which has no paks to check
+	EXPECT_EQ( StartedDemos(), 1 );
+
+	// a client whose paks were checked is recorded
+	Join( 0, "Padawan", false );
+	Snapshot( human, 50, { Ent( 40, 1 ) } );
+	EXPECT_EQ( StartedDemos(), 1 );
+	human->pureAuthentic = 1;
+	Snapshot( human, 50, { Ent( 40, 1 ) } );
+	EXPECT_EQ( StartedDemos(), 2 );
+
+	// and stays recorded while it checks them again after a vid_restart
+	human->pureAuthentic = 0;
+	Snapshot( human, 50, { Ent( 40, 2 ) } );
+	SV_DemoStopAll( " (map change)", qtrue );
+	EXPECT_EQ( ReadDemo( File( AUTO_NAME_0 ) ).snaps.size(), 2u );
 }
 
 TEST_F( SvDemo, AFileEndsWhereTheWritesFailed ) {

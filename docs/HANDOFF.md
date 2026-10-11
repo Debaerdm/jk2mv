@@ -45,7 +45,6 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
 - **CI :** `build.yml` et `tests.yml` (workflow_dispatch) n'ont pas tourné sur ce code. Les valeurs de référence de FE-16 sous Linux GCC, macOS arm64 et v141_xp, et les seuils de `smoke_render` sous llvmpipe, n'ont été vus que sous Windows.
 - **Notes basses des relectures, non traitées** (tout le reste est intégré) :
   - SV-11 :
-    - un client non pur rejeté peut laisser une démo d'un snapshot ;
     - le démarrage d'une démo (ouverture du fichier, gamestate, messages console) se fait encore dans la frame serveur, et `svrecord all` démarre tous les clients dans la même commande ; seule l'écriture des snapshots passe par le thread ;
     - deux mutants survivent aux tests (M9, W3).
   - SV-3 : envoyer un snapshot complet quand le delta dépasse ce que l'anneau du client garde ; les tests ne compilent pas le code moteur qui appelle `sv_snapshot_ring.h`.

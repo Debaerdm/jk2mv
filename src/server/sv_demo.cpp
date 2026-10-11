@@ -469,6 +469,14 @@ void SV_DemoClientSnapshot( client_t *cl ) {
 		return;
 	}
 
+	// on a pure server, a demo starts once the client's paks are checked: an
+	// unpure client gets one snapshot before it is dropped (SV_VerifyPaks_f),
+	// and SV_UserMove drops one that sends usercmds before the check
+	if ( !demo->gamestateWritten && sv_pure->integer && !cl->pureAuthentic &&
+		cl->netchan.remoteAddress.type != NA_BOT ) {
+		return;
+	}
+
 	if ( !demo->file ) {
 		if ( !SV_DemoAutoRecordWanted( cl, demo ) || !SV_DemoMayStart() ) {
 			return;
