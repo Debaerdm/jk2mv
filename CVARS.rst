@@ -1046,8 +1046,8 @@ Server-Side
    and local client build a snapshot every client frame. Latched: takes
    effect on the next map load or ``map_restart``. A client keeps only the
    last 2048 entities itself: once snapshots average more than about 68
-   entities, a delta from far back can be past them, and the client drops
-   that snapshot and asks for a full one a round trip later. The ring takes
+   entities, a delta from far back can be past them, and such a client gets
+   a full snapshot right away rather than a delta it would drop. The ring takes
    sv_maxclients x 32 x value x 296 bytes, rounded up to a power of two
    (exact for 8, 16 or 32 slots; 17 to 31 slots cost as much as 32), in KB
    and MB of 1024:

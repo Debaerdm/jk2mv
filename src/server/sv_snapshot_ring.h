@@ -5,7 +5,8 @@
 // client deltas from stay available for a while.  The ring holds
 // sv_maxclients * PACKET_BACKUP * sv_snapshotEntityBudget entities, rounded
 // up to a power of two so an entry is found with a mask.  A client whose
-// delta base has left the ring gets a full snapshot instead.
+// delta base has left the ring, or may have left the client's own ring,
+// gets a full snapshot instead.
 //
 // No engine dependency, so the unit tests use it as is.
 
@@ -95,6 +96,36 @@ entries before nextEntity.
 */
 static inline bool SV_SnapshotEntitiesRolledOff( int firstEntity, int nextEntity, int ringSize ) {
 	return firstEntity <= nextEntity - ringSize;
+}
+
+// the client's own ring of entities (MAX_PARSE_ENTITIES in client.h, the
+// same in the retail clients): CL_ParseSnapshot drops a delta whose base
+// starts more than CLIENT_PARSE_ENTITIES - 128 entities back in it
+#define	CLIENT_PARSE_ENTITIES			2048
+#define	CLIENT_PARSE_ENTITIES_DELTA_MAX	( CLIENT_PARSE_ENTITIES - 128 )
+
+/*
+===============
+SV_DeltaBaseBeyondClientRing
+
+True when the client may have lost the entities of the delta base
+deltaMessage from its own ring by the time it reads message
+outgoingSequence, so it would drop a delta snapshot and ask for a full one
+a round trip later.  Its ring has moved on by the entities of every message
+it read since the start of the base, at most those of every message sent:
+frames[n & mask].num_entities for message n.  Messages it didn't get make
+this an upper bound.
+===============
+*/
+template <typename frame_t>
+static inline bool SV_DeltaBaseBeyondClientRing( const frame_t *frames, int mask, int deltaMessage, int outgoingSequence ) {
+	int	entities = 0;
+	int	n;
+
+	for ( n = deltaMessage; n < outgoingSequence; n++ ) {
+		entities += frames[n & mask].num_entities;
+	}
+	return entities > CLIENT_PARSE_ENTITIES_DELTA_MAX;
 }
 
 /*

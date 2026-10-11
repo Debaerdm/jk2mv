@@ -46,6 +46,12 @@ static int SV_WriteSnapshotToClient( client_t *client, msg_t *msg ) {
 			oldframe = NULL;
 			lastframe = 0;
 			encoding = SVSTAT_SNAP_FALLBACK;
+		} else if ( SV_DeltaBaseBeyondClientRing( client->frames, PACKET_MASK, client->deltaMessage, client->netchan.outgoingSequence ) ) {
+			// or off the client's, which would drop the delta
+			Com_DPrintf ("%s: Delta request from beyond the client's entities.\n", client->name);
+			oldframe = NULL;
+			lastframe = 0;
+			encoding = SVSTAT_SNAP_FALLBACK;
 		}
 	}
 

@@ -47,7 +47,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - SV-11 :
     - le démarrage d'une démo (ouverture du fichier, gamestate, messages console) se fait encore dans la frame serveur, et `svrecord all` démarre tous les clients dans la même commande ; seule l'écriture des snapshots passe par le thread ;
     - deux mutants survivent aux tests (M9, W3).
-  - SV-3 : envoyer un snapshot complet quand le delta dépasse ce que l'anneau du client garde ; les tests ne compilent pas le code moteur qui appelle `sv_snapshot_ring.h`.
+  - SV-3 : les tests ne compilent pas la glu moteur qui appelle `sv_snapshot_ring.h` (`SV_WriteSnapshotToClient`) ; `SV_DeltaBaseBeyondClientRing` est testé contre un modèle de l'anneau du client.
   - SV-13 :
     - la borne inutile de sv_usercmd_rate.cpp:97 ;
     - le message développeur des réponses `disconnect` perdues ;

@@ -254,3 +254,93 @@ TEST(SvSnapshotRingWrap, RestartLeavesRoomForAFrameAndTheFinalMessage) {
 	}
 	EXPECT_FALSE( SV_SnapshotEntitiesWrapping( 0, kMaxClients ) );
 }
+
+// client->frames[] as SV_DeltaBaseBeyondClientRing reads it
+struct ClientFrame {
+	int num_entities;
+};
+
+// What a client does with the snapshots it gets (CL_ParseSnapshot): every
+// snapshot it reads moves its parse ring on by its entities, and it drops a
+// delta whose base starts more than CLIENT_PARSE_ENTITIES - 128 entities back.
+// The server sends message after message with random numbers of entities,
+// a few of them lost, and deltas from a message the client got at most
+// kOldestDeltaBase back, the way SV_WriteSnapshotToClient picks it.
+TEST(SvSnapshotRingClient, NoDeltaTheClientWouldDrop) {
+	const int mask = kPacketBackup - 1;
+	const int lossPercents[] = { 0, 10, 40 };
+
+	for ( int l = 0; l < 3; l++ ) {
+		std::mt19937 rng( 7 + l );
+		std::uniform_int_distribution<int> entities( 0, 160 );
+		std::uniform_int_distribution<int> percent( 0, 99 );
+		std::uniform_int_distribution<int> back( 1, kOldestDeltaBase );
+		ClientFrame frames[kPacketBackup] = {};
+		int clientStart[kPacketBackup];		// cl.snapshots[].parseEntitiesNum, -1: not received
+		int received[kPacketBackup];		// which message that slot holds
+		int parseEntitiesNum = 0;
+		int deltas = 0, full = 0, beyondButKept = 0;
+
+		for ( int i = 0; i < kPacketBackup; i++ ) {
+			clientStart[i] = -1;
+			received[i] = -1;
+		}
+
+		for ( int seq = 1; seq < 20000; seq++ ) {
+			// the base: a message the client got, kOldestDeltaBase back at most
+			int deltaMessage = seq - back( rng );
+			if ( deltaMessage < 1 || received[deltaMessage & mask] != deltaMessage ) {
+				deltaMessage = -1;
+			}
+
+			frames[seq & mask].num_entities = entities( rng );
+			const bool beyond = deltaMessage > 0 &&
+				SV_DeltaBaseBeyondClientRing( frames, mask, deltaMessage, seq );
+			const bool lost = percent( rng ) < lossPercents[l];
+
+			if ( deltaMessage > 0 && !beyond ) {
+				deltas++;
+				if ( !lost ) {
+					// the client keeps this delta
+					EXPECT_LE( parseEntitiesNum - clientStart[deltaMessage & mask], CLIENT_PARSE_ENTITIES_DELTA_MAX )
+						<< "message " << seq << " deltas from " << deltaMessage;
+				}
+			} else {
+				full++;
+				if ( beyond && parseEntitiesNum - clientStart[deltaMessage & mask] <= CLIENT_PARSE_ENTITIES_DELTA_MAX ) {
+					beyondButKept++;	// only possible with lost messages
+				}
+			}
+
+			if ( !lost ) {
+				clientStart[seq & mask] = parseEntitiesNum;
+				received[seq & mask] = seq;
+				parseEntitiesNum += frames[seq & mask].num_entities;
+			}
+		}
+		// both outcomes, and the bound is exact when nothing is lost
+		EXPECT_GT( deltas, 1000 );
+		EXPECT_GT( full, 1000 );
+		if ( !lossPercents[l] ) {
+			EXPECT_EQ( beyondButKept, 0 );
+		}
+	}
+}
+
+TEST(SvSnapshotRingClient, BoundIsTheClientsOwn) {
+	ClientFrame frames[kPacketBackup] = {};
+	const int mask = kPacketBackup - 1;
+
+	// 24 messages of 80 entities since the base: exactly 1920, still kept
+	for ( int n = 100; n < 124; n++ ) {
+		frames[n & mask].num_entities = 80;
+	}
+	EXPECT_FALSE( SV_DeltaBaseBeyondClientRing( frames, mask, 100, 124 ) );
+	frames[123 & mask].num_entities = 81;
+	EXPECT_TRUE( SV_DeltaBaseBeyondClientRing( frames, mask, 100, 124 ) );
+	// the new message's own entities don't count
+	frames[124 & mask].num_entities = 1000;
+	EXPECT_FALSE( SV_DeltaBaseBeyondClientRing( frames, mask, 101, 124 ) );
+	// a base right before
+	EXPECT_FALSE( SV_DeltaBaseBeyondClientRing( frames, mask, 123, 124 ) );
+}
