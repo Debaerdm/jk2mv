@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "server/server.h"
+#include "mv_limits_stub.h"
 
 // ===========================================================================
 // engine state and stubs
@@ -455,8 +456,8 @@ static void ParseSnapshot( Demo &demo, msg_t *m, int messageNum ) {
 		oldIt = old->ents.begin();
 	}
 	while ( 1 ) {
-		int newnum = MSG_ReadBits( m, GENTITYNUM_BITS );
-		if ( newnum == MAX_GENTITIES - 1 ) {
+		int newnum = MSG_ReadBits( m, MV_LEGACY_GENTITYNUM_BITS );
+		if ( newnum == MV_LEGACY_MAX_GENTITIES - 1 ) {
 			break;
 		}
 		if ( m->readcount > m->cursize ) {
@@ -477,7 +478,7 @@ static void ParseSnapshot( Demo &demo, msg_t *m, int messageNum ) {
 			memset( &from, 0, sizeof( from ) );
 		}
 		MSG_ReadDeltaEntity( m, &from, &to, newnum );
-		if ( to.number != MAX_GENTITIES - 1 ) {
+		if ( to.number != MV_LEGACY_MAX_GENTITIES - 1 ) {
 			s.ents[newnum] = to;
 		}
 	}
@@ -503,7 +504,7 @@ static void ParseGamestate( Demo &demo, msg_t *m ) {
 			int i = MSG_ReadShort( m );
 			demo.configstrings[i] = MSG_ReadBigString( m );
 		} else if ( cmd == svc_baseline ) {
-			int num = MSG_ReadBits( m, GENTITYNUM_BITS );
+			int num = MSG_ReadBits( m, MV_LEGACY_GENTITYNUM_BITS );
 			entityState_t es;
 			memset( &es, 0, sizeof( es ) );
 			MSG_ReadDeltaEntity( m, &nullstate, &es, num );

@@ -23,6 +23,7 @@
 
 // the real SV_GentityNum, SV_SvEntityForGentity and SV_GEntityForSvEntity
 #include "server/sv_game_entities.h"
+#include "mv_limits_stub.h"
 
 // sv_world_sectors.h, which sv_world.cpp includes
 typedef struct worldSector_s {
@@ -276,7 +277,7 @@ void ResetEntities() {
 	memset( g_ents, 0, sizeof( g_ents ) );
 	for ( int i = 0; i < MAX_GENTITIES; i++ ) {
 		g_ents[i].s.number = i;
-		g_ents[i].r.ownerNum = ENTITYNUM_NONE;
+		g_ents[i].r.ownerNum = MV_LEGACY_MAX_GENTITIES - 1;	// a 1.02-1.04 module's ENTITYNUM_NONE
 	}
 	sv.gentities = g_ents;
 	sv.gentitySize = sizeof( sharedEntity_t );
@@ -470,7 +471,7 @@ TEST(SvWorldClip, HitsASaberMovedWithoutARelink) {
 	ASSERT_LT( wall.fraction, 1.0f );
 	ASSERT_GT( saber->r.absmin[0], wall.endpos[0] + 1 ) << "the saber is linked past the world hit";
 
-	SV_Trace( &t, start, vec3_origin, vec3_origin, end, ENTITYNUM_NONE, mask, qfalse, 0, 0 );
+	SV_Trace( &t, start, vec3_origin, vec3_origin, end, MV_LEGACY_MAX_GENTITIES - 1, mask, qfalse, 0, 0 );
 	EXPECT_EQ( t.entityNum, 1 );
 	EXPECT_FLOAT_EQ( t.endpos[0], 250 - 16 - 0.125f );
 	EXPECT_EQ( g_printed, "" );

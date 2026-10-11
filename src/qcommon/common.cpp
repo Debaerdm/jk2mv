@@ -3172,6 +3172,16 @@ mvprotocol_t MV_GetCurrentProtocol() {
 	}
 }
 
+#ifndef MV_LIMITS_VERIFY_FOLD
+// the limits of the protocol in use (mv_limits.h); call sites use MV_MaxClients() and the like
+const mvprotocolLimits_t *MV_CurrentLimits( void ) {
+	const mvprotocolLimits_t *limits = MV_LimitsForProtocol( MV_GetCurrentProtocol() );
+
+	assert( MV_LIMITS_ROW_VALID( limits->maxClients, limits->gentityBits, limits->maxGEntities ) );
+	return limits;
+}
+#endif
+
 // for auto-complete (copied from OpenJK)
 /*
 =============================================================================

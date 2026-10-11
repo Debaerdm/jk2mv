@@ -19,6 +19,7 @@
 
 #include "qcommon/q_shared.h"
 #include "qcommon/qcommon.h"
+#include "mv_limits_stub.h"
 
 // ==============================================================================
 // Engine stubs for msg.cpp (no huffman.dat: the trees are built from msg_hData)
@@ -735,7 +736,7 @@ void FillEntity( Rng &r, entityState_t *es, int number ) {
 	es->solid = (int)( r.Next() & 0xffffff );
 	es->event = r.Range( 0, 1023 );
 	es->eventParm = r.Range( 0, 255 );
-	es->groundEntityNum = r.Range( 0, MAX_GENTITIES - 1 );
+	es->groundEntityNum = r.Range( 0, MV_LEGACY_MAX_GENTITIES - 1 );
 	es->legsAnim = r.Range( 0, 65535 );
 	es->torsoAnim = r.Range( 0, 65535 );
 	es->weapon = r.Range( 0, 15 );
@@ -793,7 +794,7 @@ void FillPlayerState( Rng &r, playerState_t *ps ) {
 	ps->weaponTime = r.Range( -32768, 32767 );
 	ps->gravity = 800;
 	ps->speed = 250;
-	ps->groundEntityNum = r.Range( 0, MAX_GENTITIES - 1 );
+	ps->groundEntityNum = r.Range( 0, MV_LEGACY_MAX_GENTITIES - 1 );
 	ps->legsAnim = r.Range( 0, 65535 );
 	ps->torsoAnim = r.Range( 0, 65535 );
 	ps->movementDir = r.Range( 0, 7 );
@@ -849,7 +850,7 @@ uint64_t GoldenMessagesHash( mvversion_t version ) {
 	memset( &cmds, 0, sizeof( cmds ) );
 	FillPlayerState( r, &ps[0] );
 	for ( int i = 0; i < 64; i++ ) {
-		FillEntity( r, &ents[0][i], r.Range( 32, MAX_GENTITIES - 2 ) );
+		FillEntity( r, &ents[0][i], r.Range( 32, MV_LEGACY_MAX_GENTITIES - 2 ) );
 	}
 
 	for ( int m = 0; m < 48; m++ ) {
@@ -902,7 +903,7 @@ uint64_t GoldenMessagesHash( mvversion_t version ) {
 				MSG_WriteDeltaEntity( &msg, &from[i], &to[i], (qboolean)( i & 1 ) );
 			}
 		}
-		MSG_WriteBits( &msg, MAX_GENTITIES - 1, GENTITYNUM_BITS );
+		MSG_WriteBits( &msg, MV_LEGACY_MAX_GENTITIES - 1, MV_LEGACY_GENTITYNUM_BITS );
 
 		// a client message with usercmds
 		for ( int i = 0; i < 4; i++ ) {
@@ -1262,7 +1263,7 @@ std::vector<BitOp> RealLookingOps( Rng &r, int messages ) {
 			AddString( ops, realStrings[r.Range( 0, ARRAY_LEN( realStrings ) - 1 )] );
 		}
 		for ( int e = r.Range( 0, 40 ); e > 0; e-- ) {
-			BitOp number = { r.Range( 0, MAX_GENTITIES - 1 ), GENTITYNUM_BITS };
+			BitOp number = { r.Range( 0, MV_LEGACY_MAX_GENTITIES - 1 ), MV_LEGACY_GENTITYNUM_BITS };
 			BitOp flags = { 2, 2 };
 			ops.push_back( number );
 			ops.push_back( flags );
@@ -1278,7 +1279,7 @@ std::vector<BitOp> RealLookingOps( Rng &r, int messages ) {
 				AddValue( r, ops, widths[r.Range( 0, ARRAY_LEN( widths ) - 1 )] );
 			}
 		}
-		BitOp endMark = { MAX_GENTITIES - 1, GENTITYNUM_BITS };
+		BitOp endMark = { MV_LEGACY_MAX_GENTITIES - 1, MV_LEGACY_GENTITYNUM_BITS };
 		ops.push_back( endMark );
 	}
 	return ops;
@@ -1633,7 +1634,7 @@ TEST(HuffmanMessages, RealDeltasRoundTrip) {
 	msg_t msg;
 
 	for ( int n = 0; n < 200; n++ ) {
-		FillEntity( r, &from, r.Range( 0, MAX_GENTITIES - 2 ) );
+		FillEntity( r, &from, r.Range( 0, MV_LEGACY_MAX_GENTITIES - 2 ) );
 		ChangeEntity( r, &from, &to );
 		FillPlayerState( r, &psFrom );
 		FillPlayerState( r, &psTo );
@@ -1646,7 +1647,7 @@ TEST(HuffmanMessages, RealDeltasRoundTrip) {
 
 		MSG_BeginReading( &msg );
 		EXPECT_EQ( n & ( ( 1 << ( n & 7 ? n & 7 : 1 ) ) - 1 ), MSG_ReadBits( &msg, n & 7 ? n & 7 : 1 ) );
-		const int number = MSG_ReadBits( &msg, GENTITYNUM_BITS );
+		const int number = MSG_ReadBits( &msg, MV_LEGACY_GENTITYNUM_BITS );
 		ASSERT_EQ( to.number, number );
 		MSG_ReadDeltaEntity( &msg, &from, &got, number );
 		EXPECT_EQ( 0, memcmp( &to, &got, sizeof( to ) ) ) << "entity " << n;

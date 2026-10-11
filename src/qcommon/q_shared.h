@@ -1317,6 +1317,9 @@ typedef enum {
 
 //
 // per-level limits
+// MAX_CLIENTS and MAX_GENTITIES are compile-time maximums: they size the engine's
+// arrays. The limits of the protocol in use are MV_MaxClients() and
+// MV_MaxGEntities() (qcommon/mv_limits.h).
 //
 #define	MAX_CLIENTS			32		// absolute limit
 #define MAX_LOCATIONS		64

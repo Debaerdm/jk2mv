@@ -135,6 +135,7 @@ if (BuildMVMP OR BuildMVDED)
 		"qcommon/cm_polylib.h"
 		"qcommon/cm_public.h"
 		"qcommon/hstring.h"
+		"qcommon/mv_limits.h"
 		"qcommon/qcommon.h"
 		"qcommon/qfiles.h"
 		"qcommon/q_shared.h"

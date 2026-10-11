@@ -265,6 +265,11 @@ target_link_libraries(bench_huffman PRIVATE GTest::gtest test_utils)
 target_compile_definitions(bench_huffman PRIVATE ${GlobalDefines} ${DebugDefines} HUFFMAN_BENCHMARKS)
 add_test(NAME bench_huffman_quick COMMAND bench_huffman --quick)
 
+# the limits of the protocol in use (qcommon/mv_limits.h, docs/PROTOCOL-1.05.md step 1)
+add_jk2mv_test(test_mv_limits
+  test_mv_limits.cpp
+)
+
 # ==============================================================================
 # Ghoul2 reference tests and micro-benchmarks (FE-16): the engine's skeleton,
 # bolt, collision and skinning code on synthetic GLA/GLM models, compiled with
