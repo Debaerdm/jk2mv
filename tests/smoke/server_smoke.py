@@ -28,6 +28,24 @@ def crash_logs(work):
                glob.glob(os.path.join(os.path.expanduser('~'), '.jk2mv', 'crashlog-*.txt')))
 
 
+def crash_log_pid(path):
+    """The process a crash log is about, or None."""
+    try:
+        with open(path, 'r', errors='replace') as f:
+            match = re.search(r'^Process ID:\s*(\d+)', f.read(), re.M)
+    except OSError:
+        return None
+    return int(match.group(1)) if match else None
+
+
+def own_crash_logs(paths, work, pid):
+    """The new crash logs of this server: ~/.jk2mv is shared with any other
+    jk2mv running meanwhile (another test, a game), so there only the logs
+    of this process count."""
+    return sorted(p for p in paths
+                  if os.path.dirname(os.path.abspath(p)) == work or crash_log_pid(p) == pid)
+
+
 def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
@@ -47,11 +65,14 @@ def main():
            '+map', 'ci_box', '+exec', 'smoke.cfg']
     # ~/.jk2mv keeps the crash logs of earlier sessions: only new ones count
     old_crashlogs = crash_logs(work)
+    proc = subprocess.Popen(cmd, cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
-        proc = subprocess.run(cmd, cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
-        rc, out = proc.returncode, proc.stdout.decode('latin-1')
-    except subprocess.TimeoutExpired as e:
-        rc, out = 'timeout', (e.stdout or b'').decode('latin-1')
+        out = proc.communicate(timeout=300)[0]
+        rc = proc.returncode
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        rc, out = 'timeout', proc.communicate()[0]
+    out = out.decode('latin-1')
     # drop color codes and the com_timestamps prefix of dedicated servers
     log = re.sub(r'\x1b\[[0-9;]*m', '', out)
     log = re.sub(r'^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ', '', log, flags=re.M)
@@ -76,7 +97,7 @@ def main():
     first, second = log.find('num score ping name'), log.find('num score ping name', log.find('num score ping name') + 1)
     if first >= 0 and second >= 0 and 'ShutdownGame' not in log[first:second]:
         errors.append('map_restart did not restart the game')
-    crashlogs = sorted(crash_logs(work) - old_crashlogs)
+    crashlogs = own_crash_logs(crash_logs(work) - old_crashlogs, work, proc.pid)
     if crashlogs:
         errors.append('crash logs written: %s' % ', '.join(crashlogs))
 
