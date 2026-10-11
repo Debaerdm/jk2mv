@@ -121,6 +121,17 @@ const Golden kGoldens[] = {
 	{ "instances/render/skin/scalar", 0xb0d4edef22203fd4ULL },
 	{ "instances/render/skin/sse2", 0x161bd1fc37078937ULL },
 
+	// recorded later on x86-64 Linux, GCC, with the same Ghoul2 code: one
+	// instance in two views of different LOD in one frame, one skin shared
+	// by two models
+	{ "views/bones", 0x046e97a475d97886ULL },
+	{ "views/render/draw", 0x37935b68460bce1dULL },
+	{ "views/render/skin/scalar", 0x4b3e2308074ee293ULL },
+	{ "views/render/skin/sse2", 0x940a2bf2a7421860ULL },
+	{ "sharedskin/render/draw", 0xee414bf56f45f941ULL },
+	{ "sharedskin/render/skin/scalar", 0x215766b1c51bc40eULL },
+	{ "sharedskin/render/skin/sse2", 0x7b0af19660a794f9ULL },
+
 	// collision
 	{ "collision", 0x24adb185bddd584fULL },
 
@@ -344,9 +355,35 @@ protected:
 	// The same with one entity per instance, added in this order
 	void RenderEntities( const g2handle_t *handles, int numEntities, int time, g2t::Digest &draw, g2t::Digest &scalar, g2t::Digest &sse2,
 						 qhandle_t customShader = 0, qhandle_t customSkin = 0, int renderfx = 0 ) {
+		BeginFrame( time );
+		AddEntities( handles, numEntities, customShader, customSkin, renderfx );
+		DrawSurfaces( g2t::drawSurfs, handles, numEntities, draw, scalar, sse2 );
+	}
+
+	// One frame of several views of the instance (a mirror or a portal, a
+	// second scene), each at its projected radius: the front end adds the
+	// surfaces of every view, then the backend draws each view's in turn
+	void RenderViews( const float *radius, int numViews, int time, g2t::Digest &draw, g2t::Digest &scalar, g2t::Digest &sse2 ) {
+		BeginFrame( time );
+		std::vector<std::vector<g2t::DrawSurf> > views( numViews );
+		for ( int v = 0; v < numViews; v++ ) {
+			g2t::projectedRadius = radius[v];
+			g2t::ClearDrawSurfs();
+			AddEntities( &handle, 1, 0, 0, 0 );
+			views[v] = g2t::drawSurfs;
+		}
+		for ( int v = 0; v < numViews; v++ ) {
+			DrawSurfaces( views[v], &handle, 1, draw, scalar, sse2 );
+		}
+	}
+
+	void BeginFrame( int time ) {
 		tr.refdef.time = time;
 		R_ResetRenderableSurfaces();
 		g2t::ClearDrawSurfs();
+	}
+
+	void AddEntities( const g2handle_t *handles, int numEntities, qhandle_t customShader, qhandle_t customSkin, int renderfx ) {
 		for ( int e = 0; e < numEntities; e++ ) {
 			trRefEntity_t ent;
 			memset( &ent, 0, sizeof( ent ) );
@@ -359,11 +396,16 @@ protected:
 			R_AddGhoulSurfaces( &ent );
 		}
 		ASSERT_FALSE( g2t::drawSurfs.empty() );
+	}
 
-		draw.Int( (int)g2t::drawSurfs.size() );
+	// RB_SurfaceGhoul for each draw surface, twice (the dynamic glow pass
+	// draws them again), checked against the skinning kernel it uses
+	void DrawSurfaces( const std::vector<g2t::DrawSurf> &drawSurfs, const g2handle_t *handles, int numEntities,
+					   g2t::Digest &draw, g2t::Digest &scalar, g2t::Digest &sse2 ) {
+		draw.Int( (int)drawSurfs.size() );
 		for ( int pass = 0; pass < 2; pass++ ) {
-			for ( size_t i = 0; i < g2t::drawSurfs.size(); i++ ) {
-				const g2t::DrawSurf &ds = g2t::drawSurfs[i];
+			for ( size_t i = 0; i < drawSurfs.size(); i++ ) {
+				const g2t::DrawSurf &ds = drawSurfs[i];
 				const mdxmSurface_t *surface = ds.surf->surfaceData;
 				const mdxaBone_v &bones = *(const mdxaBone_v *)ds.surf->boneList;
 
@@ -949,6 +991,85 @@ TEST_F( Ghoul2Reference, TwoInstancesOneFrame ) {
 	ExpectGolden( bones );
 	ExpectGolden( boltDigest );
 	ExpectGolden( world );
+	ExpectGolden( draw );
+	ExpectGolden( scalar );
+#if id386 || idx64
+	ExpectGolden( sse2 );
+#endif
+}
+
+// One instance in two views of the same frame (a mirror or a portal, a
+// second scene), in LOD 0 in one and LOD 1 in the other: the first view
+// builds the skeleton, the second reuses it, and the backend draws the
+// surfaces of both views after the front end has added them all. What FE-3
+// and FE-5 cache per instance and frame must keep the two LODs apart,
+// whichever view comes first
+TEST_F( Ghoul2Reference, OneInstanceTwoViews ) {
+	g2t::SetEngineCvars( true );
+	ASSERT_TRUE( g2t::SetupCharacter( &handle, kT0, &bolts ) );
+
+	g2t::Digest bones( "views/bones" );
+	g2t::Digest draw( "views/render/draw" );
+	g2t::Digest scalar( "views/render/skin/scalar" );
+	g2t::Digest sse2( "views/render/skin/sse2" );
+	for ( int k = 0; k < 4; k++ ) {
+		const int t = kT0 + 40 + 16 * k;
+		if ( k == 2 ) {
+			// the cgame asks for a bolt first: no view builds the skeleton
+			tr.refdef.time = t;
+			BuildThroughBolt( t );
+		}
+		// what ProjectRadius returns for LOD 0 and 1 (r_lodscale 5), LOD 1
+		// first on odd frames
+		const float radius[2] = { ( k & 1 ) ? 0.12f : 0.0f, ( k & 1 ) ? 0.0f : 0.12f };
+		RenderViews( radius, 2, t, draw, scalar, sse2 );
+		EXPECT_EQ( t, G2()[0].mSkelFrameNum );
+		EXPECT_EQ( t, G2()[1].mSkelFrameNum );
+		g2t::HashBones( bones, G2() );
+	}
+	ExpectGolden( bones );
+	ExpectGolden( draw );
+	ExpectGolden( scalar );
+#if id386 || idx64
+	ExpectGolden( sse2 );
+#endif
+}
+
+// One skin shared by two models: the character and its prop (the entity's
+// skin, then each model's own), then two instances of the character, one
+// without the prop, in the same frame. The surfaces of the same index in
+// the two models (hips and blade, head and hilt) take different shaders, and
+// the surfaces the skin does not name the default shader: what FE-3 caches
+// per skin must depend on the model too
+TEST_F( Ghoul2Reference, SharedSkin ) {
+	g2t::SetEngineCvars( true );
+	ASSERT_TRUE( g2t::SetupCharacter( &handle, kT0, &bolts ) );
+	ASSERT_TRUE( g2t::CreateCharacter( &handle2 ) );
+	ASSERT_TRUE( g2t::AnimateCharacter( handle2, kT0 - 270 ) );
+
+	static const char *const pairs[] = {
+		"hips", "skins/shared_hips", "torso", "skins/shared_torso", "head", "skins/shared_head",
+		"blade", "skins/shared_blade", "hilt", "skins/shared_hilt",
+	};
+	const qhandle_t shared = g2t::RegisterSkin( "skins/shared",
+		std::vector<std::string>( pairs, pairs + sizeof( pairs ) / sizeof( pairs[0] ) ) );
+
+	g2t::Digest draw( "sharedskin/render/draw" );
+	g2t::Digest scalar( "sharedskin/render/skin/scalar" );
+	g2t::Digest sse2( "sharedskin/render/skin/sse2" );
+	RenderFrame( kT0 + 40, draw, scalar, sse2, 0, shared );
+	EXPECT_EQ( 10u, g2t::drawSurfs.size() );
+	ASSERT_TRUE( G2API_SetSkin( &G2()[0], shared ) );
+	ASSERT_TRUE( G2API_SetSkin( &G2()[1], shared ) );
+	RenderFrame( kT0 + 56, draw, scalar, sse2 );
+
+	CGhoul2Info_v &second = *G2API_GetGhoul2Model( handle2 );
+	ASSERT_TRUE( G2API_SetSkin( &second[0], shared ) );
+	for ( int k = 0; k < 2; k++ ) {
+		const g2handle_t order[2] = { k ? handle2 : handle, k ? handle : handle2 };
+		RenderEntities( order, 2, kT0 + 72 + 16 * k, draw, scalar, sse2 );
+		EXPECT_EQ( 18u, g2t::drawSurfs.size() );	// 8 surfaces and the prop's 2, then 8
+	}
 	ExpectGolden( draw );
 	ExpectGolden( scalar );
 #if id386 || idx64

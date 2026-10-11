@@ -67,7 +67,6 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - FOV : la glu cgame (`CL_CgameCvarUpdate`, `CL_CgameCvarStringBuffer`) n'a pas de test, il faudrait une VM cgame ; la valeur qu'elles donnent (`CL_FovAdjustValue`) en a un.
   - Outils démo : la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180°.
   - Capture : l'attente de ffmpeg ne peut pas être annulée.
-  - FE-16 : aucune scène ne dessine une instance dans deux vues de LOD différents, ni un skin partagé par deux modèles.
   - testscene : Échap pendant la scène n'a pas de test automatique.
 
 ## Construire et tester sur cette machine
