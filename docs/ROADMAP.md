@@ -256,7 +256,10 @@ Jamais touchés par un preset : `com_maxfps` (lié à la physique de saut), `sna
 **Après la phase 4, à la carte** selon les réactions de la communauté : météo modernisée (FE-13), flares par occlusion queries (FE-12), recherche dans les démos (PX-8, puis PX-20 et PX-22), manettes et gyro avec mise à jour de SDL (PX-15), liens `jk2mv://` (PX-18), particules douces (VQ-12), packs HD (VQ-14).
 
 ### Piste 1.05 (à part, au choix du serveur)
-Un protocole 17 négocié, aux limites relevées (64 joueurs, plus d'entités, de modèles et de sons). Il demande un fork de mvsdk et laisse les 1.02-1.04 intactes. La conception, les étapes et les questions ouvertes sont dans [PROTOCOL-1.05.md](PROTOCOL-1.05.md).
+Un protocole 17 négocié, aux limites relevées (64 joueurs, plus d'entités, de modèles et de sons). Il demande un fork de mvsdk et laisse les 1.02-1.04 intactes. La conception et les étapes sont dans [PROTOCOL-1.05.md](PROTOCOL-1.05.md).
+- **Décisions du propriétaire** (§7) : on relève toutes les limites, un serveur 1.05 refuse les clients 1.02-1.04, et le gameplay du mode 1.05 peut changer (liste à arrêter avant l'étape 3).
+- **Livré, étape 1** (§8) : le moteur lit les limites du protocole courant à l'exécution (`qcommon/mv_limits.h`), toujours 32 joueurs et 1024 entités pour tous les protocoles, sans changer le comportement. Le vérifient : le recensement des symboles de limite (ctest `limits_census` et `limits_census_selftest`), le contrôle de repliement (`tests/limits/verify_fold.py` : mêmes objets que la base, sauf les deux de botlib attendus), des tests qui figent les valeurs 1.02-1.04 (sentinelles, numéros d'entité, octets des démos, `sv_maxclients`), et les gardes `MV_ASSERT_LEGACY_*` qui arrêtent la compilation aux endroits encore figés dès qu'un maximum change.
+- **Reste :** les correctifs qui changent le comportement, dans une branche à part, avant qu'une limite grandisse (fin du §8) ; puis l'étape 2, le protocole 17 côté moteur, dont la liste est au §8 (« Pour l'étape 2 ») : maximums relevés, endroits des gardes rendus par protocole, `sv_maxclients` borné après le choix de la version, configstrings par protocole, structure de l'API MV niveau 5.
 
 ## 4. Premier jalon concret
 
