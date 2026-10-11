@@ -54,20 +54,23 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - la glu moteur n'a pas de test.
   - SV-2 : SV-8 devra traiter les globales de msg.cpp.
   - Menus :
-    - après un réglage latched fait à la console, les copies des pages retail montrent la valeur courante (comme en retail) ;
-    - le crochet de clic des relectures n'est pas dans l'arbre ;
-    - « FX system out of effects » après un `vid_restart` au menu principal puis une partie locale mise en pause (sans doute ancien) ;
+    - après un réglage latched fait à la console, les copies des pages retail montrent la valeur courante (comme en retail) : laissé tel quel ;
+    - le crochet de clic des relectures n'est pas dans l'arbre : pas ajouté, il mettrait dans le jeu livré une commande qui clique à la place du joueur ; à réserver à un build de test si on le veut ;
+    - « FX system out of effects » après un `vid_restart` au menu principal puis une partie locale mise en pause (sans doute ancien) : pas reproduit, il faut le cgame et les assets retail ;
     - les lignes Render Scale et Light Priority de la page Advanced (`assets/ui/jk2mp/setup.menu_patch`, chaînes dans mv.sp) n'ont pas été vues dans le jeu : sans le setup.menu retail, seule leur lecture sans erreur dans un menu de test a été vérifiée.
   - Rendu :
     - le flou vidéo sans cible RGBA16 rendable abandonne au premier échec (un message, et l'enregistrement continue sans flou) ; pas de repli 8 bits, et ce chemin n'a pas pu tourner (llvmpipe et les GPU essayés rendent en 16 bits) ;
-    - l'alpha-to-coverage d'un mod avec un alpha de sommet constant inférieur à 1 laisse passer une partie du fond ;
-    - la glu (table du grade, image liée après `GL_State`) n'a pas de test ;
-    - `GL_INVALID_VALUE` au premier rechargement du renderer avec MSAA 8x, HDR et bloom sous `r_ignoreGLErrors 0` (défaut de la base).
+    - l'alpha-to-coverage d'un mod avec un alpha de sommet constant inférieur à 1 laisse passer une partie du fond : pas changé, aucun shader retail ne le fait et choisir les shaders qui gardent l'A2C demande un mod qui le fait ;
+    - la glu (table du grade, image liée après `GL_State`) n'a pas de test : il faudrait un contexte GL dans les tests unitaires ;
+    - `GL_INVALID_VALUE` au premier rechargement du renderer avec MSAA 8x, HDR et bloom sous `r_ignoreGLErrors 0` (défaut de la base) : pas reproduit sous llvmpipe (`preset ultra`, deux `vid_restart`), à reprendre sur le GPU qui le montre.
   - Dlights : le choix de l'historique de chaque scène (`R_DlightHistoryForScene`) est testé, pas son appel dans `R_SelectDlights` (tr_scene.cpp), qui lui donne `tr.frameCount` pour la frame : il faudrait deux scènes monde par frame dessinées par le moteur (un cgame ; testscene n'en dessine qu'une).
   - FOV : la glu cgame (`CL_CgameCvarUpdate`, `CL_CgameCvarStringBuffer`) n'a pas de test, il faudrait une VM cgame ; la valeur qu'elles donnent (`CL_FovAdjustValue`) en a un.
-  - Outils démo : la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180°.
-  - Capture : l'attente de ffmpeg ne peut pas être annulée.
-  - testscene : Échap pendant la scène n'a pas de test automatique.
+  - Outils démo : la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180° ; laissé, c'est un réglage sans défaut vu et le changer modifie les chemins existants.
+  - Capture :
+    - l'attente de ffmpeg ne peut pas être annulée ; il faudrait tuer ffmpeg (un appel par plateforme) et lire les touches pendant l'attente ;
+    - quand la liste de commandes de la frame est pleine (console pleine de texte en haute résolution), `screenshot_png` et `screenshot_tga` écrivent un tampon qui n'a pas été lu et disent « Wrote » (défaut de la base) ; `screenshot` (JPEG) dit qu'elle n'est pas écrite, et `video` y perd ses images (des blocs vides, comme dans la base) ; `video_mp4` n'envoie alors rien à ffmpeg mais compte l'image, pas vérifié.
+  - testscene : Échap pendant la scène n'a pas de test automatique (il faudrait injecter une touche, comme le crochet de clic).
+  - Correctifs de `claude/review-notes-client` dont le cas n'a pas pu être produit ici : `R_DlightProgram` qui laisse signaler les erreurs GL antérieures (aucune sous llvmpipe), `cam_play` et `photomode` dans la même frame (il faut une démo, donc les modèles retail), `tests/video/av_sync.py` (assets retail) et `sys_spawn.cpp` (Windows : ni compilé ni lancé). jk2bench.ps1 a tourné sous PowerShell 7.4 sur Linux avec un faux jeu (`tools_jk2bench`), pas sous Windows PowerShell 5.1.
 
 ## Construire et tester sur cette machine
 
