@@ -24,6 +24,9 @@
   Copy assets0/1/2/5.pk3 into the base folder next to jk2mvmp.exe first.
   The same arguments work through powershell -File (from cmd.exe or a
   shortcut), lists included: -Demos bench_ffa,bench_duel -Presets cpu,gpu.
+  Paths are taken literally ('[' and ']' are no wildcards). The game splits
+  its command line at every '+', so the home folder and the demo names can't
+  have one; the script stops at once if they do.
 #>
 param(
     [Parameter(Mandatory = $true)] [string] $Exe,
@@ -52,21 +55,30 @@ $PresetArgs = @{
 $Demos = @($Demos | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $Presets = @($Presets | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 # checked before anything is launched or the CSV is overwritten
+if (-not $Demos) { throw "no demo to run (-Demos)" }
+if (-not $Presets) { throw "no preset to run (-Presets cpu, classic or gpu)" }
 foreach ($preset in $Presets) {
     if (-not $PresetArgs.ContainsKey($preset)) { throw "unknown preset $preset (cpu, classic or gpu)" }
 }
 
 # absolute paths: the game runs from its own folder
-$Exe = (Resolve-Path $Exe).ProviderPath
-New-Item -ItemType Directory -Force $HomePath | Out-Null
+$Exe = (Resolve-Path -LiteralPath $Exe).ProviderPath
+# New-Item has no -LiteralPath: its -Path is already literal, escaping it
+# would put the backticks in the folder's name
+New-Item -ItemType Directory -Force -Path $HomePath | Out-Null
 # without the trailing '\' that tab completion adds ('.\home\'), except at a
 # drive root: see ConvertTo-Argument
-$HomePath = (Resolve-Path $HomePath).ProviderPath -replace '(?<=[^:\\])\\+$', ''
+$HomePath = (Resolve-Path -LiteralPath $HomePath).ProviderPath -replace '(?<=[^:\\])\\+$', ''
+# the game would read what follows a '+' as a command, and wait in its menu
+# until the timeout for a demo it can't find
+foreach ($name in @($HomePath) + $Demos) {
+    if ($name.Contains('+')) { throw "'$name' has a '+', which the game's command line can't take: rename it" }
+}
 # relative to the current location, absolute and UNC paths kept as they are
 $Csv = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Csv)
 foreach ($demo in $Demos) {
     $base = Join-Path $HomePath "base\demos\$demo"
-    if (-not ((Test-Path "$base.dm_15") -or (Test-Path "$base.dm_16"))) { throw "no demo $base.dm_15 or .dm_16" }
+    if (-not ((Test-Path -LiteralPath "$base.dm_15") -or (Test-Path -LiteralPath "$base.dm_16"))) { throw "no demo $base.dm_15 or .dm_16" }
 }
 
 # one argument of the game's command line, quoted if it has spaces. SDL's
@@ -80,18 +92,22 @@ $common = "+set fs_homepath $(ConvertTo-Argument $HomePath) +set logfile 2 +set 
 $results = @()
 
 function Invoke-Run([string] $preset, [string] $demo) {
-    if (Test-Path $log) { Remove-Item $log }
+    if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log }
     # settings archived by the previous run would leak into this one
-    foreach ($cfg in $configs) { if (Test-Path $cfg) { Remove-Item $cfg } }
+    foreach ($cfg in $configs) { if (Test-Path -LiteralPath $cfg) { Remove-Item -LiteralPath $cfg } }
     $arguments = "$common $($PresetArgs[$preset]) +set timedemo 1 +set nextdemo quit +demo $(ConvertTo-Argument $demo)"
-    $p = Start-Process -FilePath $Exe -ArgumentList $arguments -WorkingDirectory (Split-Path $Exe) -PassThru
+    # not Start-Process, which reads its paths as wildcards
+    $start = New-Object System.Diagnostics.ProcessStartInfo $Exe, $arguments
+    $start.WorkingDirectory = Split-Path -LiteralPath $Exe
+    $start.UseShellExecute = $false
+    $p = [System.Diagnostics.Process]::Start($start)
     # a demo that fails to load leaves the game in the menu
     if (-not $p.WaitForExit($TimeoutSec * 1000)) {
         $p.Kill()
         throw "$demo ($preset) did not finish within $TimeoutSec s, see $log"
     }
-    if (-not (Test-Path $log)) { throw "no qconsole.log after running $demo ($preset)" }
-    $line = Select-String -Path $log -Pattern '(\d+) frames, ([\d.]+) seconds: ([\d.]+) fps' | Select-Object -Last 1
+    if (-not (Test-Path -LiteralPath $log)) { throw "no qconsole.log after running $demo ($preset)" }
+    $line = Select-String -LiteralPath $log -Pattern '(\d+) frames, ([\d.]+) seconds: ([\d.]+) fps' | Select-Object -Last 1
     if (-not $line) { throw "no timedemo result in $log for $demo ($preset)" }
     $m = $line.Matches[0]
     return [pscustomobject]@{
@@ -104,11 +120,11 @@ function Invoke-Run([string] $preset, [string] $demo) {
 
 # written by hand: Export-Csv formats numbers in the current culture
 # ("123,4" on a French system, which other tools misread)
-Set-Content -Path $Csv -Value "preset,demo,run,frames,seconds,fps" -Encoding ascii
+Set-Content -LiteralPath $Csv -Value "preset,demo,run,frames,seconds,fps" -Encoding ascii
 function Add-CsvRow($r) {
     $row = "{0},{1},{2},{3},{4},{5}" -f $r.preset, $r.demo, $r.run, $r.frames,
         $r.seconds.ToString("0.000", $inv), $r.fps.ToString("0.0", $inv)
-    Add-Content -Path $Csv -Value $row -Encoding ascii
+    Add-Content -LiteralPath $Csv -Value $row -Encoding ascii
 }
 
 foreach ($preset in $Presets) {

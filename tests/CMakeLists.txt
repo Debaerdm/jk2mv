@@ -52,5 +52,8 @@ if(SmokeTests)
   add_subdirectory(smoke)
 endif()
 
+# Tests of the scripts in tools/
+add_subdirectory(tools)
+
 # Performance tests (future)
 # add_subdirectory(performance)
