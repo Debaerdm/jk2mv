@@ -191,9 +191,13 @@ TEST(SPAWN_SUITE, ProgramPathWithSpaces) {
 	const std::string program = dir + "\\test_sys_spawn_helper.exe";
 
 	CreateDirectoryA( dir.c_str(), NULL );
-	ASSERT_TRUE( CopyFileA( Helper().c_str(), program.c_str(), FALSE ) );
-	ExpectArgumentsArrive( program, std::vector<std::string>( 1, "a b" ) );
-	DeleteFileA( program.c_str() );
+	// no ASSERT before the cleanup: it would leave the directory behind
+	const bool copied = CopyFileA( Helper().c_str(), program.c_str(), FALSE ) != 0;
+	EXPECT_TRUE( copied );
+	if ( copied ) {
+		ExpectArgumentsArrive( program, std::vector<std::string>( 1, "a b" ) );
+		DeleteFileA( program.c_str() );
+	}
 	RemoveDirectoryA( dir.c_str() );
 }
 
