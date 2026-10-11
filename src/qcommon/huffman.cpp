@@ -334,7 +334,8 @@ void Huff_Decompress(msg_t *mbuf, int offset) {
 		// don't overflow reading from the messages
 		// FIXME: would it be better to have a overflow check in get_bit ?
 		if ( (bloc >> 3) > size ) {
-			seq[j] = 0;
+			// the rest of the message is zeros, not what the stack had
+			Com_Memset( seq + j, 0, cch - j );
 			break;
 		}
 		Huff_Receive(huff.tree, &ch, buffer, &bloc);		/* Get a character */

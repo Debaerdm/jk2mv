@@ -429,6 +429,8 @@ void Huff_Decompress(msg_t *mbuf, int offset) {
 		// FIXME: would it be better to have a overflow check in get_bit ?
 		if ( (bloc >> 3) > size ) {
 			seq[j] = 0;
+			// not in the original, which copied the rest as the stack had it
+			Com_Memset( seq + j, 0, cch - j );
 			break;
 		}
 		Huff_Receive(huff.tree, &ch, buffer);				/* Get a character */
@@ -1657,7 +1659,8 @@ TEST(HuffmanMessages, RealDeltasRoundTrip) {
 
 // ==============================================================================
 // Adaptive Huffman (the connect packet): unchanged, without the shared bit
-// position, but for the padding byte the old code sent as the stack had it
+// position, but for the bytes the old code took from the stack: the padding
+// byte of Huff_Compress and the end of a cut-short message in Huff_Decompress
 // ==============================================================================
 
 // an empty adaptive tree, like Huff_Compress and Huff_Decompress start with
@@ -1757,7 +1760,7 @@ TEST(HuffmanAdaptive, CompressAndDecompressMatchOldCode) {
 		mb = ma;
 		mb.data = b;
 
-		// before compressing, the stack holds 0x00 for the reference and 0xff
+		// before each call, the stack holds 0x00 for the reference and 0xff
 		// for the engine: a byte either one leaves as the stack had it comes
 		// out different in every build, not only where their frames don't
 		// overlay the same bytes
@@ -1770,7 +1773,9 @@ TEST(HuffmanAdaptive, CompressAndDecompressMatchOldCode) {
 
 		// each decompresses the other's output
 		std::vector<byte> original( a, a + ma.cursize );
+		DirtyStack( 0x00 );
 		orig::Huff_Decompress( &mb, 12 );
+		DirtyStack( 0xff );
 		Huff_Decompress( &ma, 12 );
 		ASSERT_EQ( ma.cursize, mb.cursize );
 		ASSERT_EQ( 0, memcmp( a, b, ma.cursize ) );
@@ -1786,7 +1791,9 @@ TEST(HuffmanAdaptive, CompressAndDecompressMatchOldCode) {
 			memcpy( b, a, sizeof( b ) );
 			ma.cursize = mb.cursize = damage == 2 ? r.Range( 12, (int)original.size() ) : (int)original.size();
 			ma.maxsize = mb.maxsize = r.Range( 16, sizeof( a ) );
+			DirtyStack( 0x00 );
 			orig::Huff_Decompress( &ma, 12 );
+			DirtyStack( 0xff );
 			Huff_Decompress( &mb, 12 );
 			ASSERT_EQ( ma.cursize, mb.cursize );
 			ASSERT_EQ( 0, memcmp( a, b, sizeof( a ) ) );
@@ -1845,6 +1852,61 @@ TEST(HuffmanAdaptive, CompressPadsWithZeros) {
 		}
 	}
 	EXPECT_GT( padded, 0 );
+}
+
+TEST(HuffmanAdaptive, CutShortMessageEndsInZeros) {
+	// when the bytes run out before the count of the size, the old code
+	// stopped with a 0 and copied the rest of its buffer as the stack had it
+	static byte a[MAX_MSGLEN * 2], b[MAX_MSGLEN * 2];
+	Rng r( 22 );
+	msg_t ma, mb;
+
+	// a size of 100 and the code of 'x' (no code for the NYT yet, then its
+	// 8 bits): the decoder reads one more symbol from the zeros past the end,
+	// as it always did, and stops
+	memset( a, 0, sizeof( a ) );
+	memset( &ma, 0, sizeof( ma ) );
+	ma.data = a;
+	ma.maxsize = sizeof( a );
+	ma.cursize = 15;
+	a[13] = 100;
+	a[14] = 0x1e;	// 0x78, high bit first
+	DirtyStack( 0xff );
+	Huff_Decompress( &ma, 12 );
+	ASSERT_EQ( 112, ma.cursize );
+	EXPECT_EQ( 'x', a[12] );
+	for ( int i = 13; i < 112; i++ ) {
+		ASSERT_EQ( 0, a[i] ) << "byte " << i;
+	}
+
+	// any message cut short or with a size too big comes out the same
+	// whatever the stack held
+	for ( int n = 0; n < 64; n++ ) {
+		memset( &ma, 0, sizeof( ma ) );
+		ma.data = a;
+		ma.maxsize = sizeof( a );
+		ma.cursize = r.Range( 1, 1500 ) + 12;
+		FillRandom( r, a, sizeof( a ) );
+		Huff_Compress( &ma, 12 );
+		if ( n & 1 ) {
+			ma.cursize = r.Range( 14, ma.cursize - 1 );
+		} else {
+			const int size = a[12] * 256 + a[13] + r.Range( 1, 2000 );
+
+			a[12] = (byte)( size >> 8 );
+			a[13] = (byte)size;
+		}
+		memcpy( b, a, sizeof( b ) );
+		mb = ma;
+		mb.data = b;
+
+		DirtyStack( 0x00 );
+		Huff_Decompress( &ma, 12 );
+		DirtyStack( 0xff );
+		Huff_Decompress( &mb, 12 );
+		ASSERT_EQ( ma.cursize, mb.cursize );
+		ASSERT_EQ( 0, memcmp( a, b, sizeof( a ) ) ) << "message " << n;
+	}
 }
 
 // ==============================================================================
