@@ -3,9 +3,10 @@
 // No shell is involved: argv[0] is looked up in the PATH (and, on Windows, in
 // the game's directory) and every argument is passed as is. The program's
 // output goes to logPath when given (truncated first), else it is discarded.
-// The program gets only its standard handles on Windows Vista and later,
-// Linux (glibc 2.34+) and macOS, and default signal handling on POSIX. No
-// engine dependency, so it can be unit tested.
+// The program gets only its standard handles on Windows Vista and later
+// (where it isn't started if they can't be listed), Linux (glibc 2.34+) and
+// macOS, and default signal handling on POSIX. No engine dependency, so it
+// can be unit tested.
 
 #ifndef SYS_SPAWN_H
 #define SYS_SPAWN_H

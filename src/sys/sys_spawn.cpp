@@ -74,9 +74,10 @@ typedef struct {
 } inheritList_t;
 
 // The program will inherit only these handles, which must stay open until
-// FreeInheritList. Leaves list->attributes NULL on Windows XP, or if the list
-// can't be made.
-static void InheritOnly( inheritList_t *list, HANDLE *handles, DWORD count ) {
+// FreeInheritList. Leaves list->attributes NULL on Windows XP (or without
+// handles to inherit), and returns false if the list exists but can't be
+// made: the program isn't started rather than given every handle.
+static bool InheritOnly( inheritList_t *list, HANDLE *handles, DWORD count ) {
 	initializeProcThreadAttributeList_t	initList = NULL;
 	updateProcThreadAttribute_t			updateList = NULL;
 	SIZE_T								size = 0;
@@ -93,26 +94,27 @@ static void InheritOnly( inheritList_t *list, HANDLE *handles, DWORD count ) {
 	}
 #endif
 	if ( !initList || !updateList || !list->deleteList || !count ) {
-		return;
+		return true;
 	}
 
 	// the first call only gives the size
 	initList( NULL, 1, 0, &size );
 	void *attributes = size ? malloc( size ) : NULL;
 	if ( !attributes ) {
-		return;
+		return false;
 	}
 	if ( !initList( attributes, 1, 0, &size ) ) {
 		free( attributes );
-		return;
+		return false;
 	}
 	if ( !updateList( attributes, 0, SPAWN_PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles, count * sizeof( HANDLE ),
 		NULL, NULL ) ) {
 		list->deleteList( attributes );
 		free( attributes );
-		return;
+		return false;
 	}
 	list->attributes = attributes;
+	return true;
 }
 
 static void FreeInheritList( inheritList_t *list ) {
@@ -155,7 +157,7 @@ static HANDLE Spawn( const char * const *argv, HANDLE input, const char *logPath
 	if ( output != INVALID_HANDLE_VALUE && output != si.StartupInfo.hStdInput ) {
 		inherited[numInherited++] = output;
 	}
-	InheritOnly( &inheritList, inherited, numInherited );
+	const bool	listed = InheritOnly( &inheritList, inherited, numInherited );
 	if ( inheritList.attributes ) {
 		si.StartupInfo.cb = sizeof( si );
 		si.lpAttributeList = inheritList.attributes;
@@ -163,8 +165,8 @@ static HANDLE Spawn( const char * const *argv, HANDLE input, const char *logPath
 	}
 
 	std::string	writable( cmd );
-	const BOOL	ok = CreateProcessA( NULL, &writable[0], NULL, NULL, numInherited > 0, flags, NULL, NULL,
-					&si.StartupInfo, &pi );
+	const BOOL	ok = listed && CreateProcessA( NULL, &writable[0], NULL, NULL, numInherited > 0, flags, NULL,
+					NULL, &si.StartupInfo, &pi );
 
 	FreeInheritList( &inheritList );
 	if ( nul != INVALID_HANDLE_VALUE ) {
