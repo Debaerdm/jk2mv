@@ -6,13 +6,17 @@ records it with `video` at 30 fps twice: with the game running at 125 fps,
 faster than the video, and at 20 fps, slower than the video (as with a slow
 encode). For each shot it finds the video frame with the muzzle flash and
 the first sample of the shot's sound, and prints the sound's start minus the
-start of that frame. It must be under one video frame in both recordings,
-and the same in both: the real frame times must not matter.
+start of that frame. It must be the same in both recordings (the real
+frame times must not matter), and within half a video frame of the start
+of the Bryar's sound: a sound one frame early or late is off by a whole
+frame.
 
 The music is muted so that the shots start from silence. The Bryar's sound
 begins with about 30 ms of near silence (the start of its MP3), so a sound
-placed exactly on its frame measures about +30 ms; the audible shot comes
-about 10 ms later.
+placed exactly on its frame measures about +30 ms (+30.4 in both
+recordings when this was written); the audible shot comes about 10 ms
+later. Under one frame from 0 would also take a sound placed a frame early
+(30.4 - 33.3 = -2.9 ms).
 
 Not part of ctest: it needs the retail assets and opens a window.
 
@@ -43,6 +47,7 @@ FLASH_JUMP = 15.0       # mean luma rise of the region on the flash frame
 SHOT_LEVEL = 0.4        # of the loudest sample: the shots, above their own echoes
 SILENCE_RUN = 64        # samples at the background level that come before a shot
 REFRACTORY = 0.5        # seconds between two shots, at least
+BRYAR_LEAD_MS = 30.4    # near silence at the start of the Bryar's sound
 
 
 def riff_chunks(data, start, end):
@@ -291,10 +296,10 @@ def main():
     for name, fps, offsets in results:
         if len(offsets) < 4:
             errors.append('%s: %d shots found instead of 4' % (name, len(offsets)))
-        off = [o for o in offsets if abs(o) >= 1000.0 / fps]
+        off = [o for o in offsets if abs(o - BRYAR_LEAD_MS) >= 500.0 / fps]
         if off:
-            errors.append('%s: sound more than one frame off its picture: %s ms' % (
-                name, ', '.join('%+.1f' % o for o in off)))
+            errors.append('%s: sound more than half a frame off its picture (+%.1f ms expected): %s ms' % (
+                name, BRYAR_LEAD_MS, ', '.join('%+.1f' % o for o in off)))
     a, b = results[0][2], results[1][2]
     if len(a) == len(b) and any(abs(x - y) > 1.0 for x, y in zip(a, b)):
         errors.append('the offsets depend on the real frame rate')

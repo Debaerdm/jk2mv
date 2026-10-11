@@ -68,7 +68,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - Dlights : un seul historique pour toutes les scènes monde d'une frame.
   - FOV : la glu cgame n'a pas de test ; un mod qui lit son `cg_fovAspectAdjust` par nom ne s'élargit pas.
   - Outils démo : la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180°.
-  - Capture : `tests/video/av_sync.py` ne voit pas un son en avance (comparer à l'amorce de 30,4 ms du Bryar) ; l'attente de ffmpeg ne peut pas être annulée.
+  - Capture : l'attente de ffmpeg ne peut pas être annulée.
   - FE-16 : aucune scène ne dessine une instance dans deux vues de LOD différents, ni un skin partagé par deux modèles.
   - `spawn-windows-handles` : repli silencieux si la liste d'attributs échoue ; un test laisse un dossier temporaire si `CopyFileA` échoue.
   - testscene : `smoke_client` ne vérifie pas ce qu'`ultra` hérite d'`enhanced` ; Échap pendant la scène n'a pas de test automatique.
