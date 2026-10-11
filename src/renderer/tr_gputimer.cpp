@@ -14,10 +14,18 @@ cvar_t	*r_maxFrameLatency;
 #define GPU_FRAMES		4		// frames in flight
 #define GPU_MAX_PAIRS	8		// timed occurrences of a section in a frame
 
-static PFNGLGENQUERIESPROC				qglGenQueries;
-static PFNGLDELETEQUERIESPROC			qglDeleteQueries;
+// The GL 1.5 query functions get pointer types of their own. glext.h skips
+// the PFNGL...PROC types of each GL version that gl.h already covers, and
+// macOS's <OpenGL/gl.h> covers 1.2 to 2.1 with the functions themselves and
+// no such types: PFNGLGENQUERIESPROC doesn't exist there.
+typedef void ( APIENTRY *genQueriesProc_t )( GLsizei n, GLuint *ids );
+typedef void ( APIENTRY *deleteQueriesProc_t )( GLsizei n, const GLuint *ids );
+typedef void ( APIENTRY *getQueryObjectivProc_t )( GLuint id, GLenum pname, GLint *params );
+
+static genQueriesProc_t					qglGenQueries;
+static deleteQueriesProc_t				qglDeleteQueries;
 static PFNGLQUERYCOUNTERPROC			qglQueryCounter;
-static PFNGLGETQUERYOBJECTIVPROC		qglGetQueryObjectiv;
+static getQueryObjectivProc_t			qglGetQueryObjectiv;
 static PFNGLGETQUERYOBJECTUI64VPROC		qglGetQueryObjectui64v;
 static PFNGLFENCESYNCPROC				qglFenceSync;
 static PFNGLCLIENTWAITSYNCPROC			qglClientWaitSync;
@@ -67,10 +75,10 @@ void R_InitGPUTimers( void ) {
 	if ( !GL_CheckForExtension( "GL_ARB_timer_query" ) && ( major < 3 || ( major == 3 && minor < 3 ) ) ) {
 		return;
 	}
-	qglGenQueries = (PFNGLGENQUERIESPROC)WIN_GL_GetProcAddress( "glGenQueries" );
-	qglDeleteQueries = (PFNGLDELETEQUERIESPROC)WIN_GL_GetProcAddress( "glDeleteQueries" );
+	qglGenQueries = (genQueriesProc_t)WIN_GL_GetProcAddress( "glGenQueries" );
+	qglDeleteQueries = (deleteQueriesProc_t)WIN_GL_GetProcAddress( "glDeleteQueries" );
 	qglQueryCounter = (PFNGLQUERYCOUNTERPROC)WIN_GL_GetProcAddress( "glQueryCounter" );
-	qglGetQueryObjectiv = (PFNGLGETQUERYOBJECTIVPROC)WIN_GL_GetProcAddress( "glGetQueryObjectiv" );
+	qglGetQueryObjectiv = (getQueryObjectivProc_t)WIN_GL_GetProcAddress( "glGetQueryObjectiv" );
 	qglGetQueryObjectui64v = (PFNGLGETQUERYOBJECTUI64VPROC)WIN_GL_GetProcAddress( "glGetQueryObjectui64v" );
 	if ( !qglGenQueries || !qglDeleteQueries || !qglQueryCounter || !qglGetQueryObjectiv || !qglGetQueryObjectui64v ) {
 		return;

@@ -55,5 +55,8 @@ endif()
 # Tests of the scripts in tools/
 add_subdirectory(tools)
 
+# Checks that the code builds on other platforms (macOS's GL headers)
+add_subdirectory(portability)
+
 # Performance tests (future)
 # add_subdirectory(performance)
