@@ -23,7 +23,11 @@
 #define	DEMOFILE_DELAY		1000
 
 // a disk that can't keep up: past this much data waiting for the thread, the
-// writes fail (and the demos stop) rather than fill the memory
+// writes fail (and the demos stop) rather than fill the memory.  Nothing is
+// written to a file after a failure, so it keeps what came before it, whole,
+// rather than get a hole and then the rest: the frame drops the block that
+// doesn't fit and every later one, while the thread still writes those it
+// was given before (it only stops after an error of its own).
 #define	DEMOFILE_QUEUE_MAX	( 64 * 1024 * 1024 )
 
 struct svDemoFile_s {
@@ -37,12 +41,13 @@ struct svDemoFile_s {
 
 	// the thread
 	FILE				*f;
+	bool				writeError;		// its own open or write failed: it writes no more
 
 	// both
-	std::atomic<bool>	failed;			// open, write or close
+	std::atomic<bool>	failed;			// open, write or close, or a block the frame dropped
 	std::atomic<bool>	done;			// closed: the thread doesn't touch it any more
 
-	svDemoFile_s() : blockStart( 0 ), f( NULL ), failed( false ), done( false ) {
+	svDemoFile_s() : blockStart( 0 ), f( NULL ), writeError( false ), failed( false ), done( false ) {
 		qpath[0] = osPath[0] = '\0';
 	}
 };
@@ -109,12 +114,16 @@ static void SV_DemoWriterRun( demoJob_t &job ) {
 		SV_DemoWriterCreatePath( file->osPath );
 		file->f = fopen( file->osPath, "wb" );
 		if ( !file->f ) {
+			file->writeError = true;
 			file->failed = true;
 		}
 		break;
 
 	case DJ_WRITE:
-		if ( file->f && !job.data.empty() && fwrite( &job.data[0], 1, job.data.size(), file->f ) != job.data.size() ) {
+		// not failed, which the frame also sets when it drops a later block:
+		// the blocks it gave before that are written
+		if ( file->f && !file->writeError && !job.data.empty() && fwrite( &job.data[0], 1, job.data.size(), file->f ) != job.data.size() ) {
+			file->writeError = true;
 			file->failed = true;
 		}
 		break;
@@ -184,7 +193,7 @@ static void SV_DemoWriterPush( demoJobType_t type, svDemoFile_t *file, std::vect
 	{
 		std::lock_guard<std::mutex>	lock( sv_demoWriter->mutex );
 
-		if ( type == DJ_WRITE && sv_demoWriter->queued + size > DEMOFILE_QUEUE_MAX ) {
+		if ( type == DJ_WRITE && ( file->failed || sv_demoWriter->queued + size > DEMOFILE_QUEUE_MAX ) ) {
 			file->failed = true;
 			data->clear();
 			return;

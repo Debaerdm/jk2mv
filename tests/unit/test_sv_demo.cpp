@@ -134,6 +134,7 @@ static int		nextHandle = 1;
 static bool		failOpens;		// as the thread fails to create a file, later
 static bool		failWrites;
 static int		writerShutdowns;
+static svDemoFile_t	*lastOpened;
 
 struct svDemoFile_s {
 	int		handle;		// in openFiles
@@ -148,6 +149,7 @@ svDemoFile_t *SV_DemoFileOpen( const char *qpath ) {
 	openFiles[nextHandle] = f;
 	file->handle = nextHandle++;
 	file->failed = failOpens;
+	lastOpened = file;
 	return file;
 }
 
@@ -1147,6 +1149,25 @@ TEST_F( SvDemo, AWriteErrorStopsTheDemo ) {
 	failWrites = false;
 	Snapshot( cl, 50, { Ent( 40, 3 ) } );
 	EXPECT_TRUE( openFiles.empty() );
+}
+
+TEST_F( SvDemo, AFileEndsWhereTheWritesFailed ) {
+	client_t	*cl = Join( 0, "Padawan", false );
+
+	Command( "svrecord 0 cut" );
+	Snapshot( cl, 50, { Ent( 40, 1 ) } );
+	Snapshot( cl, 50, { Ent( 40, 2 ) } );
+
+	// the writer thread failed: what it was given since is lost, so the end
+	// of the demo would come after a hole
+	lastOpened->failed = true;
+	Snapshot( cl, 50, { Ent( 40, 3 ) } );
+	EXPECT_TRUE( openFiles.empty() );
+	EXPECT_NE( consoleLog.find( "Stopped demos/cut.dm_16 after a write error: 2 snapshots" ), std::string::npos );
+
+	const Demo demo = ReadDemo( File( "demos/cut.dm_16" ) );
+	EXPECT_FALSE( demo.terminated );
+	EXPECT_EQ( demo.snaps.size(), 2u );
 }
 
 TEST_F( SvDemo, AutoRecordStartsOncePerMap ) {

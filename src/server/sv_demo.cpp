@@ -248,9 +248,12 @@ static void SV_DemoClose( svDemo_t *demo, const char *why ) {
 	}
 
 	if ( demo->gamestateWritten ) {
-		// a message length of -1 ends the demo
-		end[0] = end[1] = -1;
-		SV_DemoFileWrite( demo->file, end, sizeof( end ) );
+		// a message length of -1 ends the demo.  After a write error the
+		// file ends where the writes stopped, which the client also plays.
+		if ( !SV_DemoFileFailed( demo->file ) ) {
+			end[0] = end[1] = -1;
+			SV_DemoFileWrite( demo->file, end, sizeof( end ) );
+		}
 		SV_DemoFileClose( demo->file, qfalse );
 		Com_Printf( "Stopped %s%s: %i snapshots, %i s, %i KB\n", demo->path, why, demo->snapshots,
 			( svs.time - demo->startTime ) / 1000, ( demo->bytes + 1023 ) / 1024 );

@@ -7,9 +7,11 @@
 #include <gtest/gtest.h>
 #include <cerrno>
 #include <chrono>
+#include <condition_variable>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -67,7 +69,35 @@ char *FS_BuildOSPath( const char *base, const char *game, const char *qpath ) {
 	return path;
 }
 
+// a disk that doesn't answer: while held, the writer thread waits in the
+// first Sys_Mkdir of a DJ_OPEN, before it creates or writes anything
+static std::mutex				diskMutex;
+static std::condition_variable	diskWake;
+static bool						diskHeld;
+
+static void HoldDisk() {
+	std::lock_guard<std::mutex>	lock( diskMutex );
+
+	diskHeld = true;
+}
+
+static void ReleaseDisk() {
+	{
+		std::lock_guard<std::mutex>	lock( diskMutex );
+
+		diskHeld = false;
+	}
+	diskWake.notify_all();
+}
+
 qboolean Sys_Mkdir( const char *path ) {
+	{
+		std::unique_lock<std::mutex>	lock( diskMutex );
+
+		while ( diskHeld ) {
+			diskWake.wait( lock );
+		}
+	}
 #ifdef _WIN32
 	return (qboolean)( _mkdir( path ) == 0 || errno == EEXIST );
 #else
@@ -153,6 +183,7 @@ protected:
 		RemoveTree();
 	}
 	virtual void TearDown() {
+		ReleaseDisk();
 		SV_DemoFilesShutdown();
 		RemoveTree();
 	}
@@ -246,6 +277,34 @@ TEST_F( SvDemoWriter, RefusesAHomePathThatGoesUp ) {
 	EXPECT_TRUE( SV_DemoFileOpen( "demos/a.dm_16" ) == NULL );
 	EXPECT_FALSE( SV_DemoFileInUse( "demos/a.dm_16" ) );
 	homePath = home;
+}
+
+TEST_F( SvDemoWriter, NothingIsWrittenAfterAFailure ) {
+	// more than the thread may have waiting: the writes fail, the data is
+	// dropped, and so is what comes after it
+	std::vector<unsigned char>	before = Bytes( 20000, 1 ), lost = Bytes( 1000, 2 ), after = Bytes( 20000, 3 );
+	std::vector<unsigned char>	huge( 64 * 1024 * 1024 + 1 );
+
+	// the thread hasn't even created the file when the frame drops a block:
+	// what it was given before is still written, whole
+	HoldDisk();
+	svDemoFile_t				*file = SV_DemoFileOpen( "demos/a.dm_16" );
+
+	ASSERT_TRUE( file != NULL );
+	SV_DemoFileWrite( file, &before[0], (int)before.size() );
+	SV_DemoFileWrite( file, &lost[0], (int)lost.size() );
+	EXPECT_FALSE( SV_DemoFileFailed( file ) );
+	SV_DemoFileWrite( file, &huge[0], (int)huge.size() );
+	EXPECT_TRUE( SV_DemoFileFailed( file ) );
+	SV_DemoFileWrite( file, &after[0], (int)after.size() );
+	SV_DemoFileClose( file, qfalse );
+	ReleaseDisk();
+	SV_DemoFilesShutdown();
+
+	const std::vector<unsigned char>	got = ReadAll( "demos/a.dm_16" );
+
+	EXPECT_EQ( got.size(), before.size() );
+	EXPECT_TRUE( got == before );
 }
 
 TEST_F( SvDemoWriter, StartsAgainAfterAShutdown ) {
