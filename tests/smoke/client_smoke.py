@@ -7,7 +7,9 @@ and takes another one. This covers renderer start-up, extension detection,
 the bundled shaders and fonts, the menu module, the post-process path and
 screenshot output. It can't enter a map: cgame needs the retail player
 models. Then 'preset ultra' and 'preset classic' must only touch
-registered cvars, and classic must undo exactly what ultra changed.
+registered cvars, and classic must undo exactly what ultra changed. Last, a
+vid_restart while a local map load has the renderer down (the client
+waits for the gamestate): the console drawn after it must not be white.
 
 A motion JPEG video of the test scene (cl_aviMotionJpeg 1, the default)
 must hold one JPEG frame of the render size per video frame, and leave no
@@ -24,7 +26,12 @@ the video must give up with a message, and the game go on. A third one, at
 frame buffer, of 4 byte aligned rows, is bigger): the motion JPEG video
 starts, then ends at its first frame with a message.
 
-usage: client_smoke.py <jk2mvmp> <directory holding the built base/> <work dir> [<fail_malloc.so>]
+With gl_context_check (preloaded, it reports GL calls without a current
+context), a run where no window can be made (SDL's dummy driver) must end
+with the fatal error and no GL call on the way down.
+
+usage: client_smoke.py <jk2mvmp> <directory holding the built base/> <work dir>
+                       [<fail_malloc.so> [<gl_context_check.so>]]
 """
 
 import glob
@@ -39,7 +46,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Com_Error banner; plain 'ERROR:' lines also come from harmless menu parse warnings.
 # A crash shows as a negative exit code (the signal), see exit_error.
 FATAL_MARKERS = ('********************\nERROR', 'recursive error')
-SHOTS = ('ci_console', 'ci_after_vidrestart')   # captured at the end of the next frame
+SHOTS = ('ci_console', 'ci_after_vidrestart', 'ci_vidrestart_maploading')   # captured at the end of the next frame
 
 
 def read_tga(path):
@@ -284,11 +291,32 @@ def check_video_capture_memory(client, work, fail_malloc):
     return errors
 
 
+def check_gl_start_failure(client, work, gl_context_check):
+    """Errors of the run where GL can't start: the fatal error shuts the
+    renderer down before it ever had a context."""
+    # no mode works with the dummy driver, not even the fallback (r_mode 3)
+    rc, log = run_client(client, work, ['+set', 'r_mode', '4'],
+                         {'SDL_VIDEODRIVER': 'dummy', 'LD_PRELOAD': gl_context_check})
+    with open(os.path.join(work, 'client_nogl.log'), 'w') as f:
+        f.write(log)
+    errors = []
+    if isinstance(rc, int) and rc < 0 or rc == 'timeout':
+        errors.append('without GL: ' + exit_error(rc))
+    if 'could not load OpenGL subsystem' not in log:
+        errors.append('without GL: no fatal error (did a window start?)')
+    if 'RE_Shutdown( 1 )' not in log:
+        errors.append('without GL: the renderer was not shut down')
+    for line in sorted(set(re.findall(r'GL call without a context: .*', log))):
+        errors.append('without GL: ' + line)
+    return errors
+
+
 def main():
-    if len(sys.argv) not in (4, 5):
+    if len(sys.argv) not in (4, 5, 6):
         sys.exit(__doc__)
     client, built, work = (os.path.abspath(a) for a in sys.argv[1:4])
     fail_malloc = os.path.abspath(sys.argv[4]) if len(sys.argv) > 4 else None
+    gl_context_check = os.path.abspath(sys.argv[5]) if len(sys.argv) > 5 else None
     subprocess.check_call([sys.executable, os.path.join(HERE, 'make_stub_base.py'), work, built])
     # native menu module next to the game directory
     for lib in glob.glob(os.path.join(built, 'jk2mvmenu_*')):
@@ -299,7 +327,10 @@ def main():
            '+vid_restart', '+wait', '30', '+screenshot_tga', SHOTS[1], '+wait', '5',
            # both run in one frame, which ends with a single renderer
            # restart for them, before the wait and the quit
-           '+preset', 'ultra', '+preset', 'classic', '+wait', '5', '+quit'])
+           '+preset', 'ultra', '+preset', 'classic', '+wait', '5',
+           # the map load shuts the renderer down and closes the console
+           '+map', 'ci_box', '+vid_restart', '+wait', '100', '+toggleconsole', '+wait', '30',
+           '+screenshot_tga', SHOTS[2], '+wait', '5', '+quit'])
     with open(os.path.join(work, 'client.log'), 'w') as f:
         f.write(log)
 
@@ -329,6 +360,12 @@ def main():
             errors.append('%s is %dx%d, expected 640x480' % (name, width, height))
         if len(colors) < 3:
             errors.append('%s looks blank (%d distinct colors sampled)' % (name, len(colors)))
+        # images kept from before a vid_restart come back white: the console
+        # background, the fonts
+        samples = range(0, len(pixels), step * 7)
+        white = sum(1 for i in samples if min(pixels[i:i + 3]) >= 240) / float(len(samples))
+        if white > 0.5:
+            errors.append('%s is %d%% white: images lost by a vid_restart' % (name, white * 100))
 
     # from the defaults, ultra turns on the latched post-process cvars and
     # classic sets back exactly what ultra changed
@@ -354,13 +391,17 @@ def main():
     if fail_malloc:
         errors += check_capture_memory(client, work, fail_malloc)
         errors += check_video_capture_memory(client, work, fail_malloc)
+    if gl_context_check:
+        errors += check_gl_start_failure(client, work, gl_context_check)
 
     if errors:
         print('\n'.join(log.splitlines()[-60:]))
         print('client smoke test FAILED:\n  ' + '\n  '.join(errors))
         sys.exit(1)
     print('client smoke test passed: renderer up, console drawn, vid_restart, screenshots written, presets, '
-          'motion JPEG video%s' % (', captures without memory' if fail_malloc else ''))
+          'motion JPEG video%s%s'
+          % (', captures without memory' if fail_malloc else '',
+             ', no GL call when GL cannot start' if gl_context_check else ''))
 
 
 if __name__ == '__main__':

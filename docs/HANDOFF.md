@@ -53,9 +53,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - pas de seau global contre une inondation à sources usurpées : la réponse (14 octets de données) n'amplifie guère le paquet qui la provoque et chaque adresse reste à 10 par seconde, et un seau global laisserait une inondation priver de leur `disconnect` les vrais clients d'un serveur qui redémarre ;
     - la glu moteur n'a pas de test.
   - SV-2 : SV-8 devra traiter les globales de msg.cpp.
-  - VQ-7 :
-    - aucun test automatique de la console ni des graphes à une échelle autre que 1 ;
-    - après un `vid_restart` pendant que le renderer est arrêté, polices et icônes restent blanches (défaut de la base, correctif proposé dans la relecture).
+  - VQ-7 : aucun test automatique de la console ni des graphes à une échelle autre que 1.
   - Menus :
     - pas de test de la garde du cache contre `cvar_restart` ;
     - après un réglage latched fait à la console, les copies des pages retail montrent la valeur courante (comme en retail) ;

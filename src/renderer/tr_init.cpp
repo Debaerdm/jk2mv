@@ -1513,12 +1513,17 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	// --------
 
 	R_ShutdownFonts();
-	if ( tr.registered ) {
-		R_SyncRenderThread();
-		if (destroyWindow)
-		{
-			R_DeleteTextures();		// only do this for vid_restart now, not during things like map load
-		}
+	R_SyncRenderThread();
+	// only do this for vid_restart now, not during things like map load.
+	// Also unregistered: a vid_restart while the renderer is down (a map
+	// load shut it down, the gamestate hasn't started it again) still has
+	// the images, whose textures die with the context, and every image
+	// registered again under their names would be white. Images only exist
+	// with a context; without any (GL never started, or a failed vid_restart
+	// already dropped them) there is no context to make GL calls in.
+	if ( destroyWindow && ( tr.registered || R_Images_StartIteration() > 0 ) )
+	{
+		R_DeleteTextures();
 	}
 
 	// shut down platform specific OpenGL stuff

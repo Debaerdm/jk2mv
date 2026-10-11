@@ -23,10 +23,13 @@ endif()
 if(TARGET ${MVMP})
   # preloaded to make the capture buffers fail
   add_library(fail_malloc SHARED fail_malloc.c)
+  # preloaded to report GL calls made without a context
+  add_library(gl_context_check SHARED gl_context_check.c)
+  target_link_libraries(gl_context_check PRIVATE ${CMAKE_DL_LIBS})
   add_test(NAME smoke_client
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/client_smoke.py
       $<TARGET_FILE:${MVMP}> $<TARGET_FILE_DIR:${MVMP}> ${CMAKE_CURRENT_BINARY_DIR}/client
-      $<TARGET_FILE:fail_malloc>)
+      $<TARGET_FILE:fail_malloc> $<TARGET_FILE:gl_context_check>)
   set_tests_properties(smoke_client PROPERTIES LABELS smoke TIMEOUT 300)
 endif()
 
