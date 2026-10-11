@@ -642,7 +642,7 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 		if ( entityNum != oldEntityNum ) {
 			depthRange = 0;
 
-			if ( entityNum != ENTITYNUM_WORLD ) {
+			if ( entityNum != REFENTITYNUM_WORLD ) {
 				backEnd.currentEntity = &backEnd.refdef.entities[entityNum];
 				if (backEnd.currentEntity->intShaderTime) {
 					backEnd.refdef.floatTime = originalTime - 0.001 * backEnd.currentEntity->e.shaderTime.i;

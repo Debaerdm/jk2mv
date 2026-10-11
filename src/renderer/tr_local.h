@@ -950,6 +950,8 @@ the bits are allocated as follows:
 #define	QSORT_SHADERNUM_SHIFT	17	// MAX_SHADERS  (14 bit)
 #define	QSORT_ENTITYNUM_SHIFT	7	// MAX_ENTITIES (10 bit)
 #define	QSORT_FOGNUM_SHIFT		2
+// the world's entity number in the sort key: a refEntity number, not a game entity
+#define	REFENTITYNUM_WORLD		( ( 1 << ( QSORT_SHADERNUM_SHIFT - QSORT_ENTITYNUM_SHIFT ) ) - 2 )
 
 /*
 ** performanceCounters_t
