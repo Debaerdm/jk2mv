@@ -944,7 +944,7 @@ void CL_StartVideoBlend( void )
 					"per second\n", afd.blendFrames, afd.frameRate, VIDEO_MAX_ENGINE_FPS );
 			}
 		} else {
-			Com_Printf( S_COLOR_YELLOW "cl_aviMotionBlur needs r_fbo 1, recording without motion blur\n" );
+			Com_Printf( S_COLOR_YELLOW "cl_aviMotionBlur needs r_fbo 1 and a 16 bit render target, recording without motion blur\n" );
 		}
 	}
 }

@@ -73,6 +73,7 @@ static struct {
 	renderTarget_t	post;			// the view composited (HDR, bloom), copied back through the grade
 	renderTarget_t	blend;			// video motion blur: the average of the frames so far
 	GLuint			blendCopy;		// the finished frame, copied from the back buffer
+	qboolean		blendFailed;	// no 16 bit target to blend in, until the next restart
 
 	// r_renderScale
 	qboolean		scaled;			// frames are drawn at the render size, then scaled to the window
@@ -1194,13 +1195,13 @@ the last frame puts the average back, where the video capture reads it.
 ==================
 */
 qboolean R_PostFXCanBlendFrames( void ) {
-	return pfx.active;
+	return (qboolean)( pfx.active && !pfx.blendFailed );
 }
 
 void R_PostFXBlendFrame( int subframe, int subframes ) {
 	const int w = glConfig.vidWidth, h = glConfig.vidHeight;
 
-	if ( !pfx.active || subframes < 2 ) {
+	if ( !pfx.active || pfx.blendFailed || subframes < 2 ) {
 		return;
 	}
 	if ( pfx.blend.fbo && ( pfx.blend.width != w || pfx.blend.height != h ) ) {
@@ -1212,7 +1213,14 @@ void R_PostFXBlendFrame( int subframe, int subframes ) {
 		if ( !( pfx.floatTextures && R_CreateTarget( &pfx.blend, w, h, GL_RGBA16F, 0 ) ) ) {
 			R_DestroyBlendTargets();
 			if ( !R_CreateTarget( &pfx.blend, w, h, GL_RGBA16, 0 ) ) {
+				// no 8 bit fallback (see above), and no new attempt on
+				// every frame: the frames go out unblended, one in
+				// subframes, and the next recording starts without blur
+				ri.Printf( PRINT_WARNING, "cl_aviMotionBlur: can't render to a 16 bit target, "
+					"recording without motion blur\n" );
 				R_DestroyBlendTargets();
+				R_ClearGLErrors();
+				pfx.blendFailed = qtrue;
 				R_BindPresentTarget();
 				return;
 			}

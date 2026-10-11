@@ -64,7 +64,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - « FX system out of effects » après un `vid_restart` au menu principal puis une partie locale mise en pause (sans doute ancien) ;
     - `r_renderScale` et `r_dlightPriority` ne sont pas sur la page Advanced.
   - Rendu :
-    - le flou vidéo sans RGBA16 rendable n'a plus de repli 8 bits et réessaie à chaque image ;
+    - le flou vidéo sans cible RGBA16 rendable abandonne au premier échec (un message, et l'enregistrement continue sans flou) ; pas de repli 8 bits, et ce chemin n'a pas pu tourner (llvmpipe et les GPU essayés rendent en 16 bits) ;
     - l'alpha-to-coverage d'un mod avec un alpha de sommet constant inférieur à 1 laisse passer une partie du fond ;
     - la glu (table du grade, image liée après `GL_State`) n'a pas de test ;
     - `GL_INVALID_VALUE` au premier rechargement du renderer avec MSAA 8x, HDR et bloom sous `r_ignoreGLErrors 0` (défaut de la base).
