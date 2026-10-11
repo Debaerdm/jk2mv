@@ -307,6 +307,27 @@ TEST_F( SvDemoWriter, NothingIsWrittenAfterAFailure ) {
 	EXPECT_TRUE( got == before );
 }
 
+TEST_F( SvDemoWriter, LongNamesAreNotCut ) {
+	// the longest automatic names, with the number of a second file
+	const std::string	name = "demos/20261004-171530_abcdefghijklmnop_31_abcdefghijklmno_99.dm_16";
+	std::string			other = name;
+
+	ASSERT_GT( name.size(), (size_t)MAX_QPATH );
+	other[other.size() - 1] = '5';
+
+	svDemoFile_t	*file = SV_DemoFileOpen( name.c_str() );
+	unsigned char	byte = 7;
+
+	ASSERT_TRUE( file != NULL );
+	EXPECT_TRUE( SV_DemoFileInUse( name.c_str() ) );
+	EXPECT_FALSE( SV_DemoFileInUse( other.c_str() ) );
+	SV_DemoFileWrite( file, &byte, 1 );
+	SV_DemoFileClose( file, qfalse );
+	SV_DemoFilesShutdown();
+	EXPECT_EQ( ReadAll( name ).size(), 1u );
+	remove( OSPath( name ).c_str() );
+}
+
 TEST_F( SvDemoWriter, StartsAgainAfterAShutdown ) {
 	std::vector<unsigned char>	one = Bytes( 50000, 1 ), two = Bytes( 300, 2 );
 	svDemoFile_t				*file;

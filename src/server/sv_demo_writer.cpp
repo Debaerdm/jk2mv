@@ -32,7 +32,7 @@
 
 struct svDemoFile_s {
 	// the server frame
-	char				qpath[MAX_QPATH];
+	char				qpath[MAX_OSPATH];	// an automatic demo name can be longer than MAX_QPATH
 	std::vector<byte>	block;			// not handed over yet
 	int					blockStart;		// Sys_Milliseconds of its first byte
 
