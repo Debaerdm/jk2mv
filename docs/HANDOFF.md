@@ -71,7 +71,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - Capture : l'attente de ffmpeg ne peut pas être annulée.
   - FE-16 : aucune scène ne dessine une instance dans deux vues de LOD différents, ni un skin partagé par deux modèles.
   - `spawn-windows-handles` : repli silencieux si la liste d'attributs échoue ; un test laisse un dossier temporaire si `CopyFileA` échoue.
-  - testscene : `smoke_client` ne vérifie pas ce qu'`ultra` hérite d'`enhanced` ; Échap pendant la scène n'a pas de test automatique.
+  - testscene : Échap pendant la scène n'a pas de test automatique.
 
 ## Construire et tester sur cette machine
 

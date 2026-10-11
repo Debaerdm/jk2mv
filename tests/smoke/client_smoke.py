@@ -43,6 +43,7 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+PRESETS_SOURCE = os.path.join(HERE, '..', '..', 'src', 'client', 'cl_presets.cpp')
 # Com_Error banner; plain 'ERROR:' lines also come from harmless menu parse warnings.
 # A crash shows as a negative exit code (the signal), see exit_error.
 FATAL_MARKERS = ('********************\nERROR', 'recursive error')
@@ -77,6 +78,26 @@ def preset_lines(log, name):
         else:
             others.append(line.strip())
     return changes, others
+
+
+def preset_table(source, name):
+    """{cvar: value} of a presetCvar_t table of cl_presets.cpp."""
+    table = re.search(r'static const presetCvar_t %s\[\] = \{(.*?)\n\};' % name, source, re.S)
+    if not table:
+        raise ValueError('no table %s in cl_presets.cpp' % name)
+    return dict(re.findall(r'\{ "(\w+)", "([^"]*)" \}', table.group(1)))
+
+
+def ultra_from_defaults():
+    """What 'preset ultra' must change on a fresh profile: enhanced, which it
+    builds on, then its own values; {cvar: value} without those already at
+    their default."""
+    with open(PRESETS_SOURCE) as f:
+        source = f.read()
+    defaults = preset_table(source, 'presetDefaults')
+    expected = preset_table(source, 'presetEnhancedCvars')
+    expected.update(preset_table(source, 'presetUltraCvars'))
+    return {cvar: value for cvar, value in expected.items() if defaults.get(cvar) != value}
 
 
 def exit_error(rc):
@@ -379,6 +400,12 @@ def main():
         for cvar in ('r_fbo', 'r_hdr', 'r_bloom'):
             if ultra[0].get(cvar) != ('0', '1'):
                 errors.append('preset ultra: %s %s, expected 0 -> 1' % (cvar, ultra[0].get(cvar)))
+        # with what it inherits from enhanced (MSAA 8 overriding its 4)
+        expected = ultra_from_defaults()
+        got = {cvar: new for cvar, (_, new) in ultra[0].items()}
+        if got != expected:
+            errors.append('preset ultra is not enhanced plus its own: %s'
+                          % sorted(set(got.items()) ^ set(expected.items())))
         undo = {cvar: (new, old) for cvar, (old, new) in ultra[0].items()}
         if classic[0] != undo:
             errors.append('preset classic did not undo ultra: %s' % sorted(set(classic[0].items()) ^ set(undo.items())))
