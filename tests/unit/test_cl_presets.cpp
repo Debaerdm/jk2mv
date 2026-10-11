@@ -468,6 +468,32 @@ TEST_F(Presets, ANewUIModuleStartsWithoutPendingChanges) {
 	EXPECT_STREQ( Value( "ui_mvPresetPending" ), "" );
 }
 
+// CL_PresetFindVar caches registered cvars only: cvar_restart frees a user
+// created one (here ui_r_modified set in a config before the UI module
+// registers it), and a cached pointer would keep reading the freed cvar
+TEST_F(Presets, CvarRestartLeavesNoStaleCache) {
+	CL_PresetUIStarted();
+	Cvar_Get( "ui_r_modified", "1", CVAR_USER_CREATED );
+	Cvar_Set( "r_fbo", "1" );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "0" );	// a change waits to be applied
+
+	// cvar_restart: the user created cvar goes, kept in memory here so that a
+	// stale pointer reads its "1" instead of crashing
+	std::vector<std::unique_ptr<FakeCvar>> freed;
+	for ( auto it = cvars.begin(); it != cvars.end(); ) {
+		if ( (*it)->cv.flags & CVAR_USER_CREATED ) {
+			freed.push_back( std::move( *it ) );
+			it = cvars.erase( it );
+		} else {
+			++it;
+		}
+	}
+	ASSERT_EQ( freed.size(), 1u );
+	CL_PresetFrame();
+	EXPECT_STREQ( Value( "ui_r_fbo" ), "1" );	// nothing waits any more
+}
+
 TEST_F(Presets, ACopyCreatedFromTheConsoleIsTakenOver) {
 	Cvar_Get( "ui_r_hdr", "1", CVAR_USER_CREATED );		// set ui_r_hdr 1
 	CL_PresetUIStarted();

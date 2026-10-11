@@ -54,7 +54,6 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - la glu moteur n'a pas de test.
   - SV-2 : SV-8 devra traiter les globales de msg.cpp.
   - Menus :
-    - pas de test de la garde du cache contre `cvar_restart` ;
     - après un réglage latched fait à la console, les copies des pages retail montrent la valeur courante (comme en retail) ;
     - le crochet de clic des relectures n'est pas dans l'arbre ;
     - « FX system out of effects » après un `vid_restart` au menu principal puis une partie locale mise en pause (sans doute ancien) ;
