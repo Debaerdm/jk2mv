@@ -49,7 +49,6 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - deux mutants survivent aux tests (M9, W3).
   - SV-3 : les tests ne compilent pas la glu moteur qui appelle `sv_snapshot_ring.h` (`SV_WriteSnapshotToClient`) ; `SV_DeltaBaseBeyondClientRing` est testé contre un modèle de l'anneau du client.
   - SV-13 :
-    - la borne inutile de sv_usercmd_rate.cpp:97 ;
     - le message développeur des réponses `disconnect` perdues ;
     - pas de seau global contre une inondation à sources usurpées ;
     - la glu moteur n'a pas de test.

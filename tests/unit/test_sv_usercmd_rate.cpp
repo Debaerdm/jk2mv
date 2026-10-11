@@ -372,6 +372,42 @@ TEST(SvUsercmdRate, DroppedCountsEachUsercmdOnce) {
 	EXPECT_EQ( (long long)seen.size(), (long long)server.ranTimes.size() + server.dropped );
 }
 
+TEST(SvUsercmdRate, SeenTimeBelowTheLastUsercmdRunChangesNothing) {
+	// only usercmds newer than lastServerTime run or count, so a seenTime
+	// below it (a new bucket, as here) is as good as lastServerTime itself:
+	// the schedule used to raise it first
+	srand( 7 );
+	for ( int trial = 0; trial < 200; trial++ ) {
+		usercmdBucket_t	a, b;
+		int				lastA = START_TIME + rand() % 100, lastB = lastA;
+		int				now = START_TIME;
+
+		memset( &a, 0, sizeof( a ) );
+		memset( &b, 0, sizeof( b ) );
+		a.seenTime = lastA - 1 - rand() % 1000;
+		for ( int p = 0; p < 20; p++ ) {
+			const std::vector<int>	packet = RandomPacket( lastA - 5 + rand() % 20 );
+			int						runA[32], runB[32], droppedA, droppedB;
+
+			now += rand() % 30;
+			if ( b.seenTime < lastB ) {
+				b.seenTime = lastB;
+			}
+			const int numA = SV_UsercmdSchedule( &a, 500, now, packet.data(), (int)packet.size(), lastA, runA, &droppedA );
+			const int numB = SV_UsercmdSchedule( &b, 500, now, packet.data(), (int)packet.size(), lastB, runB, &droppedB );
+
+			ASSERT_EQ( numA, numB );
+			ASSERT_EQ( droppedA, droppedB );
+			for ( int i = 0; i < numA; i++ ) {
+				ASSERT_EQ( runA[i], runB[i] );
+			}
+			if ( numA ) {
+				lastA = lastB = packet[runA[numA - 1]];
+			}
+		}
+	}
+}
+
 TEST(SvUsercmdRate, CreditStaysRightAcrossTheClockWrap) {
 	usercmdBucket_t	bucket;
 	int				serverTimes[32];

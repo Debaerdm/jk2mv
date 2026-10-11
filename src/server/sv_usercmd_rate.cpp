@@ -94,11 +94,6 @@ int SV_UsercmdSchedule( usercmdBucket_t *bucket, int rate, int now,
 	int		allowed;
 	int		i;
 
-	// nothing up to the last usercmd run is new, whatever came before
-	if ( bucket->seenTime < lastServerTime ) {
-		bucket->seenTime = lastServerTime;
-	}
-
 	for ( i = 0; i < count; i++ ) {
 		if ( serverTimes[i] > serverTimes[count - 1] ) {
 			continue;
