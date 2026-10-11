@@ -64,7 +64,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
     - la glu (table du grade, image liée après `GL_State`) n'a pas de test ;
     - `GL_INVALID_VALUE` au premier rechargement du renderer avec MSAA 8x, HDR et bloom sous `r_ignoreGLErrors 0` (défaut de la base).
   - Dlights : le choix de l'historique de chaque scène (`R_DlightHistoryForScene`) est testé, pas son appel dans `R_SelectDlights` (tr_scene.cpp), qui lui donne `tr.frameCount` pour la frame : il faudrait deux scènes monde par frame dessinées par le moteur (un cgame ; testscene n'en dessine qu'une).
-  - FOV : la glu cgame n'a pas de test ; un mod qui lit son `cg_fovAspectAdjust` par nom ne s'élargit pas.
+  - FOV : la glu cgame (`CL_CgameCvarUpdate`, `CL_CgameCvarStringBuffer`) n'a pas de test, il faudrait une VM cgame ; la valeur qu'elles donnent (`CL_FovAdjustValue`) en a un.
   - Outils démo : la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180°.
   - Capture : l'attente de ffmpeg ne peut pas être annulée.
   - FE-16 : aucune scène ne dessine une instance dans deux vues de LOD différents, ni un skin partagé par deux modèles.

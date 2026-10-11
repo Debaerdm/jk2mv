@@ -116,3 +116,19 @@ TEST(ClFov, RejectsFovsOutOfRange) {
 		EXPECT_EQ( y, -1.0f );
 	}
 }
+
+// what a cgame with its own Hor+ reads for cg_fovAspectAdjust while
+// cl_fovAspectFix applies: on, whatever off value the player has
+TEST(FovAdjustValue, OffReadsAsOn) {
+	for ( const char *off : { "0", "", "0.5", "abc", "-0" } ) {
+		ASSERT_NE( CL_FovAdjustValue( off ), nullptr ) << off;
+		EXPECT_STREQ( CL_FovAdjustValue( off ), "1" ) << off;
+	}
+	EXPECT_STREQ( CL_FovAdjustValue( nullptr ), "1" );
+}
+
+TEST(FovAdjustValue, OnKeepsItsOwnValue) {
+	for ( const char *on : { "1", "2", "-1" } ) {
+		EXPECT_EQ( CL_FovAdjustValue( on ), nullptr ) << on;
+	}
+}

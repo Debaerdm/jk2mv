@@ -14,4 +14,10 @@
 // for fovs outside (0, 180).
 bool CL_FovWiden( float fovX, float fovY, int width, int height, float *outX, float *outY );
 
+// What a cgame with its own Hor+ (MVSDK's cg_fovAspectAdjust) reads for that
+// cvar while cl_fovAspectFix applies, whether through its vmCvar or by name:
+// "1" when the cvar holds an off value (what atoi reads as 0), else NULL for
+// the cvar's own value.
+const char *CL_FovAdjustValue( const char *value );
+
 #endif // CL_FOV_H

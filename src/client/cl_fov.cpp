@@ -2,6 +2,7 @@
 
 #include "cl_fov.h"
 #include <math.h>
+#include <stdlib.h>
 
 bool CL_FovWiden( float fovX, float fovY, int width, int height, float *outX, float *outY ) {
 	if ( width <= 0 || height <= 0 || width * 3 <= height * 4 ||
@@ -14,4 +15,8 @@ bool CL_FovWiden( float fovX, float fovY, int width, int height, float *outX, fl
 	*outX = (float)( atan( k * tan( fovX * halfRad ) ) / halfRad );
 	*outY = (float)( atan( k * tan( fovY * halfRad ) ) / halfRad );
 	return true;
+}
+
+const char *CL_FovAdjustValue( const char *value ) {
+	return value && atoi( value ) ? NULL : "1";
 }

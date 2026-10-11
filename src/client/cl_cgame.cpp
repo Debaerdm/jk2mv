@@ -687,9 +687,9 @@ keeping the 4:3 vertical view ("Hor+"), unless the server fixes the fov
 
 A cgame with its own correction, cg_fovAspectAdjust (MVSDK mods, jk2mv's
 base modules among them), widens its view itself: while cl_fovAspectFix
-applies, it reads that cvar as on, so it projects the marks it draws on the
-world (dynamic crosshair, rocket lock box, saber clash flares) with the fov
-it renders with. The cvar itself, and so the config, keeps the player's
+applies, it reads that cvar as on (through its vmCvar or by name), so it
+projects the marks it draws on the world (dynamic crosshair, rocket lock
+box, saber clash flares) with the fov it renders with. The cvar itself, and so the config, keeps the player's
 value. The engine widens the world scenes of other cgames, whose marks then
 drift off target away from the screen center.
 ====================
@@ -714,10 +714,25 @@ static void CL_CgameCvarUpdate( vmCvar_t *vmCvar ) {
 	}
 	vmCvar->modificationCount = -1;		// copy it every time: cl_fovAspectFix may have changed, not the cvar
 	Cvar_Update( vmCvar );
-	if ( !vmCvar->integer && CL_FovAspectFixOn() ) {
-		Q_strncpyz( vmCvar->string, "1", sizeof( vmCvar->string ) );
-		vmCvar->value = 1.0f;
-		vmCvar->integer = 1;
+	const char *value = CL_FovAspectFixOn() ? CL_FovAdjustValue( vmCvar->string ) : NULL;
+	if ( value ) {
+		Q_strncpyz( vmCvar->string, value, sizeof( vmCvar->string ) );
+		vmCvar->value = (float)atof( value );
+		vmCvar->integer = atoi( value );
+	}
+}
+
+// CG_CVAR_VARIABLESTRINGBUFFER: a cgame that registered cg_fovAspectAdjust
+// may also read it by name, and must then see it as on too: the engine
+// leaves the widening to it
+static void CL_CgameCvarStringBuffer( const char *name, char *buffer, int size ) {
+	Cvar_VariableStringBuffer( name, buffer, size, qtrue );
+	if ( cl_cgameFovAdjust >= 0 && size > 0 && !Q_stricmp( name, "cg_fovAspectAdjust" ) && CL_FovAspectFixOn() ) {
+		const char *value = CL_FovAdjustValue( buffer );
+
+		if ( value ) {
+			Q_strncpyz( buffer, value, size );
+		}
 	}
 }
 
@@ -796,7 +811,7 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 		Cvar_Set2( VMAS(1), VMAS(2), qtrue, qtrue );
 		return 0;
 	case CG_CVAR_VARIABLESTRINGBUFFER:
-		Cvar_VariableStringBuffer( VMAS(1), VMAP(2, char, args[3]), args[3], qtrue );
+		CL_CgameCvarStringBuffer( VMAS(1), VMAP(2, char, args[3]), args[3] );
 		return 0;
 	case CG_ARGC:
 		return Cmd_Argc();
