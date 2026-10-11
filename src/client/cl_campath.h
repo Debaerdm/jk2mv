@@ -39,5 +39,9 @@ int CamPath_Insert( camKey_t *keys, int numKeys, int maxKeys, const camKey_t *ke
 void CamPath_AnglesToQuat( const float angles[3], float q[4] );
 void CamPath_QuatToAngles( const float q[4], float angles[3] );
 void CamPath_Slerp( const float from[4], const float to[4], float t, float out[4] );
+// Slerp from a to b the way their signs give, not always the short one (the
+// squad terms are aligned already). Opposite quaternions, where the way
+// isn't defined, give a: never NaN.
+void CamPath_SlerpAligned( const double a[4], const double b[4], double t, double out[4] );
 
 #endif // CL_CAMPATH_H

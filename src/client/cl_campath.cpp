@@ -169,7 +169,7 @@ static double QuatDot( const double a[4], const double b[4] ) {
 }
 
 // slerp without taking the short way: the squad terms are already aligned
-static void QuatSlerpAligned( const double a[4], const double b[4], double t, double out[4] ) {
+void CamPath_SlerpAligned( const double a[4], const double b[4], double t, double out[4] ) {
 	const double cosom = QuatDot( a, b );
 	double s0 = 1.0 - t, s1 = t, len = 0.0;
 
@@ -253,7 +253,7 @@ static void SquadOrientation( const camKey_t *keys, int numKeys, int i, double u
 	double ca[4], cb[4], outer[4], inner[4], q[4];
 	QuatMulExp( qa, toCa, ca );
 	QuatMulExp( qb, toCb, cb );
-	QuatSlerpAligned( qa, qb, u, outer );
+	CamPath_SlerpAligned( qa, qb, u, outer );
 
 	// Inner control points that are nearly opposite make the squad ill
 	// conditioned: a back and forth pan of 180 degrees puts them exactly
@@ -265,8 +265,8 @@ static void SquadOrientation( const camKey_t *keys, int numKeys, int i, double u
 	const double squad = cosInner >= -0.8 ? 1.0 : cosInner <= -0.9 ? 0.0 : ( cosInner + 0.9 ) / 0.1;
 
 	if ( squad > 0.0 ) {
-		QuatSlerpAligned( ca, cb, u, inner );
-		QuatSlerpAligned( outer, inner, 2.0 * u * ( 1.0 - u ) * squad, q );
+		CamPath_SlerpAligned( ca, cb, u, inner );
+		CamPath_SlerpAligned( outer, inner, 2.0 * u * ( 1.0 - u ) * squad, q );
 	} else {
 		memcpy( q, outer, sizeof( q ) );
 	}

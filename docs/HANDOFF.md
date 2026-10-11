@@ -69,8 +69,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - FOV : la glu cgame n'a pas de test ; un mod qui lit son `cg_fovAspectAdjust` par nom ne s'élargit pas.
   - Outils démo :
     - `cam_play` et `photomode` dans la même frame partent d'une vue périmée ;
-    - la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180° ;
-    - le durcissement de `QuatSlerpAligned` n'est pas testé.
+    - la bande où la squad passe au slerp (-0,8 à -0,9) pourrait commencer plus près de 180°.
   - Capture : `tests/video/av_sync.py` ne voit pas un son en avance (comparer à l'amorce de 30,4 ms du Bryar) ; l'attente de ffmpeg ne peut pas être annulée.
   - FE-16 : aucune scène ne dessine une instance dans deux vues de LOD différents, ni un skin partagé par deux modèles.
   - `spawn-windows-handles` : repli silencieux si la liste d'attributs échoue ; un test laisse un dossier temporaire si `CopyFileA` échoue.

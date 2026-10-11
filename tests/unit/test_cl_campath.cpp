@@ -11,6 +11,9 @@
 
 namespace {
 
+// M_PI is POSIX, not C++: MSVC only has it with _USE_MATH_DEFINES
+const double kPi = 3.14159265358979323846;
+
 // the engine's AngleVectors convention, used as the reference
 void Forward( const float angles[3], double f[3] ) {
 	const double d = 3.14159265358979323846 / 180.0;
@@ -113,6 +116,70 @@ TEST(CamPathSlerp, TakesTheShortWay) {
 	CamPath_QuatToAngles( q, angles );
 	const float mid[3] = { 0.0f, 180.0f, 0.0f };
 	ExpectSameOrientation( angles, mid );
+}
+
+bool IsUnitQuat( const double q[4] ) {
+	const double len2 = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
+	return std::isfinite( len2 ) && std::fabs( len2 - 1.0 ) < 1e-9;
+}
+
+// the squad's slerp keeps the long way when its terms say so
+TEST(CamPathSlerpAligned, KeepsTheWayItIsGiven) {
+	// 0 and 270 degrees of yaw about z: half way is 135, not -45
+	const double a[4] = { 0.0, 0.0, 0.0, 1.0 };
+	const double b[4] = { 0.0, 0.0, std::sin( kPi * 0.75 ), std::cos( kPi * 0.75 ) };
+	double q[4];
+	CamPath_SlerpAligned( a, b, 0.5, q );
+	ASSERT_TRUE( IsUnitQuat( q ) );
+	EXPECT_NEAR( 2.0 * std::atan2( q[2], q[3] ), kPi * 0.75, 1e-9 );
+	CamPath_SlerpAligned( a, b, 0.0, q );
+	EXPECT_NEAR( q[3], 1.0, 1e-12 );
+	CamPath_SlerpAligned( a, b, 1.0, q );
+	EXPECT_NEAR( q[2], b[2], 1e-12 );
+	EXPECT_NEAR( q[3], b[3], 1e-12 );
+}
+
+// nearly the same: the normalized lerp, still a unit quaternion
+TEST(CamPathSlerpAligned, NearlyTheSameStaysUnit) {
+	const double a[4] = { 0.0, 0.0, 0.0, 1.0 };
+	const double b[4] = { 0.0, 0.0, std::sin( 1e-4 ), std::cos( 1e-4 ) };
+	double q[4];
+	CamPath_SlerpAligned( a, b, 0.5, q );
+	ASSERT_TRUE( IsUnitQuat( q ) );
+	EXPECT_NEAR( 2.0 * std::atan2( q[2], q[3] ), 1e-4, 1e-9 );
+}
+
+// exactly opposite quaternions (no way between them: the lerp passes
+// through zero and acos gets -1 or a rounding past it) give the start, not
+// NaN; nearly opposite ones give a unit quaternion
+TEST(CamPathSlerpAligned, OppositeQuaternionsGiveNoNaN) {
+	const double a[4] = { 0.6, 0.0, 0.0, 0.8 };
+	const double b[4] = { -0.6, -0.0, -0.0, -0.8 };
+	// normalized in double, with a dot product of 1.0000000000000002 with
+	// itself: the cosine with its opposite rounds past -1
+	const double c[4] = { -0.7204443293288167, 0.06287034235970997, 0.6666942674140616, -0.18034977734045635 };
+	const double past[4] = { -c[0], -c[1], -c[2], -c[3] };
+	const double nearly[4] = { -0.6, 1e-7, 0.0, -0.8 };
+	for ( const double t : { 0.0, 0.25, 0.5, 1.0 } ) {
+		double q[4];
+		CamPath_SlerpAligned( a, b, t, q );
+		for ( int i = 0; i < 4; i++ ) {
+			EXPECT_EQ( q[i], a[i] ) << "t " << t;
+		}
+		CamPath_SlerpAligned( c, past, t, q );
+		for ( int i = 0; i < 4; i++ ) {
+			EXPECT_EQ( q[i], c[i] ) << "t " << t;
+		}
+		CamPath_SlerpAligned( a, nearly, t, q );
+		EXPECT_TRUE( IsUnitQuat( q ) ) << "t " << t;
+	}
+	// and nothing to normalize gives the start too
+	const double zero[4] = { 0.0, 0.0, 0.0, 0.0 };
+	double q[4];
+	CamPath_SlerpAligned( zero, zero, 0.5, q );
+	for ( int i = 0; i < 4; i++ ) {
+		EXPECT_EQ( q[i], 0.0 );
+	}
 }
 
 TEST(CamPathEvaluate, NoKeys) {
