@@ -3871,6 +3871,7 @@ void	R_InitSkins( void ) {
 	skin_t		*skin;
 
 	tr.numSkins = 1;
+	G2_InvalidateModelCaches();	// FE-3: the skin slots are reused
 
 	// make the default skin have all default shaders
 	skin = tr.skins[0] = (struct skin_s *)ri.Hunk_Alloc( sizeof( skin_t ), h_low );

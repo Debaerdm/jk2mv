@@ -129,6 +129,7 @@ public:
 	mdxaBone_v		&bonePtr;
 	int				renderfx;
 	skin_t			*skin;
+	shader_t		**skinShaders;	// FE-3: the shaders of the skin per surface, filled as they are found
 	model_t			*currentModel;
 	int				lod;
 	boltInfo_v		&boltList;
@@ -142,6 +143,7 @@ public:
 	mdxaBone_v		&initbonePtr,
 	int				initrenderfx,
 	skin_t			*initskin,
+	shader_t		**initskinShaders,
 	model_t			*initcurrentModel,
 	int				initlod,
 	boltInfo_v		&initboltList):
@@ -154,6 +156,7 @@ public:
 	bonePtr(initbonePtr),
 	renderfx(initrenderfx),
 	skin(initskin),
+	skinShaders(initskinShaders),
 	currentModel(initcurrentModel),
 	lod(initlod),
 	boltList(initboltList)
@@ -1340,17 +1343,31 @@ void RenderSurfaces(CRenderSurface &RS)
 		}
 		else if ( RS.skin )
 		{
-			int		j;
+			shader_t	**cached = NULL;
 
-			// match the surface name to something in the skin file
-			shader = tr.defaultShader;
-			for ( j = 0 ; j < RS.skin->numSurfaces ; j++ )
+			if ( RS.skinShaders && (unsigned)surface->thisSurfaceIndex < (unsigned)RS.currentModel->mdxm->numSurfaces )
 			{
-				// the names have both been lowercased
-				if ( !strcmp( RS.skin->surfaces[j]->name, surfInfo->name ) )
+				cached = &RS.skinShaders[surface->thisSurfaceIndex];
+			}
+			shader = cached ? *cached : NULL;
+			if ( !shader )
+			{
+				int		j;
+
+				// match the surface name to something in the skin file
+				shader = tr.defaultShader;
+				for ( j = 0 ; j < RS.skin->numSurfaces ; j++ )
 				{
-					shader = RS.skin->surfaces[j]->shader;
-					break;
+					// the names have both been lowercased
+					if ( !strcmp( RS.skin->surfaces[j]->name, surfInfo->name ) )
+					{
+						shader = RS.skin->surfaces[j]->shader;
+						break;
+					}
+				}
+				if ( cached )
+				{
+					*cached = shader;
 				}
 			}
 		}
@@ -1553,10 +1570,11 @@ void G2_ConstructUsedBoneList(CConstructBoneList &CBL)
 	}
 }
 
-// FE-3: the caches keyed by a model pointer hold for one generation of the
-// model slots; R_ModelInit and R_SVModelInit start a new one. No test runs
-// these two calls: the Ghoul2 tests do not link tr_model.cpp, and call
-// G2_InvalidateModelCaches themselves in their place.
+// FE-3: the caches keyed by a model or skin pointer hold for one generation
+// of the model slots and skins; R_ModelInit, R_SVModelInit and R_InitSkins
+// start a new one (R_Init calls R_InitSkins, then R_ModelInit). No test runs
+// these three calls: the Ghoul2 tests do not link tr_model.cpp or
+// tr_image.cpp, and call G2_InvalidateModelCaches themselves in their place.
 static int g2ModelGeneration;
 
 void G2_InvalidateModelCaches( void )
@@ -1614,6 +1632,39 @@ static int *G2_GetUsedBoneList(CGhoul2Info &ghoul2, model_t *currentModel, int n
 
 	return &ghoul2.mBoneUsedCache[0];
 }
+
+#ifndef DEDICATED
+// FE-3: the shader the skin gives each surface of the model, by surface
+// index, for RenderSurfaces: it used to compare the surface name with each
+// name of the skin, on every surface drawn in every frame. An entry is
+// filled the first time the surface is drawn (the first match, or the
+// default shader, as before), so it holds the same pointer the search
+// returns. Skins never change once registered, so the table only depends on
+// the skin and the model; it is cleared when the instance is drawn with
+// another one, and when the model slots and skins are reused.
+static shader_t **G2_GetSkinShaders(CGhoul2Info &ghoul2, const skin_t *skin, const model_t *currentModel)
+{
+	const int numSurfaces = currentModel->mdxm->numSurfaces;
+
+	if (numSurfaces <= 0)
+	{
+		return NULL;
+	}
+
+	if (ghoul2.mSkinShaderGeneration != g2ModelGeneration
+		|| ghoul2.mSkinShaderSkin != skin
+		|| ghoul2.mSkinShaderModel != currentModel
+		|| ghoul2.mSkinShaderCache.size() != (size_t)numSurfaces)
+	{
+		ghoul2.mSkinShaderCache.assign(numSurfaces, NULL);
+		ghoul2.mSkinShaderSkin = skin;
+		ghoul2.mSkinShaderModel = currentModel;
+		ghoul2.mSkinShaderGeneration = g2ModelGeneration;
+	}
+
+	return (shader_t **)&ghoul2.mSkinShaderCache[0];
+}
+#endif
 
 
 // sort all the ghoul models in this list so if they go in reference order. This will ensure the bolt on's are attached to the right place
@@ -1964,7 +2015,8 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 			}
 			else
 			{ // start the walk of the surface hierarchy
-				CRenderSurface RS(ghoul2[i].mSurfaceRoot, ghoul2[i].mSlist, cust_shader, fogNum, personalModel, ghoul2[i].mTempBoneList, ent->e.renderfx, skin, currentModel, whichLod, ghoul2[i].mBltlist);
+				shader_t **skinShaders = skin ? G2_GetSkinShaders(ghoul2[i], skin, currentModel) : NULL;
+				CRenderSurface RS(ghoul2[i].mSurfaceRoot, ghoul2[i].mSlist, cust_shader, fogNum, personalModel, ghoul2[i].mTempBoneList, ent->e.renderfx, skin, skinShaders, currentModel, whichLod, ghoul2[i].mBltlist);
 				RenderSurfaces(RS);
 			}
 

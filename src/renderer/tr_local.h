@@ -1807,8 +1807,9 @@ CRenderableSurface():
 
 void R_AddGhoulSurfaces( trRefEntity_t *ent );
 void RB_SurfaceGhoul( CRenderableSurface *surface );
-// FE-3: drops the Ghoul2 caches keyed by model pointers, when the model
-// slots are about to be reused (R_ModelInit, R_SVModelInit)
+// FE-3: drops the Ghoul2 caches keyed by model or skin pointers, when the
+// model slots and skins are about to be reused (R_ModelInit, R_SVModelInit,
+// R_InitSkins)
 void G2_InvalidateModelCaches( void );
 void R_ResetRenderableSurfaces( void );
 /*

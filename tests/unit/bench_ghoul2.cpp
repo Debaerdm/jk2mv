@@ -11,7 +11,8 @@
 //   skin        the skinning kernels on the surfaces drawn in LOD 0
 //   surface     RB_SurfaceGhoul on the same surfaces (indexes, skinning,
 //               texture coordinates)
-//   frontend    R_AddGhoulSurfaces: skeleton, surface walk, bolts
+//   frontend    R_AddGhoulSurfaces: skeleton, surface walk, bolts; then
+//               with a skin of 28 surfaces on the synthetic character
 //   collision   G2_TransformModel, the collision skinning of the server
 //   multiply    Multiply_3x4Matrix
 //   uncompress  UnCompressBone (MC_UnCompressQuat)
@@ -26,6 +27,8 @@
 #include <chrono>
 #include <stdio.h>
 #include <string.h>
+#include <string>
+#include <vector>
 
 namespace {
 
@@ -88,7 +91,30 @@ int InstanceBones( CGhoul2Info_v &ghoul2 ) {
 	return bones;
 }
 
-void Bench( const char *title, g2handle_t handle ) {
+// A skin for the synthetic character, laid out like a player's
+// model_default.skin: the caps first, then each surface
+qhandle_t CharacterSkin( void ) {
+	static const char *const parts[] = { "hips", "torso", "head", "r_arm", "l_arm", "r_leg", "l_leg" };
+	const int numParts = sizeof( parts ) / sizeof( parts[0] );
+	std::vector<std::string> pairs;
+	for ( int a = 0; a < numParts; a++ ) {
+		for ( int b = 0; b < numParts; b++ ) {
+			if ( a != b && ( a < 3 || b < 3 ) && pairs.size() < 2 * 20 ) {
+				pairs.push_back( std::string( parts[a] ) + "_cap_" + parts[b] + "_off" );
+				pairs.push_back( "models/test/caps" );
+			}
+		}
+	}
+	for ( int a = 0; a < numParts; a++ ) {
+		pairs.push_back( parts[a] );
+		pairs.push_back( std::string( "models/test/" ) + parts[a] );
+	}
+	pairs.push_back( "cloak" );
+	pairs.push_back( "models/test/cloak" );
+	return g2t::RegisterSkin( "models/test/default.skin", pairs );
+}
+
+void Bench( const char *title, g2handle_t handle, qhandle_t skin = 0 ) {
 	CGhoul2Info_v &ghoul2 = *G2API_GetGhoul2Model( handle );
 	const vec3_t angles = { 0, 0, 0 }, origin = { 0, 0, 0 }, scale = { 0, 0, 0 };
 	const int t0 = 20000;
@@ -199,6 +225,23 @@ void Bench( const char *title, g2handle_t handle ) {
 	} );
 	Row( "frontend", "R_AddGhoulSurfaces (with the skeleton)", ns );
 
+	// the same with a skin on model 0, as every player has
+	if ( skin ) {
+		const qhandle_t oldSkin = ghoul2[0].mCustomSkin;
+		ghoul2[0].mCustomSkin = skin;
+		ns = Measure( [&]( int n ) {
+			for ( int i = 0; i < n; i++ ) {
+				tr.refdef.time = t0 + 16 * ( ++frame );
+				restore( frame );
+				R_ResetRenderableSurfaces();
+				g2t::ClearDrawSurfs();
+				R_AddGhoulSurfaces( &ent );
+			}
+		} );
+		ghoul2[0].mCustomSkin = oldSkin;
+		Row( "frontend", "R_AddGhoulSurfaces, skinned", ns );
+	}
+
 	{
 		CMiniHeap heap( 4 * 1024 * 1024 );
 		int collisionVerts = 0;
@@ -296,7 +339,7 @@ int main( int argc, char **argv ) {
 		printf( "could not set up the synthetic character\n" );
 		return 1;
 	}
-	Bench( "synthetic character and prop", character );
+	Bench( "synthetic character and prop", character, CharacterSkin() );
 	G2API_CleanGhoul2Models( &character );
 	printf( "\n" );
 

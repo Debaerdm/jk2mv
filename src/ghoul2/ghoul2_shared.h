@@ -147,6 +147,13 @@ public:
 	const void		*mBoneUsedModel;
 	int				mBoneUsedRoot;
 	int				mBoneUsedGeneration;
+// FE-3: the shader the skin gives each surface of the model (shader_t *,
+// NULL until a frame draws the surface), for the last skin and model drawn,
+// see G2_GetSkinShaders in tr_ghoul2.cpp
+	vector<void *>	mSkinShaderCache;
+	const void		*mSkinShaderSkin;
+	const void		*mSkinShaderModel;
+	int				mSkinShaderGeneration;
 
 	CGhoul2Info():
 	mModelindex(-1),
@@ -166,7 +173,10 @@ public:
 	mSkin(0),
 	mBoneUsedModel(0),
 	mBoneUsedRoot(0),
-	mBoneUsedGeneration(-1)
+	mBoneUsedGeneration(-1),
+	mSkinShaderSkin(0),
+	mSkinShaderModel(0),
+	mSkinShaderGeneration(-1)
 	{
 		mFileName[0] = 0;
 	}

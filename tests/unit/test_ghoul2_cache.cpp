@@ -8,21 +8,27 @@
 //    surface, the model or the model slots change, each one alone, whatever
 //    path builds the skeleton (a bolt, a collision, the renderer);
 //  - each instance keeps its own, copies included;
-//  - a skeleton built with the caches is bit for bit the one built without.
+//  - a skeleton built with the caches is bit for bit the one built without;
+//  - the skin shader table (CGhoul2Info::mSkinShaderCache) holds across
+//    frames and is rebuilt for another skin, the instance's or the entity's,
+//    for another model with the same skin, and for new model slots and
+//    skins; each instance keeps its own.
 //
 // A cache hit is told from a rebuild by a mark: the test writes a value the
-// list never holds (2) into a used entry; a hit keeps it, a rebuild clears it.
+// cache never holds (2 in a used bone list, a shader no skin names in a skin
+// table); a hit keeps it, a rebuild clears it.
 //
-// Not tested here: that R_ModelInit and R_SVModelInit start a new
-// generation. The harness does not link tr_model.cpp (it has its own model
-// registry), so the tests call G2_InvalidateModelCaches where those
-// functions would.
+// Not tested here: that R_ModelInit, R_SVModelInit and R_InitSkins start a
+// new generation. The harness does not link tr_model.cpp or tr_image.cpp
+// (it has its own model and skin registry), so the tests call
+// G2_InvalidateModelCaches where those functions would.
 
 #include <gtest/gtest.h>
 #include "ghoul2_harness.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <string>
 #include <vector>
 
 namespace {
@@ -96,14 +102,17 @@ protected:
 
 	// the one R_AddGhoulSurfaces runs (after a bolt in the same frame, it
 	// reuses that skeleton)
-	static void Render( g2handle_t h, int time ) {
+	static void Render( g2handle_t h, int time, qhandle_t customSkin = 0, bool clear = true ) {
 		tr.refdef.time = time;
-		R_ResetRenderableSurfaces();
-		g2t::ClearDrawSurfs();
+		if ( clear ) {
+			R_ResetRenderableSurfaces();
+			g2t::ClearDrawSurfs();
+		}
 		trRefEntity_t ent;
 		memset( &ent, 0, sizeof( ent ) );
 		ent.e.ghoul2 = h;
 		ent.e.radius = 64.0f;
+		ent.e.customSkin = customSkin;
 		R_AddGhoulSurfaces( &ent );
 		EXPECT_EQ( time, G2( h )[0].mSkelFrameNum );
 	}
@@ -112,6 +121,37 @@ protected:
 	static int Surface( g2handle_t h, size_t i, const char *name ) {
 		int flags = 0;
 		return G2_IsSurfaceLegal( R_GetModelByHandle( RE_RegisterModel( G2( h )[i].mFileName ) ), name, &flags );
+	}
+
+	// The shader of the draw surface of a surface of model i of the
+	// instance, in the last frame drawn
+	static std::string Drawn( g2handle_t h, size_t i, int surface ) {
+		const void *bones = &G2( h )[i].mTempBoneList;
+		for ( size_t d = 0; d < g2t::drawSurfs.size(); d++ ) {
+			const g2t::DrawSurf &ds = g2t::drawSurfs[d];
+			if ( ds.surf->boneList == bones && ds.surf->surfaceData->thisSurfaceIndex == surface ) {
+				return ds.shader ? ds.shader->name : "<none>";
+			}
+		}
+		return "<not drawn>";
+	}
+
+	// The shader the model file gives a surface of model i of the instance,
+	// the one drawn without a skin or a custom shader
+	static std::string ModelShader( g2handle_t h, size_t i, int surface ) {
+		const model_t *mod = R_GetModelByHandle( RE_RegisterModel( G2( h )[i].mFileName ) );
+		const mdxmHierarchyOffsets_t *surfIndexes = (const mdxmHierarchyOffsets_t *)( (const char *)mod->mdxm + sizeof( mdxmHeader_t ) );
+		const mdxmSurfHierarchy_t *surfInfo = (const mdxmSurfHierarchy_t *)( (const char *)surfIndexes + surfIndexes->offsets[surface] );
+		return R_GetShaderByHandle( surfInfo->shaderIndex )->name;
+	}
+
+	static shader_t *Shader( const char *name ) {
+		return R_GetShaderByHandle( g2t::ShaderHandle( name ) );
+	}
+
+	// A skin of surface and shader name pairs
+	static qhandle_t Skin( const char *name, const char *const *pairs, int count ) {
+		return g2t::RegisterSkin( name, std::vector<std::string>( pairs, pairs + count ) );
 	}
 
 	// the one of a collision test (always rebuilt)
@@ -416,9 +456,10 @@ TEST_F( Ghoul2Cache, UsedBonesKeepTheRootBone ) {
 
 // Another model in the slot of a removed one (G2API_InitGhoul2Model takes
 // the first free slot and keeps its root surface): a second file of the
-// same skeleton and surfaces, the surface list empty before and after. Only
-// the model tells the bone list is stale.
-TEST_F( Ghoul2Cache, UsedBonesFollowTheModel ) {
+// same skeleton and surfaces, drawn with the same skin, the surface list
+// empty before and after. Only the model tells the bone list and the skin
+// table are stale.
+TEST_F( Ghoul2Cache, CachesFollowTheModel ) {
 	static const char *const kCopyGLM = "models/test/g2char_copy.glm";
 	g2t::AddFile( kCopyGLM, g2t::BuildCharGLM() );
 	ASSERT_TRUE( g2t::CreateCharacter( &handle ) );
@@ -426,8 +467,13 @@ TEST_F( Ghoul2Cache, UsedBonesFollowTheModel ) {
 	// the prop after it, not bolted to it: the slot of the character stays
 	// in the instance when the character goes
 	ASSERT_EQ( 1, G2API_InitGhoul2Model( &handle, g2t::kPropGLM, 2 ) );
+	static const char *const bluePairs[] = { "torso", "skins/blue_torso", "head", "skins/blue_head" };
+	const qhandle_t blue = Skin( "skins/blue", bluePairs, 4 );
+	const int torso = Surface( handle, 0, "torso" );
+	ASSERT_GE( torso, 0 );
 
-	Render( handle, kT0 );
+	Render( handle, kT0, blue );
+	EXPECT_EQ( "skins/blue_torso", Drawn( handle, 0, torso ) );
 	const std::vector<std::vector<int> > before = Cached( handle );
 	ASSERT_TRUE( G2( handle )[0].mSlist.empty() );
 
@@ -438,11 +484,13 @@ TEST_F( Ghoul2Cache, UsedBonesFollowTheModel ) {
 	ASSERT_TRUE( G2( handle )[0].mSlist.empty() );
 	ASSERT_EQ( 0, G2( handle )[0].mSurfaceRoot );
 	Mark( handle );
-	Render( handle, kT0 + 16 );
+	G2( handle )[0].mSkinShaderCache[torso] = Shader( "test/mark" );
+	Render( handle, kT0 + 16, blue );
 	EXPECT_FALSE( Hit( handle, 0 ) );
 	EXPECT_TRUE( Hit( handle, 1 ) );
 	EXPECT_EQ( before, Cached( handle ) );	// the same bones as the first file
 	EXPECT_EQ( Fresh( handle, kT0 + 16 ), Cached( handle ) );
+	EXPECT_EQ( "skins/blue_torso", Drawn( handle, 0, torso ) );
 }
 
 // Two instances of the same model with different surfaces, built in turn
@@ -588,6 +636,110 @@ TEST_F( Ghoul2Cache, SameBonesWithoutCache ) {
 		g2t::HashBolts( b, G2( handle2 ) );
 		EXPECT_EQ( b.Value(), a.Value() ) << "frame " << k;
 	}
+}
+
+// The skin shader table of an instance: filled by the frames that draw the
+// surfaces, reused by the next ones, rebuilt for another skin (the
+// instance's, the entity's) and for new model slots and skins
+TEST_F( Ghoul2Cache, SkinShadersFollowTheSkin ) {
+	ASSERT_TRUE( g2t::SetupCharacter( &handle, kT0, &bolts ) );
+	static const char *const bluePairs[] = { "torso", "skins/blue_torso", "head", "skins/blue_head" };
+	static const char *const redPairs[] = { "torso", "skins/red_torso" };
+	static const char *const bladePairs[] = { "blade", "skins/blue_blade" };
+	const qhandle_t blue = Skin( "skins/blue", bluePairs, 4 );
+	const qhandle_t red = Skin( "skins/red", redPairs, 2 );
+	const qhandle_t blade = Skin( "skins/blade", bladePairs, 2 );
+	const int torso = Surface( handle, 0, "torso" ), head = Surface( handle, 0, "head" );
+	const int hips = Surface( handle, 0, "hips" ), bladeSurface = Surface( handle, 1, "blade" );
+	ASSERT_GE( torso, 0 );
+	ASSERT_GE( head, 0 );
+	ASSERT_GE( hips, 0 );
+	ASSERT_GE( bladeSurface, 0 );
+	shader_t *const mark = Shader( "test/mark" );
+	std::vector<void *> &table = G2( handle )[0].mSkinShaderCache;
+
+	// no skin, no table: the shaders of the model file
+	Render( handle, kT0 );
+	EXPECT_TRUE( table.empty() );
+	ASSERT_NE( "<default>", ModelShader( handle, 0, torso ) );
+	EXPECT_EQ( ModelShader( handle, 0, torso ), Drawn( handle, 0, torso ) );
+	EXPECT_EQ( ModelShader( handle, 0, hips ), Drawn( handle, 0, hips ) );
+
+	ASSERT_TRUE( G2API_SetSkin( &G2( handle )[0], blue ) );
+	Render( handle, kT0 + 16 );
+	EXPECT_EQ( "skins/blue_torso", Drawn( handle, 0, torso ) );
+	EXPECT_EQ( "skins/blue_head", Drawn( handle, 0, head ) );
+	EXPECT_EQ( "<default>", Drawn( handle, 0, hips ) );
+	ASSERT_GT( table.size(), (size_t)torso );
+	EXPECT_EQ( (void *)Shader( "skins/blue_torso" ), table[torso] );
+	EXPECT_EQ( (void *)tr.defaultShader, table[hips] );
+
+	// reused by the next frame
+	table[torso] = mark;
+	Render( handle, kT0 + 32 );
+	EXPECT_EQ( "test/mark", Drawn( handle, 0, torso ) );
+	EXPECT_EQ( "skins/blue_head", Drawn( handle, 0, head ) );
+
+	// another skin: the table starts again
+	ASSERT_TRUE( G2API_SetSkin( &G2( handle )[0], red ) );
+	Render( handle, kT0 + 48 );
+	EXPECT_EQ( "skins/red_torso", Drawn( handle, 0, torso ) );
+	EXPECT_EQ( "<default>", Drawn( handle, 0, head ) );
+	ASSERT_TRUE( G2API_SetSkin( &G2( handle )[0], blue ) );
+	Render( handle, kT0 + 64 );
+	EXPECT_EQ( "skins/blue_torso", Drawn( handle, 0, torso ) );
+
+	// the entity's skin, for the prop (the character keeps its own)
+	EXPECT_TRUE( G2( handle )[1].mSkinShaderCache.empty() );
+	Render( handle, kT0 + 80, blade );
+	EXPECT_EQ( "skins/blue_blade", Drawn( handle, 1, bladeSurface ) );
+	EXPECT_EQ( "skins/blue_torso", Drawn( handle, 0, torso ) );
+	G2( handle )[1].mSkinShaderCache[bladeSurface] = mark;
+	Render( handle, kT0 + 96, blade );
+	EXPECT_EQ( "test/mark", Drawn( handle, 1, bladeSurface ) );
+	Render( handle, kT0 + 112, red );		// another entity skin
+	EXPECT_EQ( "<default>", Drawn( handle, 1, bladeSurface ) );
+	Render( handle, kT0 + 128, blade );
+	EXPECT_EQ( "skins/blue_blade", Drawn( handle, 1, bladeSurface ) );
+
+	// new model slots and skins (the call R_InitSkins and R_ModelInit make)
+	table[torso] = mark;
+	G2_InvalidateModelCaches();
+	Render( handle, kT0 + 144 );
+	EXPECT_EQ( "skins/blue_torso", Drawn( handle, 0, torso ) );
+}
+
+// Two instances of one model with their own skin, drawn in the same frame
+// in both orders: each keeps its own table
+TEST_F( Ghoul2Cache, SkinShadersPerInstance ) {
+	ASSERT_TRUE( g2t::SetupCharacter( &handle, kT0, &bolts ) );
+	ASSERT_TRUE( g2t::CreateCharacter( &handle2 ) );
+	ASSERT_TRUE( g2t::AnimateCharacter( handle2, kT0 - 270 ) );
+	static const char *const bluePairs[] = { "torso", "skins/blue_torso", "head", "skins/blue_head" };
+	static const char *const redPairs[] = { "torso", "skins/red_torso", "head", "skins/red_head" };
+	ASSERT_TRUE( G2API_SetSkin( &G2( handle )[0], Skin( "skins/blue", bluePairs, 4 ) ) );
+	ASSERT_TRUE( G2API_SetSkin( &G2( handle2 )[0], Skin( "skins/red", redPairs, 4 ) ) );
+	const int torso = Surface( handle, 0, "torso" ), head = Surface( handle, 0, "head" );
+	ASSERT_GE( torso, 0 );
+	ASSERT_GE( head, 0 );
+
+	for ( int k = 0; k < 4; k++ ) {
+		const int t = kT0 + 16 * k;
+		const g2handle_t first = ( k & 1 ) ? handle2 : handle, second = ( k & 1 ) ? handle : handle2;
+		Render( first, t );
+		Render( second, t, 0, false );
+		EXPECT_EQ( "skins/blue_torso", Drawn( handle, 0, torso ) );
+		EXPECT_EQ( "skins/blue_head", Drawn( handle, 0, head ) );
+		EXPECT_EQ( "skins/red_torso", Drawn( handle2, 0, torso ) );
+		EXPECT_EQ( "skins/red_head", Drawn( handle2, 0, head ) );
+	}
+
+	// a mark in the table of the second stays there
+	G2( handle2 )[0].mSkinShaderCache[head] = Shader( "test/mark" );
+	Render( handle2, kT0 + 64 );
+	Render( handle, kT0 + 64, 0, false );
+	EXPECT_EQ( "skins/blue_head", Drawn( handle, 0, head ) );
+	EXPECT_EQ( "test/mark", Drawn( handle2, 0, head ) );
 }
 
 } // namespace
