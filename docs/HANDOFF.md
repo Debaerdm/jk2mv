@@ -1,37 +1,42 @@
-# Passation : l'état après l'intégration du 2026-10-05
+# Passation : l'état après l'intégration du 2026-10-11
 
-Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la machine Windows du propriétaire. Le détail par phase est dans docs/ROADMAP.md (une liste « Avancement » par phase), les cvars et commandes dans CVARS.rst.
+Ce fichier dit où en est `master` et comment continuer sur la machine Windows du propriétaire. Le détail par phase est dans docs/ROADMAP.md (une liste « Avancement » par phase), les cvars et commandes dans CVARS.rst.
 
 ## Où en est la branche
 
-- `integ5` part de `claude/explore-codebase-A8IMd` (0d90b42) et n'a pas été poussée. L'historique est linéaire, sans commit de fusion. Les branches d'origine sont intactes.
-- Les 17 branches du deuxième tour de revue y sont, aucune n'a été écartée :
-  - correctifs de revue : `fix5-testscene`, `fix5-render`, `fix5-dlights`, `fix5-fov`, `fix5-demotools`, `fix5-capture`, `fix5-tools` ;
-  - piste serveur : `sv2-huffman-final` (SV-2), `sv3-snapring-final` (SV-3), `sv7-world` (SV-7), `bm7-serverstats` (BM-7), `sv13-usercmd` (SV-13), `sv11-server-demos` (SV-11) ;
-  - `spawn-windows-handles` (ffmpeg n'hérite plus que de ses handles), `vq7-renderscale` (VQ-7), `ui-presets-menu` (preset dans Setup > Vidéo) et `fe16-ghoul2-tests` (FE-16).
-- Commits ajoutés à l'intégration :
-  - les démos serveur utilisent le test de sortie de l'anneau de SV-3 (`SV_SnapshotEntitiesRolledOff`) ;
-  - la sonde « menu principal » de `smoke_render` suit la taille des captures de `r_renderScale` ;
-  - `test_cl_presets` déclare `r_dlightPriority` et `r_ext_alphaToCoverage` (latched) comme le renderer ;
-  - CVARS.rst et deux commentaires reprennent les notes basses des relectures (formulations seulement).
-- Choix d'intégration : `preset` redémarre le rendu une seule fois, juste avant que la frame suivante soit dessinée (mécanisme de `ui-presets-menu`). Il remplace l'insertion immédiate de `vid_restart` de `fix5-demotools` et garde ce qu'elle visait : ce qui suit un `wait` tourne avec le preset, et une chaîne de presets ne redémarre qu'une fois. En plus, une cvar latched réglée juste après le preset est appliquée avec lui, et Apply Changes dans les menus ne fait qu'un `vid_restart`.
-- Messages de commit retouchés à l'intégration, comme les relectures le demandaient : SV-3 (les deltas trop anciens pour l'anneau du client, ce que 64 veut dire) et FE-16 (quels scénarios ont un condensé `world`).
+- Le travail vit maintenant sur `master`, la branche par défaut : le propriétaire travaille seul et pousse directement sur `master`. `claude/explore-codebase-A8IMd` reste à 2de7198 (la fin de l'intégration du 2026-10-05) comme historique ; on n'y ajoute plus rien. L'historique reste linéaire, sans commit de fusion.
+- Ce tour (2026-10-11) a repris trois branches locales par cherry-pick, dans cet ordre :
+  - `claude/fe3-ghoul2-cache` : les deux premiers caches de FE-3 (liste des os utilisés par instance, shader de chaque surface pour le dernier skin et le dernier modèle) et `bench_ghoul2` sorti des dénormaux ; restent les caches (c), (d) et (e) de ROADMAP.md.
+  - `claude/review-notes-server` : les notes basses de SV-11 (noms de démo refusés, fichier fini net après une erreur d'écriture, chemins longs, `svstoprecord all`, client non pur), SV-3 (snapshot complet quand la base du delta est sortie de l'anneau du client), SV-13, BM-7 et SV-2 (`bench_huffman`) ; restent celles listées plus bas, surtout le démarrage d'une démo dans la frame serveur.
+  - `claude/review-notes-client` : les notes basses côté client (capture sans mémoire, `vid_restart` pendant que le renderer est arrêté, page Advanced, dlights, FOV, outils démo, jk2bench.ps1, spawn, testscene) et deux scènes FE-16 (`OneInstanceTwoViews`, `SharedSkin`) ; restent celles listées plus bas, surtout ce qui demande les assets retail, un GPU ou Windows.
+- Seul conflit : la liste des notes basses de ce fichier, que les deux branches de notes raccourcissaient chacune de son côté ; la liste ci-dessous garde ce que l'une et l'autre laissaient. ROADMAP.md et tests/unit/CMakeLists.txt se sont fusionnés sans conflit.
+- Avant, l'intégration du 2026-10-05 (`integ5`, de 0d90b42 à 2de7198) :
+  - les 17 branches du deuxième tour de revue : correctifs de revue (`fix5-testscene`, `fix5-render`, `fix5-dlights`, `fix5-fov`, `fix5-demotools`, `fix5-capture`, `fix5-tools`), piste serveur (`sv2-huffman-final`, `sv3-snapring-final`, `sv7-world`, `bm7-serverstats`, `sv13-usercmd`, `sv11-server-demos`), `spawn-windows-handles`, `vq7-renderscale`, `ui-presets-menu` et `fe16-ghoul2-tests` ;
+  - commits ajoutés à l'intégration : les démos serveur utilisent le test de sortie de l'anneau de SV-3 (`SV_SnapshotEntitiesRolledOff`), la sonde « menu principal » de `smoke_render` suit la taille des captures de `r_renderScale`, `test_cl_presets` déclare `r_dlightPriority` et `r_ext_alphaToCoverage` (latched) comme le renderer, et CVARS.rst et deux commentaires reprennent des notes basses des relectures ;
+  - choix d'intégration : `preset` redémarre le rendu une seule fois, juste avant que la frame suivante soit dessinée (mécanisme de `ui-presets-menu`). Ce qui suit un `wait` tourne avec le preset, une chaîne de presets ne redémarre qu'une fois, une cvar latched réglée juste après le preset est appliquée avec lui, et Apply Changes dans les menus ne fait qu'un `vid_restart`.
 
 ## Ce qui a été vérifié
 
-- **Build propre** (Ninja, MSVC 2022 x64 Release) : aucun nouvel avertissement. Restent les C4311/C4312 de src/mvsdk/tools/rcc et l'avertissement de q3lcc sur src/mvsdk/code/ui/ui_main.c:7793, tous deux dans mvsdk.
-- **Tests unitaires** : 778, tous verts. Les 3 tests Ghoul2 sur Kyle sont sautés sans assets ; avec `JK2MV_TEST_BASE` qui pointe sur un base\ retail, `test_ghoul2` passe 22/22.
-- **Tests de fumée** `smoke_render` et `smoke_client` : verts contre le build Windows (vraies fenêtres et OpenGL du GPU, voir plus bas). Ils n'ont pas tourné sous Linux ni dans la CI.
-- **En jeu** (assets retail 1.04, binaires de `integ5`) :
-  - une démo rejouée en timedemo avec `preset classic` donne la même vue 3D au pixel près que les binaires de la base ; seules les jauges animées du HUD changent, autant qu'entre deux lancements du même binaire ;
-  - `preset enhanced`, puis `preset ultra` avec `r_renderScale 1.5` (rendu en 960x720 avec MSAA 8x, HDR et bloom, affiché en 640x480) ;
-  - un script en partie live : `preset ultra` suivi de `seta r_ext_multisample 2` donne un seul redémarrage en MSAA 2x, et `preset enhanced; preset ultra` un seul aussi ;
-  - menus : Setup > Vidéo affiche Classic, on choisit Ultra, Apply Changes, et le popup Yes donne `cl_preset ultra` avec un seul `vid_restart` ; la page Advanced montre ensuite MSAA 8x, post-processing, HDR et bloom ;
-  - outils démo : chemin de caméra de 5 clés (`cam_load`, `cam_play`, ralenti), `photomode`, `demo_freecam`, et `video` (150 images à 30 fps) ;
-  - `tests/video/av_sync.py` : le son de chaque tir démarre 30,4 ms après le début de l'image du tir, à 125 comme à 20 fps (l'amorce du MP3 du Bryar) ;
-  - serveur dédié, ffa_bespin à `sv_fps 40` avec 31 bots et un client : `serverstats`, `sv_statsLog 1`, `svrecord all`, `map_restart 0`, changement de carte, `clientstats`, environ 3 minutes. Moyenne 6,2 à 6,8 ms par frame, p99 de 29 à 32 % du budget, aucun snapshot de repli ;
-  - deux de ces démos serveur (celle d'un bot, et celle du client, qui traverse le `map_restart`) se rejouent jusqu'au bout sur le client intégré et sur celui de la base, avec les mêmes nombres de frames ;
-  - compatibilité : le client de la base sur le serveur intégré (connexion, changement de carte), et le client intégré sur le serveur de la base (entrée en jeu, `map_restart`, changement de carte).
+- **Ce tour, sous Linux** (Ubuntu 24.04, GCC 13.3, Ninja Release, `-DBuildTests=ON -DSmokeTests=ON -DUseInternalMiniZip=ON`, Mesa llvmpipe et SDL offscreen) :
+  - le build complet passe ; aucun avertissement de GCC ne tombe sur une ligne changée par ce tour (ceux qui restent sont dans du code plus ancien et dans mvsdk) ;
+  - ctest : 795 tests, 792 passent et 3 sont sautés (les tests Kyle, sans `assets0.pk3`). Le compte comprend les trois tests de fumée (`smoke_server`, `smoke_client`, `smoke_render`), `test_ghoul2_cache` (8) et les passes `--quick` de `bench_ghoul2` et `bench_huffman` ;
+  - les 21 tests FE-16 sur les modèles synthétiques, dont `OneInstanceTwoViews` et `SharedSkin`, passent avec les caches de FE-3 sans changer une valeur ;
+  - `tools_jk2bench` n'est pas dans ce compte : CMake ne le crée que là où il trouve `pwsh`, absent de cette machine.
+- **Pas vérifié pour ce tour :** rien n'a été compilé sous MSVC ni sous macOS, la CI n'a pas tourné, et rien n'a tourné en jeu ni sur les assets retail (les 3 tests Kyle compris). À faire d'abord sur la machine Windows : build.ps1, ctest avec `JK2MV_TEST_BASE` (les tests Kyle doivent passer avec les caches de FE-3), puis un tour en jeu.
+- **Sur `integ5`** (2026-10-05, Windows, avant ce tour) :
+  - **Build propre** (Ninja, MSVC 2022 x64 Release) : aucun nouvel avertissement. Restent les C4311/C4312 de src/mvsdk/tools/rcc et l'avertissement de q3lcc sur src/mvsdk/code/ui/ui_main.c:7793, tous deux dans mvsdk.
+  - **Tests unitaires** : 778, tous verts. Les 3 tests Ghoul2 sur Kyle sont sautés sans assets ; avec `JK2MV_TEST_BASE` qui pointe sur un base\ retail, `test_ghoul2` passait 22/22 (24 tests depuis ce tour).
+  - **Tests de fumée** `smoke_render` et `smoke_client` : verts contre le build Windows (vraies fenêtres et OpenGL du GPU, voir plus bas).
+  - **En jeu** (assets retail 1.04, binaires de `integ5`) :
+    - une démo rejouée en timedemo avec `preset classic` donne la même vue 3D au pixel près que les binaires de la base ; seules les jauges animées du HUD changent, autant qu'entre deux lancements du même binaire ;
+    - `preset enhanced`, puis `preset ultra` avec `r_renderScale 1.5` (rendu en 960x720 avec MSAA 8x, HDR et bloom, affiché en 640x480) ;
+    - un script en partie live : `preset ultra` suivi de `seta r_ext_multisample 2` donne un seul redémarrage en MSAA 2x, et `preset enhanced; preset ultra` un seul aussi ;
+    - menus : Setup > Vidéo affiche Classic, on choisit Ultra, Apply Changes, et le popup Yes donne `cl_preset ultra` avec un seul `vid_restart` ; la page Advanced montre ensuite MSAA 8x, post-processing, HDR et bloom ;
+    - outils démo : chemin de caméra de 5 clés (`cam_load`, `cam_play`, ralenti), `photomode`, `demo_freecam`, et `video` (150 images à 30 fps) ;
+    - `tests/video/av_sync.py` : le son de chaque tir démarre 30,4 ms après le début de l'image du tir, à 125 comme à 20 fps (l'amorce du MP3 du Bryar) ;
+    - serveur dédié, ffa_bespin à `sv_fps 40` avec 31 bots et un client : `serverstats`, `sv_statsLog 1`, `svrecord all`, `map_restart 0`, changement de carte, `clientstats`, environ 3 minutes. Moyenne 6,2 à 6,8 ms par frame, p99 de 29 à 32 % du budget, aucun snapshot de repli ;
+    - deux de ces démos serveur (celle d'un bot, et celle du client, qui traverse le `map_restart`) se rejouent jusqu'au bout sur le client intégré et sur celui de la base, avec les mêmes nombres de frames ;
+    - compatibilité : le client de la base sur le serveur intégré (connexion, changement de carte), et le client intégré sur le serveur de la base (entrée en jeu, `map_restart`, changement de carte).
 
 ## Ce qui reste
 
@@ -39,10 +44,10 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
   - BM-3 et BM-4 (baseline et images de référence sur ta machine), dont dépendent les critères chiffrés ;
   - le glow dans les vues miroir et portail (VQ-3), le readback PBO et libjpeg-turbo (PX-12), un test scripté des refus hors démo (critère 2 de la phase 2) ;
   - VQ-11 ;
-  - FE-3, FE-4, FE-5, RB-4/RB-3 et RB-5 ;
+  - le reste de FE-3 (caches (c), (d) et (e)), FE-4, FE-5, RB-4/RB-3 et RB-5 ;
   - BM-8/9, SV-5, SV-14b et BM-13/14.
-- **Protocole 1.05 :** la conception (docs/PROTOCOL-1.05.md) attend toujours les réponses du propriétaire à ses 5 questions ouvertes avant toute implémentation.
-- **CI :** `build.yml` et `tests.yml` (workflow_dispatch) n'ont pas tourné sur ce code. Les valeurs de référence de FE-16 sous Linux GCC, macOS arm64 et v141_xp, et les seuils de `smoke_render` sous llvmpipe, n'ont été vus que sous Windows.
+- **Protocole 1.05 :** le propriétaire a tranché les 5 questions ouvertes de docs/PROTOCOL-1.05.md : on relève toutes les limites, et un serveur 1.05 refuse les clients 1.02-1.04. Ses décisions sont écrites au §7 de PROTOCOL-1.05.md sur la branche `claude/protocol-105-step1`, pas encore intégrée, où l'étape 1 (le moteur lit les limites du protocole courant à l'exécution, sans changer le comportement) est en cours. Sur `master`, PROTOCOL-1.05.md s'arrête encore aux questions ouvertes (§6).
+- **CI et autres plateformes :** `build.yml` et `tests.yml` n'ont pas tourné sur ce code ; ils partent seuls à chaque push sur `master` (et à la main par workflow_dispatch), le premier push les lancera donc. Les valeurs de référence de FE-16 n'ont été vues nulle part sous macOS arm64 ni v141_xp ; sous Linux GCC x86-64, elles tiennent et les seuils de `smoke_render` passent sous llvmpipe (hors CI). Les sept valeurs des deux nouvelles scènes (`views/…`, `sharedskin/…`) ont été relevées sous Linux GCC et n'ont pas tourné sous MSVC. Rien de ce tour n'a été compilé sous MSVC ni sous macOS.
 - **Notes basses des relectures, non traitées** (tout le reste est intégré) :
   - SV-11 :
     - le démarrage d'une démo (ouverture du fichier, gamestate, messages console) se fait encore dans la frame serveur, et `svrecord all` ouvre tous les fichiers dans la même commande ; seule l'écriture passe par le thread. Le sortir de la frame demande de copier le gamestate et les commandes fiables du client pour le thread : pas fait dans les correctifs de relecture ;
@@ -75,8 +80,9 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
 ## Construire et tester sur cette machine
 
 - **Arbres de travail :** un par chantier, sous D:\jk2mv-wt, avec des chemins sans espaces (q3lcc et q3asm échouent sur les espaces). Le dépôt D:\Mathieu\Disque D\LucasArts\jk2mv a des espaces : on n'y construit pas.
-  - `git -C "D:\Mathieu\Disque D\LucasArts\jk2mv" worktree add D:\jk2mv-wt\<nom> -b <branche> claude/explore-codebase-A8IMd`
+  - `git -C "D:\Mathieu\Disque D\LucasArts\jk2mv" fetch`, puis `git -C "D:\Mathieu\Disque D\LucasArts\jk2mv" worktree add D:\jk2mv-wt\<nom> -b <branche> origin/master`
   - `git -C D:\jk2mv-wt\<nom> submodule update --init` ; ne jamais modifier src/mvsdk (sous-module amont).
+  - Un chantier fini revient sur `master` sans commit de fusion (rebase sur `origin/master` puis avance rapide, ou cherry-pick), et `master` est poussée telle quelle.
 - **Scripts :** build.ps1 et run.ps1 sont dans D:\jk2mv-wt\tools (ci-dessous `<rt>`), hors du dépôt car propres à cette machine. run.ps1 lance par défaut les binaires de D:\jk2mv-wt\integ\build-nj\out\Release et crée au besoin, dans le base\ du dossier `-BasePath` (par défaut celui des binaires), des liens durs vers les quatre pk3 retail (lecture seule). Les dossiers D:\jk2mv-wt\integ-logs (scripts des relectures et de l'intégration) et le scratchpad de la session d'origine sous %TEMP% sont temporaires : ce qui compte est recopié ici ou dans D:\jk2mv-wt\tools.
 - **Build :** `powershell -NoProfile -File <rt>\build.ps1 -Src D:\jk2mv-wt\<nom> [-Targets jk2mvded,jk2mvmp] [-Jobs 4] [-Clean]`. Ninja, MSVC 2022 x64 Release, CRT statique, tests compris. Les binaires sortent dans `build-nj\out\Release`, assetsmv*.pk3 dans son base\. Un build complet prend environ 90 s à -Jobs 4.
 - **Tests unitaires :** `ctest --test-dir D:\jk2mv-wt\<nom>\build-nj\tests -j 4` (le ctest de VS 2022 BuildTools). Pour les tests Kyle : `JK2MV_TEST_BASE=<dossier base\ retail>`. `bench_ghoul2` et `bench_huffman` se lancent à la main pour les mesures ; ctest ne les fait tourner que brièvement (`--quick`).
@@ -91,7 +97,7 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
 - **Menus :** `+set developer 1` puis `ui_openmenu setup_menu` ouvre Setup. Pour cliquer sans souris, les relectures et l'intégration ont utilisé un build de test, jamais commité, avec une commande `uiclick <x> <y> [cfg]` (coordonnées 640x480). Elle met un mouvement de souris et un clic dans la file d'événements par `Sys_QueEvent`, et lance `cfg` deux frames plus tard, après les commandes que le menu a ajoutées (`preset pending`, `vid_restart`).
 - **Tests de fumée sous Windows :** D:\jk2mv-wt\integ-logs\smoke\render_win.py et client_win.py (copies des scripts d'un relecteur) lancent `tests/smoke/render_smoke.py` et `client_smoke.py` avec de vraies fenêtres et l'OpenGL du GPU, et lisent qconsole.log. Arguments : `render_win.py <tests\smoke> <jk2mvmp.exe> <build-nj\out\Release> <dossier de travail>` et `client_win.py <jk2mvmp.exe> <build-nj\out\Release> <dossier de travail> <tests\smoke>`. Une vingtaine de petites fenêtres s'ouvrent pendant environ 30 s.
 - **Serveur avec clients :** D:\jk2mv-wt\integ-logs\orch.ps1 (31 bots, client intégré puis client de la base) et orch3.ps1 (serveur de la base, client intégré) attendent les marqueurs `echo PHASE_...` du journal du serveur pour lancer les clients. Les `wait` du serveur comptent les frames, qui accélèrent quand un client envoie des paquets.
-- **Ailleurs :** sous Windows sans ces scripts, CMake + Visual Studio 2022 (`cmake -B build -A x64`, `-DBuildTests=ON`) et les pk3 retail dans `base\` à côté de `jk2mvmp.exe`. Les tests de fumée Linux : `-DBuildTests=ON -DSmokeTests=ON`, puis `ctest -L smoke` (Python 3, Mesa llvmpipe, SDL offscreen ; WSL convient). La CI GitHub se lance à la main sur la branche.
+- **Ailleurs :** sous Windows sans ces scripts, CMake + Visual Studio 2022 (`cmake -B build -A x64`, `-DBuildTests=ON`) et les pk3 retail dans `base\` à côté de `jk2mvmp.exe`. Sous Linux (vu avec Ubuntu 24.04 et GCC 13) : `cmake -S . -B <build> -G Ninja -DCMAKE_BUILD_TYPE=Release -DBuildTests=ON -DSmokeTests=ON -DUseInternalMiniZip=ON`, `cmake --build <build>`, puis `ctest --test-dir <build>/tests -j3 --output-on-failure` (environ 40 s, fumée comprise ; `-LE smoke` pour les seuls tests unitaires, `-L smoke` pour la fumée). La fumée demande Python 3, Mesa llvmpipe et SDL offscreen ; WSL convient. La CI GitHub part à chaque push sur `master`, ou à la main.
 
 ## À essayer en jeu
 
