@@ -45,12 +45,12 @@ Ce fichier dit où en est la branche locale `integ5` et comment continuer sur la
 - **CI :** `build.yml` et `tests.yml` (workflow_dispatch) n'ont pas tourné sur ce code. Les valeurs de référence de FE-16 sous Linux GCC, macOS arm64 et v141_xp, et les seuils de `smoke_render` sous llvmpipe, n'ont été vus que sous Windows.
 - **Notes basses des relectures, non traitées** (tout le reste est intégré) :
   - SV-11 :
-    - le démarrage d'une démo (ouverture du fichier, gamestate, messages console) se fait encore dans la frame serveur, et `svrecord all` démarre tous les clients dans la même commande ; seule l'écriture des snapshots passe par le thread ;
-    - deux mutants survivent aux tests (M9, W3).
+    - le démarrage d'une démo (ouverture du fichier, gamestate, messages console) se fait encore dans la frame serveur, et `svrecord all` ouvre tous les fichiers dans la même commande ; seule l'écriture passe par le thread. Le sortir de la frame demande de copier le gamestate et les commandes fiables du client pour le thread : pas fait dans les correctifs de relecture ;
+    - deux mutants survivaient aux tests (M9, W3) : leur liste n'est pas dans le dépôt, on ne sait pas lesquels c'étaient. Les tests ajoutés depuis (noms de périphériques, fichier coupé après une erreur, chemins longs, `svstoprecord all`, client non pur) les ont peut-être tués ; le départ d'un bloc à la seconde (`DEMOFILE_DELAY`) reste sans test.
   - SV-3 : les tests ne compilent pas la glu moteur qui appelle `sv_snapshot_ring.h` (`SV_WriteSnapshotToClient`) ; `SV_DeltaBaseBeyondClientRing` est testé contre un modèle de l'anneau du client.
   - SV-13 :
-    - le message développeur des réponses `disconnect` perdues ;
-    - pas de seau global contre une inondation à sources usurpées ;
+    - le message développeur des réponses `disconnect` perdues (même forme que ceux des paquets hors connexion) ;
+    - pas de seau global contre une inondation à sources usurpées : la réponse (14 octets de données) n'amplifie guère le paquet qui la provoque et chaque adresse reste à 10 par seconde, et un seau global laisserait une inondation priver de leur `disconnect` les vrais clients d'un serveur qui redémarre ;
     - la glu moteur n'a pas de test.
   - SV-2 : SV-8 devra traiter les globales de msg.cpp.
   - VQ-7 :
