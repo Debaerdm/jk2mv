@@ -171,9 +171,24 @@ view, and shows that view as it is (view weapon, no body) until it leaves
 it: see CL_DemoCamDetach.
 ==================
 */
+// the camera path's view at the current time in dt.origin, dt.angles and
+// dt.fov; its speed is the caller's business
+static qboolean CL_DemoCamPathView( camView_t *view ) {
+	if ( !CamPath_Evaluate( dt.keys, dt.numKeys, (double)cl.serverTime, view ) ) {
+		return qfalse;
+	}
+	VectorCopy( view->origin, dt.origin );
+	VectorCopy( view->angles, dt.angles );
+	dt.fov = view->fov;
+	return qtrue;
+}
+
 static void CL_DemoCamStart( void ) {
-	// dt.origin, dt.angles and dt.fov hold a playing path's view
-	dt.detached = (qboolean)( dt.playing && dt.numKeys > 0 );
+	camView_t	view;
+
+	// dt.origin, dt.angles and dt.fov hold a playing path's view, once a
+	// frame followed it: not yet after a cam_play in the same frame
+	dt.detached = (qboolean)( dt.playing && dt.numKeys > 0 && CL_DemoCamPathView( &view ) );
 	dt.freecamPending = (qboolean)!dt.detached;
 	dt.freecam = qtrue;
 	dt.playing = qfalse;
@@ -506,10 +521,7 @@ void CL_DemoToolsFrame( void ) {
 	if ( dt.playing && dt.numKeys > 0 ) {
 		camView_t view;
 
-		if ( CamPath_Evaluate( dt.keys, dt.numKeys, (double)cl.serverTime, &view ) ) {
-			VectorCopy( view.origin, dt.origin );
-			VectorCopy( view.angles, dt.angles );
-			dt.fov = view.fov;
+		if ( CL_DemoCamPathView( &view ) ) {
 			// speed ramps, unless paused by hand
 			const float scale = Com_Clamp( 0.05f, 16.0f, view.timescale );
 			if ( CL_Timescale() > 0.0f && fabsf( scale - CL_Timescale() ) > 0.001f ) {
