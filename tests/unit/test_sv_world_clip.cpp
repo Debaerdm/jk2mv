@@ -476,4 +476,43 @@ TEST(SvWorldClip, HitsASaberMovedWithoutARelink) {
 	EXPECT_EQ( g_printed, "" );
 }
 
+
+// ===========================================================================
+// the entity numbers the game modules of protocols 15 and 16 use with
+// SV_Trace: ENTITYNUM_NONE 1023 and ENTITYNUM_WORLD 1022 (literals on purpose,
+// see docs/PROTOCOL-1.05.md, step 1)
+
+TEST(SvWorldClip, LegacySentinels) {
+	LoadMap( FloorWorld() );
+	const vec3_t mins = { -16, -16, -16 }, maxs = { 16, 16, 16 };
+	trace_t t;
+
+	// nothing hit: 1023; the floor: 1022
+	const vec3_t high = { 0, 0, 512 }, higher = { 0, 0, 1024 }, below = { 0, 0, -32 };
+	SV_Trace( &t, high, vec3_origin, vec3_origin, higher, 1023, MASK_SOLID, qfalse, 0, 0 );
+	EXPECT_EQ( t.fraction, 1.0f );
+	EXPECT_EQ( t.entityNum, 1023 );
+	SV_Trace( &t, high, vec3_origin, vec3_origin, below, 1023, MASK_SOLID, qfalse, 0, 0 );
+	EXPECT_LT( t.fraction, 1.0f );
+	EXPECT_EQ( t.entityNum, 1022 );
+
+	// passEntityNum 1023 is no pass entity: an entity without owner (1023) is hit
+	BoxEntity( 5, 200, 0, 64, mins, maxs, CONTENTS_BODY );
+	const vec3_t start = { 0, 0, 64 }, end = { 400, 0, 64 };
+	SV_Trace( &t, start, vec3_origin, vec3_origin, end, 1023, MASK_PLAYERSOLID, qfalse, 0, 0 );
+	EXPECT_EQ( t.entityNum, 5 );
+
+	// a pass entity without owner (1023) that doesn't share its owner: entity 5,
+	// also without owner, is not one of "its owner's missiles"
+	sharedEntity_t *pass = BoxEntity( 7, -200, 0, 64, mins, maxs, CONTENTS_BODY );
+	pass->r.svFlags |= SVF_OWNERNOTSHARED;
+	SV_Trace( &t, start, vec3_origin, vec3_origin, end, 7, MASK_PLAYERSOLID, qfalse, 0, 0 );
+	EXPECT_EQ( t.entityNum, 5 );
+
+	// a real pass entity: itself and what it owns are skipped
+	g_ents[5].r.ownerNum = 7;
+	SV_Trace( &t, start, vec3_origin, vec3_origin, end, 7, MASK_PLAYERSOLID, qfalse, 0, 0 );
+	EXPECT_EQ( t.entityNum, 1023 );
+	EXPECT_EQ( g_printed, "" );
+}
 } // namespace

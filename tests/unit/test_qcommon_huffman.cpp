@@ -1657,6 +1657,51 @@ TEST(HuffmanMessages, RealDeltasRoundTrip) {
 	}
 }
 
+// the entity numbers of protocols 15 and 16: 0 to 1023 on 10 bits, and a
+// removed entity reads back as number 1023 (literals on purpose, see
+// docs/PROTOCOL-1.05.md, step 1)
+TEST(HuffmanMessages, LegacyEntityNumbers) {
+	static byte buffer[MAX_MSGLEN];
+	const mvversion_t versions[] = { VERSION_1_02, VERSION_1_04 };
+
+	for ( size_t v = 0; v < ARRAY_LEN( versions ); v++ ) {
+		entityState_t from, to, got;
+		msg_t msg;
+
+		stubGameVersion = versions[v];
+		memset( &from, 0, sizeof( from ) );
+		to = from;
+		to.pos.trBase[0] = 32.0f;
+
+		// the last number goes through, both ways
+		to.number = 1023;
+		MSG_Init( &msg, buffer, sizeof( buffer ) );
+		MSG_WriteDeltaEntity( &msg, &from, &to, qtrue );
+		MSG_BeginReading( &msg );
+		ASSERT_EQ( 1023, MSG_ReadBits( &msg, 10 ) );
+		MSG_ReadDeltaEntity( &msg, &from, &got, 1023 );
+		EXPECT_EQ( 0, memcmp( &to, &got, sizeof( to ) ) );
+
+		// the next one is refused, both ways
+		to.number = 1024;
+		EXPECT_THROW( MSG_WriteDeltaEntity( &msg, &from, &to, qtrue ), std::runtime_error );
+		to.number = -1;
+		EXPECT_THROW( MSG_WriteDeltaEntity( &msg, &from, &to, qtrue ), std::runtime_error );
+		EXPECT_THROW( MSG_ReadDeltaEntity( &msg, &from, &got, 1024 ), std::runtime_error );
+		EXPECT_THROW( MSG_ReadDeltaEntity( &msg, &from, &got, -1 ), std::runtime_error );
+
+		// a removed entity
+		from.number = 7;
+		MSG_Init( &msg, buffer, sizeof( buffer ) );
+		MSG_WriteDeltaEntity( &msg, &from, NULL, qtrue );
+		MSG_BeginReading( &msg );
+		ASSERT_EQ( 7, MSG_ReadBits( &msg, 10 ) );
+		MSG_ReadDeltaEntity( &msg, &from, &got, 7 );
+		EXPECT_EQ( 1023, got.number );
+	}
+	stubGameVersion = VERSION_1_04;
+}
+
 // ==============================================================================
 // Adaptive Huffman (the connect packet): unchanged, without the shared bit
 // position, but for the bytes the old code took from the stack: the padding

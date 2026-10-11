@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -1280,4 +1281,46 @@ TEST_F( SvDemo, AutoRecordStartsOncePerMap ) {
 	Join( 0, "Newcomer", false );
 	Snapshot( human, 50, { Ent( 40, 1 ) } );
 	EXPECT_TRUE( IsOpen( "demos/20261004-171530_ffa_test_0_Newcomer.dm_16" ) );
+}
+
+// ===========================================================================
+// the bytes of a .dm_15 and a .dm_16, recorded before the runtime limits of
+// docs/PROTOCOL-1.05.md (step 1): baselines up to the last entity number, a
+// removed entity, the end of the entities. They must never change.
+// ===========================================================================
+
+static uint64_t Fnv1a64( const std::vector<unsigned char> &f ) {
+	uint64_t	h = 0xcbf29ce484222325ull;
+
+	for ( size_t i = 0; i < f.size(); i++ ) {
+		h = ( h ^ f[i] ) * 0x100000001b3ull;
+	}
+	return h;
+}
+
+static uint64_t RecordedDemoHash( mvversion_t version, const char *file ) {
+	gameVersion = version;
+	sv.svEntities[1022].baseline = Ent( 1022, 4 );
+	sv.svEntities[1023].baseline = Ent( 1023, 8 );
+	client_t *cl = Join( 0, "Padawan", false );
+	entityState_t ghoul2 = Ent( 1021, 4, 2 );
+	ghoul2.modelGhoul2 = 3;		// 4 bits in protocol 15, 5 in 16
+
+	Command( "svrecord 0 golden" );
+	Snapshot( cl, 50, { Ent( 40, 64 ), Ent( 41, 130 ), ghoul2 } );
+	AddCommand( cl, "print \"hello\n\"" );
+	Snapshot( cl, 50, { Ent( 40, 65 ), Ent( 300, -500, 250, 3 ), Ent( 1021, 5 ) } );		// 41 removed
+	Snapshot( cl, 50, { Ent( 40, 65 ), Ent( 300, -500, 250 ), Ent( 1021, 5 ) } );
+	Command( "svstoprecord 0" );
+
+	Demo demo = ReadDemo( File( file ) );
+	EXPECT_EQ( demo.baselines.size(), 5u );
+	EXPECT_EQ( demo.snaps.size(), 3u );
+	return Fnv1a64( File( file ) );
+}
+
+TEST_F( SvDemo, LegacyDemoBytesNeverChange ) {
+	EXPECT_EQ( RecordedDemoHash( VERSION_1_04, "demos/golden.dm_16" ), 0xc97c9c521ebe6dc9ull );
+	ResetServer();
+	EXPECT_EQ( RecordedDemoHash( VERSION_1_02, "demos/golden.dm_15" ), 0x68411deb7421ffafull );
 }
