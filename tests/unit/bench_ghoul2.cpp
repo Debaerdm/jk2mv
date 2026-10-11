@@ -112,10 +112,28 @@ void Bench( const char *title, g2handle_t handle ) {
 	printf( "%s: %d model%s, %d bones, %d surfaces drawn, %d vertexes in LOD 0\n",
 		title, (int)ghoul2.size(), ghoul2.size() > 1 ? "s" : "", instanceBones, (int)surfs.size(), verts );
 
+	// Each build scales the matrix of a BONE_ANGLES_REPLACE override a little
+	// (G2_TransformBone multiplies boneInfo_t::newMatrix by matrixScale). The
+	// cgame sets the angles again every frame; these loops do not, so after
+	// some 60000 builds the matrix was denormal and every later row timed
+	// denormal arithmetic. The loops put the overrides back every 1024 builds.
+	std::vector<boneInfo_v> overrides;
+	for ( size_t i = 0; i < ghoul2.size(); i++ ) {
+		overrides.push_back( ghoul2[i].mBlist );
+	}
+	auto restore = [&]( int f ) {
+		if ( !( f & 1023 ) ) {
+			for ( size_t i = 0; i < ghoul2.size(); i++ ) {
+				ghoul2[i].mBlist = overrides[i];
+			}
+		}
+	};
+
 	int frame = 0;
 	double ns = Measure( [&]( int n ) {
 		for ( int i = 0; i < n; i++ ) {
 			tr.refdef.time = t0 + 16 * ( ++frame );
+			restore( frame );
 			G2_ConstructGhoulSkeleton( ghoul2, tr.refdef.time, NULL, true, angles, origin, scale, false );
 		}
 	} );
@@ -129,6 +147,7 @@ void Bench( const char *title, g2handle_t handle ) {
 		mdxaBone_t root = g2t::RotationMatrix( 1.0, 0.0, 0.0, 0.0 );
 		ns = Measure( [&]( int n ) {
 			for ( int i = 0; i < n; i++ ) {
+				restore( frame + 1 );
 				G2_TransformGhoulBones( header, &used[0], ghoul2[0].mBlist, ghoul2[0].mTempBoneList, ghoul2[0].mBltlist,
 										root, ghoul2[0], t0 + 16 * ( ++frame ), numBones );
 			}
@@ -172,6 +191,7 @@ void Bench( const char *title, g2handle_t handle ) {
 	ns = Measure( [&]( int n ) {
 		for ( int i = 0; i < n; i++ ) {
 			tr.refdef.time = t0 + 16 * ( ++frame );
+			restore( frame );
 			R_ResetRenderableSurfaces();
 			g2t::ClearDrawSurfs();
 			R_AddGhoulSurfaces( &ent );
