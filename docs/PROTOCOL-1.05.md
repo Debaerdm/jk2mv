@@ -50,9 +50,10 @@ Une version 1.05 permettrait :
 
 ## 4. Ce qui ne change pas
 
-- La physique (pmove), les armes et la Force : un mod 1.05 reste du JK2.
 - Les cartes et assets existants se chargent tels quels. Les nouvelles cartes peuvent exploiter les limites relevées.
-- Les serveurs et mods 1.02-1.04, et tout ce qui a été fait en phases 0-4.
+- Les serveurs et mods 1.02-1.04, et tout ce qui a été fait en phases 0-4 : leur physique (pmove), leurs armes et leur Force restent celles d'aujourd'hui.
+
+Le gameplay du mode 1.05, lui, peut changer (§7, point 4) : `sv_fps 40` par défaut, correctifs jamais faits par compatibilité. La liste des changements reste à arrêter avec le propriétaire avant l'étape 3.
 
 ## 5. Étapes proposées
 
@@ -80,10 +81,20 @@ Effort estimé :
 - étape 3 : M à L selon l'ampleur du fork ;
 - étapes 4-5 : M.
 
-## 6. Questions ouvertes (à trancher par toi)
+## 6. Questions posées au propriétaire (réponses au §7)
 
 1. **Quelles limites comptent le plus ?** 64 joueurs ? Plus d'entités (cartes) ? Plus de modèles et de sons (contenu) ? On peut tout relever, mais chaque limite a un coût en bande passante et en mémoire. 64 joueurs à sv_fps 40, c'est environ 4 fois le trafic d'aujourd'hui.
 2. **Serveurs 1.05 seulement, ou passerelle ?** Les serveurs 1.05 peuvent refuser les clients 1.02-1.04 (simple). Ils peuvent aussi les accepter en les limitant à 32 joueurs visibles et 1024 entités : beaucoup plus difficile, à n'envisager que si la communauté en a besoin.
 3. **Où vit le fork du mod ?** Un fork de mvsdk sur ton GitHub, en sous-module comme aujourd'hui, ou un dossier dans ce dépôt ?
 4. **Gameplay :** reste-t-il strictement identique (seules les limites changent), ou 1.05 est-il l'occasion de changements (`sv_fps 40` par défaut, correctifs de gameplay jamais faits par compatibilité) ?
 5. **Calendrier :** l'étape 1 est sans risque et prépare tout. Faut-il la lancer dès maintenant, avant que les phases 3-4 soient vérifiées sur ta machine ?
+
+## 7. Décisions (2026-10-11)
+
+Réponses du propriétaire aux questions du §6 :
+
+1. **Limites :** on relève tout (joueurs, entités, modèles et sons, configstrings), pas seulement les joueurs.
+2. **Anciens clients :** un serveur 1.05 refuse les clients 1.02-1.04 avec un message clair. Pas de passerelle.
+3. **Fork du mod :** un fork de mvsdk sur le GitHub du propriétaire, en sous-module comme aujourd'hui.
+4. **Gameplay :** 1.05 peut changer le gameplay (`sv_fps 40` par défaut, correctifs jamais faits par compatibilité). La liste des changements reste à arrêter avec le propriétaire avant l'étape 3.
+5. **Calendrier :** l'étape 1 (limites à l'exécution, comportement inchangé) démarre tout de suite.
